@@ -29,7 +29,7 @@ Este é o **Software Design Document (SDD)** — especificação técnica execut
 
 ## 🗺️ Navegação
 
-### Core Documents (em ordem de leitura)
+### Documentos Raiz (em ordem de leitura)
 
 1. **[SPEC.md](SPEC.md)** — Especificação técnica completa (⭐ comece aqui)
    - Arquitetura geral
@@ -38,25 +38,25 @@ Este é o **Software Design Document (SDD)** — especificação técnica execut
    - Fluxos de dados e sequências
    - Padrões de design
 
-2. **ARCHITECTURE.md** *(em breve)* — Diagrama de arquitetura profundo
-   - Camadas (domain, application, infrastructure)
-   - Dependências entre módulos
-   - Runtime topology
+2. **[SPEC_TEMPLATE.md](SPEC_TEMPLATE.md)** — Template para novas SPECs incrementais
+   - Use ao criar SPEC_002, SPEC_003...
+   - Copie para `SPEC_NNN_TITULO/SPEC.md` e preencha
 
-3. **DATA_MODELS.md** *(em breve)* — Esquema de dados
-   - Estruturas de Signal, Trade, Position
-   - MongoDB collections e indexes
-   - Serialização
+3. **ARCHITECTURE.md** *(em breve)* — Diagrama de arquitetura profundo
 
-4. **ERROR_HANDLING.md** *(em breve)* — Estratégia de falhas
-   - Erros recuperáveis vs. fatais
-   - Retry logic, circuit breakers
-   - Logging estruturado
+4. **DATA_MODELS.md** *(em breve)* — Esquema de dados
 
-5. **SECURITY_DESIGN.md** *(em breve)* — Design de segurança
-   - Gerenciamento de secrets
-   - Acesso e permissões
-   - Auditoria
+5. **ERROR_HANDLING.md** *(em breve)* — Estratégia de falhas
+
+6. **SECURITY_DESIGN.md** *(em breve)* — Design de segurança
+
+### SPECs Incrementais
+
+Cada SPEC incremental vive em seu próprio diretório:
+
+| Diretório | ID | Título | Status |
+|---|---|---|---|
+| [SPEC_001_AJUSTE_PRD_CONFORMIDADE_SDD/](SPEC_001_AJUSTE_PRD_CONFORMIDADE_SDD/SPEC.md) | SPEC_001 | Ajuste do PRD para Conformidade SDD | Aprovada |
 
 ---
 
@@ -68,7 +68,10 @@ MANIFESTO.md (Visão, Princípios)
 PRD.md (Requisitos de Negócio)
     ↓
 SDD/ (Especificação Técnica) ← VOCÊ ESTÁ AQUI
-    ├─ SPEC.md
+    ├─ SPEC.md                              ← arquitetura geral
+    ├─ SPEC_TEMPLATE.md                     ← template de novas specs
+    ├─ SPEC_001_AJUSTE_PRD_CONFORMIDADE_SDD/
+    │   └─ SPEC.md
     ├─ ARCHITECTURE.md
     ├─ DATA_MODELS.md
     ├─ ERROR_HANDLING.md
