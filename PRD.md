@@ -166,6 +166,32 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
    - Health check: Testnet + bot health endpoint respondendo
    - Critério de sucesso: Testnet 48h contínuas sem falha
 
+6. **Notificação ao Operador** *(RF-10)*
+   - Canal: Telegram (bot token + chat_id configurados via `.env`)
+   - Opcional: se `TELEGRAM_TOKEN` não configurado, bot opera normalmente sem notificação
+   - Implementação: chamada HTTP POST via `aiohttp` (dependência já presente no projeto)
+   - Eventos notificados:
+     - **Trade aberto** — símbolo, direção, entry, SL, TP, quantidade
+     - **Trade fechado** — símbolo, resultado em USDT, RRR realizado
+     - **Erro crítico** — descrição do erro + timestamp
+     - **SL não executado após entrada** — alerta de intervenção manual necessária
+   - Fora de escopo: notificação de sinal detectado, logs de debug, reconexão
+   - Critério de sucesso: os 4 eventos chegam ao Telegram em Testnet; ausência de token não quebra o bot
+
+7. **Relatório de Performance** *(RF-11)*
+   - Escopo MVP: dados disponíveis para consulta manual — não dashboard, não automático
+   - **Contrato de dado obrigatório no Storage** (pré-requisito do relatório):
+
+     | Campo | Tipo | Descrição |
+     |---|---|---|
+     | `exit_price` | `float` | Preço de fechamento do trade |
+     | `closed_at` | `datetime` | Timestamp de fechamento |
+     | `pnl_usdt` | `float` | P&L realizado em USDT |
+     | `close_reason` | `str` | `SL` / `TP` / `manual` |
+
+   - Métricas calculadas com esses dados: total de trades, win rate (%), P&L acumulado USDT, RRR médio realizado
+   - Critério de sucesso: após 10 trades em Testnet, todos os campos acima estão gravados e as métricas são calculáveis
+
 #### Configuração (User-facing)
 
 ```ini
@@ -178,18 +204,23 @@ SYMBOLS=BTCUSDT,ETHUSDT  # CSV
 TIMEFRAMES=4h,1d         # CSV
 RISK_PER_TRADE_PCT=1.0   # 1% por operação
 RISK_REWARD_RATIO=2.0    # TP = entry + (entry - SL) * RRR
-LEVERAGE=5               # Para Futures
+LEVERAGE=5               # Para Futures (máximo aceito: 20x)
 MAX_CAPITAL_ALLOCATION_PCT=30  # Max 30% do saldo em 1 símbolo
 MAX_OPEN_POSITIONS=3     # Máximo 3 trades abertos
 LOG_LEVEL=INFO
+
+# Notificação Telegram (opcional — bot opera normalmente se não configurado)
+TELEGRAM_TOKEN=           # Token do bot Telegram
+TELEGRAM_CHAT_ID=         # Chat ID do operador
 ```
 
 ### ⏭️ Fase 2 (Expansão)
 
+- Relatório automático periódico de performance via Telegram (extensão do RF-10/RF-11)
 - Dashboard de performance em tempo real
 - Backtests e walk-forward analysis
 - Ajuste automático de parâmetros baseado em performance
-- Alertas por SMS/Telegram
+- Análise de performance por símbolo e timeframe
 - Múltiplas estratégias
 - Suporte a mais timeframes (1m, 5m, 15m, etc.)
 
