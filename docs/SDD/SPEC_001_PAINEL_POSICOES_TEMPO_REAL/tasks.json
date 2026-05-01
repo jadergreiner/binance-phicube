@@ -1,0 +1,352 @@
+{
+  "spec_id": "SPEC_001",
+  "generated_at": "2026-05-01T00:00:00Z",
+  "phases": [
+    "Fase 1 — Infraestrutura de Acesso",
+    "Fase 2 — Camada de Dados",
+    "Fase 3 — Motor de Atualização e Resiliência",
+    "Fase 4 — Interface de Visualização",
+    "Fase 5 — Testes e Validação"
+  ],
+  "tasks": [
+    {
+      "id": "task_001",
+      "phase": "Fase 1 — Infraestrutura de Acesso",
+      "title": "Configurar API Key READ_ONLY e cliente ccxt dedicado ao painel",
+      "description": "Criar variáveis de ambiente separadas para a API Key READ_ONLY do painel (sem permissão de trade). Implementar cliente ccxt async isolado para o painel, separado do cliente do bot. Validar que a Key não possui permissão de trade (via endpoint /fapi/v1/account ou verificação explícita na inicialização). Esta task é pré-requisito bloqueante para todas as demais.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [],
+      "target_files": [
+        ".env.example",
+        "src/config/settings.py",
+        "src/dashboard/__init__.py",
+        "src/dashboard/client.py"
+      ],
+      "constraints": [
+        "API Key do painel deve ser variável separada das credenciais do bot (ex: DASHBOARD_API_KEY, DASHBOARD_API_SECRET)",
+        "Cliente ccxt do painel não deve compartilhar instância com o cliente do bot",
+        "Inicialização deve verificar explicitamente ausência de permissão de trade e lançar exceção se detectada",
+        "Não logar nem expor API Key em nenhum log ou saída"
+      ],
+      "acceptance_criteria": [
+        "Variáveis DASHBOARD_API_KEY e DASHBOARD_API_SECRET definidas em .env.example com valores de placeholder",
+        "src/dashboard/client.py instancia cliente ccxt async independente usando as variáveis do painel",
+        "Inicialização do cliente valida permissões e lança DashboardClientError se a Key tiver permissão de trade",
+        "Teste unitário confirma que Key com permissão de trade é rejeitada na inicialização"
+      ],
+      "evidence_required": [
+        "diagnostics_report sem erros",
+        "resultado do teste de validação de permissão",
+        "confirmação de AppSec de que a Key é READ_ONLY"
+      ],
+      "validation": "security-audit"
+    },
+    {
+      "id": "task_002",
+      "phase": "Fase 2 — Camada de Dados",
+      "title": "Definir contrato de dados de posição e resumo agregado",
+      "description": "Implementar os modelos de dados (dataclasses ou TypedDict) para a entidade de visualização de posição e o resumo agregado, conforme contratos definidos na SPEC_001 seção 5.1. Incluir validação de campos obrigatórios e regra de stale (campo updated_at deve ser válido e recente).",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_001"],
+      "target_files": [
+        "src/dashboard/models.py"
+      ],
+      "constraints": [
+        "Usar dataclasses ou TypedDict — sem dependências externas de validação (sem pydantic)",
+        "Todos os campos obrigatórios da SPEC seção 5.1 devem estar presentes",
+        "Campo updated_at deve ser datetime com timezone UTC",
+        "Resumo agregado deve incluir: total_exposure_usdt, total_margin_used_usdt, total_unrealized_pnl_usdt, connection_status, last_update_at",
+        "connection_status deve ser Literal['online', 'degraded', 'offline']"
+      ],
+      "acceptance_criteria": [
+        "PositionView com campos: symbol, side, quantity, leverage, entry_price, mark_price, unrealized_pnl_usdt, margin_used_usdt, liquidation_price (opcional), updated_at",
+        "AccountSummary com campos: total_exposure_usdt, total_margin_used_usdt, total_unrealized_pnl_usdt, connection_status, last_update_at",
+        "Função de cálculo de AccountSummary a partir de lista de PositionView implementada e testada",
+        "Validação de campo updated_at rejeita datetime sem timezone"
+      ],
+      "evidence_required": [
+        "diagnostics_report sem erros de tipo",
+        "teste unitário TEST_001_01 (mapeamento de posição para contrato de UI)",
+        "teste unitário TEST_001_02 (cálculo de resumo agregado)"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_003",
+      "phase": "Fase 2 — Camada de Dados",
+      "title": "Implementar WebSocket userData stream e snapshot inicial REST",
+      "description": "Implementar conexão ao userData stream da Binance Futures (listenKey) para receber eventos de atualização de conta e posição. Na inicialização do painel, carregar snapshot inicial via REST /fapi/v2/positionRisk antes de exibir qualquer dado. Mapear eventos do stream para o modelo PositionView definido em task_002.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_001", "task_002"],
+      "target_files": [
+        "src/dashboard/stream.py"
+      ],
+      "constraints": [
+        "Usar cliente ccxt do painel (task_001) — nunca o cliente do bot",
+        "Snapshot inicial via REST deve ser carregado antes de qualquer exibição de dado",
+        "Eventos do stream devem atualizar apenas os campos alterados (atualização incremental)",
+        "Falha na conexão do stream não deve lançar exceção não tratada — deve emitir evento de degradação",
+        "Manter updated_at por posição atualizado a cada evento recebido"
+      ],
+      "acceptance_criteria": [
+        "Snapshot inicial carregado via /fapi/v2/positionRisk na inicialização e mapeado para lista de PositionView",
+        "Stream conectado ao endpoint userData com listenKey válido",
+        "Eventos ACCOUNT_UPDATE mapeados corretamente para atualização de PositionView",
+        "Falha de stream emite evento de status 'degraded' sem derrubar o processo",
+        "Teste de integração INT_001_01 (stream ativo com atualização contínua) passa na Testnet"
+      ],
+      "evidence_required": [
+        "diagnostics_report sem erros",
+        "evidência de atualização em até 2s em cenário normal (INT_001_01)",
+        "log mostrando snapshot inicial carregado antes da primeira exibição"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_004",
+      "phase": "Fase 2 — Camada de Dados",
+      "title": "Implementar cache frio de último snapshot no MongoDB",
+      "description": "Persistir o último snapshot válido de posições no MongoDB após cada atualização bem-sucedida do stream. Utilizado exclusivamente para recuperação de contexto ao reiniciar o painel — nunca como fonte primária de leitura em tempo real. Na inicialização, se o snapshot REST falhar, usar o cache como fallback temporário até que a fonte real esteja disponível.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_002"],
+      "target_files": [
+        "src/dashboard/cache.py",
+        "src/storage/repository.py"
+      ],
+      "constraints": [
+        "Coleção MongoDB separada das coleções do bot (ex: dashboard_snapshot)",
+        "Gravar apenas após confirmação de snapshot válido — nunca gravar estado inconsistente",
+        "Leitura do cache é exclusiva para restart — nunca usada como dado em tempo real",
+        "Incluir campo cached_at no documento para rastreabilidade",
+        "Operação de escrita é fire-and-forget com log de falha — não bloquear o fluxo principal"
+      ],
+      "acceptance_criteria": [
+        "Snapshot válido gravado na coleção dashboard_snapshot após cada atualização do stream",
+        "Na inicialização com REST indisponível, cache é carregado com indicação visual de 'dados em cache'",
+        "Campo cached_at presente e correto em todos os documentos gravados",
+        "Falha de escrita no MongoDB logada mas não propaga exceção para o fluxo principal"
+      ],
+      "evidence_required": [
+        "diagnostics_report sem erros",
+        "documento de exemplo no MongoDB com campos corretos",
+        "teste unitário de leitura de cache com snapshot simulado"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_005",
+      "phase": "Fase 3 — Motor de Atualização e Resiliência",
+      "title": "Implementar polling adaptativo e detecção de stale data",
+      "description": "Ao detectar falha do WebSocket, ativar polling REST adaptativo: 2s nos primeiros 30s de degradação, recuando para 10s após estabilização. Implementar detecção de stale data: ausência de atualização dentro da janela de tolerância define status como degradado. Monitorar header X-MBX-USED-WEIGHT e recuar automaticamente se consumo ultrapassar 80% do limite.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_003"],
+      "target_files": [
+        "src/dashboard/updater.py"
+      ],
+      "constraints": [
+        "Polling usa endpoint /fapi/v2/positionRisk (5 pesos de weight)",
+        "Fase adaptativa: intervalo 2s por 30s (custo máximo: ~75 pesos/min)",
+        "Fase estável de degradação: intervalo 10s (custo: ~30 pesos/min)",
+        "Monitorar X-MBX-USED-WEIGHT em cada resposta e pausar polling se >80% do limite (1920/2400)",
+        "Janela de stale: ausência de update por mais de 3s em modo normal deve marcar status como degradado",
+        "Ao restaurar stream, cancelar polling e acionar reconciliação (task_006)"
+      ],
+      "acceptance_criteria": [
+        "Polling inicia com intervalo 2s após detecção de falha do stream",
+        "Após 30s sem restauração, polling recua automaticamente para 10s",
+        "Header X-MBX-USED-WEIGHT monitorado e polling pausado se >80% do limite",
+        "Ausência de update >3s em modo normal emite evento de status 'degraded'",
+        "Teste unitário TEST_001_03 (detecção de stale data) passa",
+        "Teste de integração INT_001_02 (queda de stream com fallback automático) passa na Testnet"
+      ],
+      "evidence_required": [
+        "evidência de fallback funcional após falha de stream (INT_001_02)",
+        "log mostrando transição 2s → 10s após 30s de degradação",
+        "diagnostics_report sem erros"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_006",
+      "phase": "Fase 3 — Motor de Atualização e Resiliência",
+      "title": "Implementar listenKey keepalive e reconciliação pós-restauração",
+      "description": "Manter o listenKey do WebSocket ativo via chamada keepalive a cada 30 minutos (assíncrona, não bloqueante). Ao restaurar o stream após degradação, executar reconciliação: carregar snapshot REST da Binance e sobrescrever cache local, garantindo consistência antes de voltar ao status 'online'.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_003", "task_004", "task_005"],
+      "target_files": [
+        "src/dashboard/stream.py",
+        "src/dashboard/updater.py"
+      ],
+      "constraints": [
+        "Keepalive via PUT /fapi/v1/listenKey a cada 30min (máximo 60min conforme limite Binance)",
+        "Falha de keepalive deve iniciar reconexão do stream, não apenas logar",
+        "Reconciliação: snapshot REST é a fonte autoritativa — sobrescreve cache local sem exceção",
+        "Status volta para 'online' apenas após reconciliação bem-sucedida",
+        "Reconciliação sinaliza inconsistência detectada conforme SPEC seção 6.2"
+      ],
+      "acceptance_criteria": [
+        "Keepalive executado a cada 30min sem bloquear fluxo principal",
+        "Falha de keepalive dispara reconexão automática do stream",
+        "Após restauração do stream, reconciliação executa snapshot REST e sobrescreve dados locais",
+        "Inconsistências detectadas entre cache e Binance são logadas",
+        "Status muda para 'online' somente após reconciliação bem-sucedida",
+        "Teste de integração INT_001_03 (reconciliação após divergência de cache) passa na Testnet"
+      ],
+      "evidence_required": [
+        "evidência de reconciliação após divergência de cache (INT_001_03)",
+        "log de keepalive em intervalos corretos",
+        "diagnostics_report sem erros"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_007",
+      "phase": "Fase 4 — Interface de Visualização",
+      "title": "Implementar tabela de posições e card de resumo agregado",
+      "description": "Implementar a interface de visualização com tabela de posições abertas e card de resumo agregado de risco. Exibir todos os campos obrigatórios do PositionView. Calcular e exibir AccountSummary em tempo real. A interface é exclusivamente de leitura — sem nenhuma ação de trade.",
+      "owner": "time-b-execucao",
+      "priority": "P2",
+      "status": "todo",
+      "depends_on": ["task_002", "task_005"],
+      "target_files": [
+        "src/dashboard/ui.py"
+      ],
+      "constraints": [
+        "Sem nenhuma ação de execução: nenhum botão, formulário ou endpoint de trade",
+        "Campos obrigatórios na tabela: symbol, side, quantity, leverage, entry_price, mark_price, unrealized_pnl_usdt, margin_used_usdt, updated_at",
+        "liquidation_price exibido quando disponível, omitido (— ) quando None",
+        "Resumo agregado exibe: total_exposure_usdt, total_margin_used_usdt, total_unrealized_pnl_usdt, last_update_at",
+        "Timestamp updated_at por linha deve ser exibido em formato legível"
+      ],
+      "acceptance_criteria": [
+        "Tabela exibe todos os campos obrigatórios do PositionView",
+        "Card de resumo exibe todos os campos do AccountSummary",
+        "liquidation_price exibe '—' quando None",
+        "Interface não contém nenhum elemento de interação de trade (confirmado por inspeção de código)",
+        "Posições são exibidas em até 2s após inicialização em condição normal (US-001-01 AC-02)"
+      ],
+      "evidence_required": [
+        "screenshot ou log mostrando tabela com dados reais da Testnet",
+        "confirmação explícita de ausência de ações de trade no código",
+        "diagnostics_report sem erros"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_008",
+      "phase": "Fase 4 — Interface de Visualização",
+      "title": "Implementar indicador de status de conexão e modo degradado",
+      "description": "Implementar exibição de status de conexão (online / degradado / offline) e comportamento de modo degradado: campos de PnL e mark_price exibem '—' (não o valor stale), banner visual explícito e alerta sonoro/visual na transição. US-001-03 é controle de risco obrigatório.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_005", "task_007"],
+      "target_files": [
+        "src/dashboard/ui.py"
+      ],
+      "constraints": [
+        "Status de conexão visível permanentemente na interface (não apenas em degradação)",
+        "Em modo degradado: unrealized_pnl_usdt e mark_price exibem '—' — nunca o valor desatualizado",
+        "Banner de degradação deve ser explícito e inequívoco (não apenas mudança de cor)",
+        "Alerta sonoro/visual deve ser disparado na transição para modo degradado (não periodicamente)",
+        "Transição de volta para 'online' só ocorre após reconciliação bem-sucedida (task_006)",
+        "Timestamp de última atualização deve ser visível e atualizado em tempo real"
+      ],
+      "acceptance_criteria": [
+        "Indicador de status visível em todas as condições (online, degradado, offline)",
+        "Em modo degradado, unrealized_pnl_usdt e mark_price exibem '—' em todas as linhas",
+        "Banner de degradação exibido com texto explícito sobre dados não confiáveis",
+        "Alerta disparado uma vez na transição para degradado (não repetido)",
+        "Status retorna para 'online' somente após reconciliação confirmada",
+        "Evidência de stale data sinalizada conforme US-001-03 AC-02"
+      ],
+      "evidence_required": [
+        "evidência de status degradado com banner e '—' nos campos de PnL",
+        "evidência de status e alerta na transição de modo",
+        "evidência de que UI não possui ações de trade"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_009",
+      "phase": "Fase 5 — Testes e Validação",
+      "title": "Implementar testes unitários",
+      "description": "Implementar os testes unitários obrigatórios definidos na SPEC seção 7.1: mapeamento de posição para contrato de UI, cálculo de resumo agregado e detecção de stale data. Cobertura mínima dos módulos models.py, updater.py e cache.py.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_002", "task_004", "task_005"],
+      "target_files": [
+        "tests/dashboard/test_models.py",
+        "tests/dashboard/test_updater.py",
+        "tests/dashboard/test_cache.py"
+      ],
+      "constraints": [
+        "Usar pytest — sem frameworks externos de teste",
+        "Nenhum teste deve fazer chamada real à Binance (usar mocks/fixtures)",
+        "Descrições de testes e asserts em pt-BR conforme convenção do projeto",
+        "Cada teste deve ser independente e não depender de ordem de execução"
+      ],
+      "acceptance_criteria": [
+        "TEST_001_01: entrada válida de posição → saída com todos os campos obrigatórios corretos",
+        "TEST_001_02: lista de posições múltiplas → totais de AccountSummary corretos",
+        "TEST_001_03: ausência de update além da janela → status marcado como degradado",
+        "Todos os testes passam com pytest sem warnings",
+        "Cobertura de branches críticos em models.py e updater.py"
+      ],
+      "evidence_required": [
+        "saída de pytest mostrando todos os testes passando",
+        "diagnostics_report sem erros"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_010",
+      "phase": "Fase 5 — Testes e Validação",
+      "title": "Executar testes de integração na Testnet e coletar evidências obrigatórias",
+      "description": "Executar os testes de integração obrigatórios na Binance Testnet (seção 7.2 da SPEC) e coletar todas as evidências requeridas para a PR (seção 7.3). Confirmar DoD global da SPEC_001.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_006", "task_007", "task_008", "task_009"],
+      "target_files": [
+        "tests/dashboard/test_integration.py"
+      ],
+      "constraints": [
+        "Todos os testes de integração devem usar credenciais da Binance Testnet — nunca produção",
+        "Credenciais de Testnet via variáveis de ambiente — nunca hardcoded",
+        "Evidências devem ser coletadas e armazenadas como artefatos rastreáveis",
+        "Testar cenário de falha de stream real (não simulado) quando possível na Testnet"
+      ],
+      "acceptance_criteria": [
+        "INT_001_01: stream ativo com atualização contínua em até 2s confirmada",
+        "INT_001_02: fallback funcional após queda de stream com transição de status visível",
+        "INT_001_03: reconciliação correta após divergência entre cache e Binance",
+        "Evidência de atualização em até 2s em cenário normal",
+        "Evidência de fallback com polling adaptativo funcionando",
+        "Evidência de stale data e modo degradado visíveis na UI",
+        "Evidência de que a UI não possui ações de trade",
+        "DoD global da SPEC_001 seção 10 verificado item a item"
+      ],
+      "evidence_required": [
+        "logs de integração com timestamps de atualização",
+        "evidência de transição de status durante degradação",
+        "evidência visual de modo degradado com '—' nos campos de PnL",
+        "DoD checklist preenchido"
+      ],
+      "validation": "qa-review"
+    }
+  ]
+}
