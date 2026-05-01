@@ -1,0 +1,39 @@
+# Segredos
+.env
+
+# Cache Python
+*.pyc
+*.pyo
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# Build / dist
+dist/
+build/
+*.egg-info/
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Cobertura de testes
+.coverage
+htmlcov/
+coverage.xml
+
+# IDEs
+.idea/
+.vscode/settings.json
+.vscode/launch.json
+
+# Dados locais
+*.db
+*.sqlite
+
+# Docker — artefatos exportados
+*.tar
+
+# Serena (assistente local — não deve ir para o repositório)
+.serena/

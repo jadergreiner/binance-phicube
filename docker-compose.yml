@@ -1,0 +1,72 @@
+services:
+
+  # ─── Bot ──────────────────────────────────────────────────────────────────
+  phicube:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: phicube-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - phicube-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ─── MongoDB ──────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: phicube-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - phicube-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ─── Mongo Express (UI de administração — remova em produção) ─────────────
+  mongo-express:
+    image: mongo-express:1
+    container_name: phicube-mongo-express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: "27017"
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: changeme
+    ports:
+      - "8081:8081"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - phicube-net
+    profiles:
+      - dev   # só sobe com: docker compose --profile dev up
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  phicube-net:
+    driver: bridge
