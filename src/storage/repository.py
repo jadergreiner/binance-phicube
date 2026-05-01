@@ -31,6 +31,11 @@ class MongoRepository:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(uri)
         self._db: AsyncIOMotorDatabase = self._client[database]
 
+    @property
+    def database(self) -> AsyncIOMotorDatabase:
+        """Expõe o banco para componentes auxiliares de persistência."""
+        return self._db
+
     async def setup_indexes(self) -> None:
         """Create indexes on first startup. Safe to call on every start."""
         trades = self._db[_TRADES_COLLECTION]

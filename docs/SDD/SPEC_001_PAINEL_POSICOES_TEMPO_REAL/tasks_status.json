@@ -1,0 +1,142 @@
+{
+  "spec_id": "SPEC_001",
+  "updated_at": "2026-05-01T00:00:00Z",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "blocked": 1,
+    "done": 9
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "API Key READ_ONLY e cliente ccxt dedicado ao painel implementados e validados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Modelos de dados PositionView e AccountSummary implementados e validados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/dashboard/test_models.py"
+      }
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "WebSocket userData stream com snapshot REST inicial implementado e validado.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/dashboard/test_client.py"
+      }
+    },
+    {
+      "id": "task_004",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Cache frio de ultimo snapshot no MongoDB implementado e validado.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/dashboard/test_stream.py"
+      }
+    },
+    {
+      "id": "task_005",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Polling adaptativo e deteccao de stale data implementados e validados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/dashboard/test_cache.py"
+      }
+    },
+    {
+      "id": "task_006",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Keepalive de listenKey e reconciliacao pos-restauracao implementados e validados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/dashboard/test_updater.py"
+      }
+    },
+    {
+      "id": "task_007",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Tabela de posicoes e resumo agregado implementados e validados na UI.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/dashboard/test_ui.py"
+      }
+    },
+    {
+      "id": "task_008",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Indicador de status de conexao e modo degradado implementados e validados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "pytest tests/dashboard"
+      }
+    },
+    {
+      "id": "task_009",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Testes unitarios do dashboard implementados e estabilizados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "pytest tests/dashboard"
+      }
+    },
+    {
+      "id": "task_010",
+      "status": "blocked",
+      "progress_pct": 90,
+      "notes": "Suite de integracao criada e validada, mas bloqueada por ambiente sem DASHBOARD_API_KEY e DASHBOARD_API_SECRET; execucao resultou em 3 testes SKIPPED.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-01T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "pytest -v -rs tests/dashboard/test_integration.py"
+      }
+    }
+  ]
+}

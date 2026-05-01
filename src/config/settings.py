@@ -54,6 +54,10 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of {valid}")
         return upper
 
+    # Dashboard (API Key READ_ONLY — sem permissão de trade)
+    dashboard_api_key: str = Field(..., description="Dashboard API Key (READ_ONLY)")
+    dashboard_api_secret: str = Field(..., description="Dashboard API Secret (READ_ONLY)")
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
