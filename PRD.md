@@ -9,11 +9,11 @@
 
 ## 📋 Sumário Executivo
 
-O **Binance Phicube** é uma plataforma de auto trade que executa a estratégia **BO Williams (Phicube)** de forma automática, disciplinada e auditável na corretora Binance.
+O **Binance Phicube** é uma ferramenta pessoal de auto trade que executa a estratégia **BO Williams (Phicube)** de forma automática, disciplinada e auditável na corretora Binance.
 
-**Objetivo primário:** Remover o componente emocional das decisões de entrada e saída, garantindo operações sistemáticas 24/7.
+**Objetivo primário:** Remover o componente emocional das decisões de entrada e saída do próprio operador, garantindo execução sistemática e fiel ao método 24/7.
 
-**Diferencial:** Combinação de análise técnica robusta (Alligator + Awesome Oscillator + Fractais) com gestão de risco rigorosa e transparência total de operações.
+**Natureza:** Sistema de uso pessoal — opera com um único conjunto de credenciais Binance, em instância única, para o próprio dono. Não é uma plataforma multi-usuário.
 
 ---
 
@@ -21,12 +21,12 @@ O **Binance Phicube** é uma plataforma de auto trade que executa a estratégia 
 
 ### Declaração de Produto
 
-Um **sistema de automação de trade** que:
+Uma **ferramenta pessoal de automação de trade** que:
 
 1. **Monitora continuamente** símbolos (pares cripto) na Binance em tempo real
 2. **Detecta sinais válidos** conforme as regras objetivas da estratégia Phicube
 3. **Executa operações automaticamente** (entrada, stop loss, take profit) sem intervenção manual
-4. **Registra e audita** toda decisão, permitindo análise de desempenho e conformidade com regras
+4. **Registra e audita** toda decisão do próprio operador, permitindo análise de desempenho e revisão de conformidade com o método
 
 ### Componentes Principais
 
@@ -68,37 +68,18 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 
 ---
 
-## 👥 PARA QUEM — Públicos e Personas
+## � PARA QUEM — Persona
 
-### Personas Principais
+### Operador / Dono do Sistema
 
-#### 1. **Trader Metodista (Early Adopter)**
-
-- **Perfil:** Conhece BO Williams, pratica Phicube há meses
-- **Necessidade:** Automatizar disciplina operacional
-- **Sucesso:** 100 operações idênticas ao método, com histórico auditável
-- **Preocupação:** "Preciso ter certeza de que o bot segue exatamente as regras"
-
-#### 2. **Investidor Iniciante em Crypto**
-
-- **Perfil:** Quer começar em crypto, mas não confia em emoções
-- **Necessidade:** Método transparente, sem risco de over-leverage
-- **Sucesso:** Opera em Testnet, valida rentabilidade, move para real com confiança
-- **Preocupação:** "Perdi dinheiro antes por impulsividade — como garanto disciplina?"
-
-#### 3. **Engenheiro / Quant Developer**
-
-- **Perfil:** Estuda trading algorítmico, quer entender price action + código
-- **Necessidade:** Código limpo, bem testado, extensível
-- **Sucesso:** Lê codebase, contribui melhorias, faz fork próprio
-- **Preocupação:** "O código é profissional? Posso confiar e estender?"
-
-#### 4. **Auditor / Compliance**
-
-- **Perfil:** Valida segurança, risco, conformidade
-- **Necessidade:** Rastreabilidade completa, sem pontos cegos
-- **Sucesso:** Acessa MongoDB, revisa logs, certifica operações
-- **Preocupação:** "Houve fuga de chave? Houve operação não autorizada? Evidência?"
+- **Perfil:** Conhece a estratégia BO Williams Phicube e opera ativamente
+- **Necessidade:** Automatizar a execução do próprio método com disciplina total — sem emoção, sem erro humano de execução
+- **Sucesso:** O bot executa cada sinal exatamente como o método define; histórico auditável para revisão própria de performance
+- **Preocupações:**
+  - "O bot está seguindo as regras exatas do Phicube?"
+  - "Meu capital está protegido por stop loss em toda operação?"
+  - "Consigo auditar o que aconteceu em cada trade?"
+  - "Minhas credenciais estão seguras?"
 
 ---
 
@@ -106,13 +87,13 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 
 ### OKR Nível 1 — Visão (12 meses)
 
-**Objetivo:** Ser referência em automação Phicube
+**Objetivo:** Operar o método Phicube com disciplina total e confiabilidade comprovada
 **Key Results:**
 
-- [ ] 100+ traders ativos testando em Testnet
-- [ ] 1000+ horas de operação validadas em produção
+- [ ] 1000+ horas de operação contínua validadas em produção sem intervenção manual
 - [ ] 0 casos de fuga de credencial ou operação não autorizada
-- [ ] Comunidade gerando contribuições (features, docs, bug reports)
+- [ ] 0 operações divergentes das regras do método (auditadas via log)
+- [ ] Histórico de performance pessoal completo e consultável
 
 ### OKR Nível 2 — Escopo MVP (3-6 meses)
 
@@ -324,18 +305,11 @@ LOG_LEVEL=INFO
 - Use roadmap para priorização
 - Ative skills de validação (@signal-review, @qa-review, @security-audit) ao implementar
 
-### Para **Product Owners / Stakeholders**
-
-- Use OKRs para rastrear progresso
-- Use personas para manter empatia com usuário
-- Use scope para dizer "sim" ou "não" a features
-- Use escopo out-of-scope para gerenciar expectativas
-
 ### Para **Time A (Refinamento)**
 
 - Novo tema de sessão? Valide se está em escopo deste PRD
-- Refinamento = conversa sobre PRD ou algo novo?
-- Se novo, produz artefatos que atualizam este PRD
+- Se novo requisito, produz artefatos que atualizam este PRD
+- PRD reflete apenas a visão do operador/dono — sem escopo de multi-usuário
 
 ### Para **Time B (Execução)**
 
