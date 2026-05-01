@@ -42,13 +42,17 @@ Este é o **Software Design Document (SDD)** — especificação técnica execut
    - Use ao criar SPEC_002, SPEC_003...
    - Copie para `SPEC_NNN_TITULO/SPEC.md` e preencha
 
-3. **ARCHITECTURE.md** *(em breve)* — Diagrama de arquitetura profundo
+3. **[MCP_SERENA_FLOW.md](MCP_SERENA_FLOW.md)** — Fluxo objetivo de entrega com agentes
+    - Pipeline oficial: SPEC -> Planner Agent -> Task Graph -> Dev Agent (Serena) -> Validation Agent -> Commit/Review Gate
+    - Definições de entrada/saída por etapa e critérios de gate
 
-4. **DATA_MODELS.md** *(em breve)* — Esquema de dados
+4. **ARCHITECTURE.md** *(em breve)* — Diagrama de arquitetura profundo
 
-5. **ERROR_HANDLING.md** *(em breve)* — Estratégia de falhas
+5. **DATA_MODELS.md** *(em breve)* — Esquema de dados
 
-6. **SECURITY_DESIGN.md** *(em breve)* — Design de segurança
+6. **ERROR_HANDLING.md** *(em breve)* — Estratégia de falhas
+
+7. **SECURITY_DESIGN.md** *(em breve)* — Design de segurança
 
 ### SPECs Incrementais
 
@@ -70,6 +74,7 @@ PRD.md (Requisitos de Negócio)
 SDD/ (Especificação Técnica) ← VOCÊ ESTÁ AQUI
     ├─ SPEC.md                              ← arquitetura geral
     ├─ SPEC_TEMPLATE.md                     ← template de novas specs
+    ├─ MCP_SERENA_FLOW.md                   ← pipeline oficial por agentes
     ├─ SPEC_001_PAINEL_POSICOES_TEMPO_REAL/
     │   └─ SPEC.md
     ├─ ARCHITECTURE.md
@@ -97,6 +102,7 @@ tests/ (Validação)
 Ao receber artefatos do Time A:
 
 - [ ] **Leia SPEC.md completamente**
+- [ ] **Siga o pipeline em MCP_SERENA_FLOW.md** (Planner -> Task Graph -> Dev -> Validation -> Gate)
 - [ ] **Valide que PR code está em conformidade** (checklist em SPEC.md)
 - [ ] **Execute testes parametrizados** (verificam contratos em SDD)
 - [ ] **Atualize SDD se descobrir gap** (rastrear em Discussions)

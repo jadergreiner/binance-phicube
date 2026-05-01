@@ -1,0 +1,28 @@
+{
+  "spec_id": "SPEC_NNN",
+  "generated_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "titulo curto da task",
+      "description": "descricao objetiva da task",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [],
+      "target_files": [],
+      "constraints": [
+        "usar client central de API",
+        "adicionar logging"
+      ],
+      "acceptance_criteria": [
+        "criterio 1 mensuravel",
+        "criterio 2 mensuravel"
+      ],
+      "evidence_required": [
+        "diagnostics_report",
+        "test_result"
+      ]
+    }
+  ]
+}

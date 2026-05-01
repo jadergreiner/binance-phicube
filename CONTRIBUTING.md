@@ -36,6 +36,22 @@ Para sugerir uma nova funcionalidade:
 
 ## 🔧 Contribuindo com Código
 
+### Fluxo Obrigatório (MCP Serena)
+
+Toda contribuição de feature, bugfix relevante ou mudança arquitetural deve seguir o fluxo:
+
+```text
+SPEC -> Planner Agent -> Task Graph -> Dev Agent (com Serena) -> Validation Agent -> Commit / Review Gate
+```
+
+Referência oficial do fluxo: `docs/SDD/MCP_SERENA_FLOW.md`.
+
+Regras objetivas:
+
+- Sem SPEC aprovada, não inicia implementação.
+- Sem Task Graph aprovado, não inicia codificação.
+- Sem parecer aprovado do Validation Agent, não libera commit/merge.
+
 ### 1. Fork e Clone
 
 ```bash

@@ -1,0 +1,13 @@
+{
+  "id": "task_001",
+  "description": "Implementar lógica de execução de ordem",
+  "target_files": [],
+  "constraints": [
+    "usar client central de API",
+    "adicionar logging"
+  ],
+  "acceptance_criteria": [
+    "ordem executa com sucesso",
+    "tratamento de erro implementado"
+  ]
+}

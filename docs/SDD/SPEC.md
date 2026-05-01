@@ -5,6 +5,12 @@
 **Tipo:** Especificação Executável
 **Audiência:** Backend Engineers, Quant Developers, QA Engineers
 
+**Escopo Operacional (alinhado ao PRD e Manifesto):**
+
+- Uso pessoal, instância única, um único operador.
+- Corretora alvo: Binance Futures USDT-M.
+- Não é plataforma multi-usuário.
+
 ---
 
 ## 1. Visão Arquitetural

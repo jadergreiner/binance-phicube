@@ -224,11 +224,11 @@ sequenceDiagram
 
 ## 11. Plano de Entrega
 
-1. **Time B lê** `docs/SDD/SPEC.md` (seções impactadas) + esta SPEC_NNN
-2. **Time B implementa** na ordem definida nas histórias de usuário
-3. **Time B valida** com `qa-review` e, se aplicável, `signal-review` / `security-audit`
-4. **PR criada** com evidências da seção 7.3
-5. **Time A revisa** conformidade antes do merge
+1. **Planner Agent transforma a SPEC em Task Graph** com prioridades, dependências e DoD por task
+2. **Dev Agent (com Serena) executa o Task Graph** na ordem definida e mantém rastreabilidade task -> código
+3. **Validation Agent valida conformidade** (SPEC -> testes -> comportamento) e emite parecer
+4. **Commit / Review Gate** só libera PR se o parecer de validação for aprovado
+5. **Time A revisa conformidade final** antes do merge
 
 ---
 

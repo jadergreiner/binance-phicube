@@ -68,7 +68,7 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 
 ---
 
-## � PARA QUEM — Persona
+## PARA QUEM — Persona
 
 ### Operador / Dono do Sistema
 

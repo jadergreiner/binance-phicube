@@ -1,29 +1,32 @@
 # Manifesto — Binance Phicube
 
-> *"Operar com disciplina é transformar método em resultado.  
+> *"Operar com disciplina é transformar método em resultado.
 > Automatizar é garantir que a disciplina não falhe."*
 
 ---
 
 ## 🎯 Propósito
 
-O **Binance Phicube** nasce com o propósito de **democratizar o acesso à
-operação automatizada de criptoativos na corretora Binance**, aplicando de
-forma fiel e sistemática a estratégia **BO Williams — Phicube**, eliminando
-o componente emocional das decisões de entrada e saída.
+O **Binance Phicube** nasce com o propósito de **automatizar, com disciplina,
+a operação pessoal de criptoativos na corretora Binance**, aplicando de forma
+fiel e sistemática a estratégia **BO Williams — Phicube**, eliminando o
+componente emocional das decisões de entrada e saída.
 
 Acreditamos que **um método consistente, executado com disciplina absoluta,
 supera a intuição humana no longo prazo**. A automação é o caminho natural
 para garantir essa consistência.
 
+**Natureza do sistema:** ferramenta de uso pessoal, em instância única,
+operando com um único conjunto de credenciais Binance do próprio operador.
+Não é uma plataforma multi-usuário.
+
 ---
 
 ## 🔭 Visão
 
-Ser a **referência em automação de trade baseada na metodologia Phicube**,
-oferecendo a traders — iniciantes ou experientes — uma ferramenta confiável,
-auditável e transparente para operar símbolos na Binance 24 horas por dia,
-7 dias por semana.
+Ser a **referência em automação disciplinada da metodologia Phicube para uso
+pessoal**, com operação confiável, auditável e transparente na Binance 24
+horas por dia, 7 dias por semana.
 
 ---
 
@@ -104,12 +107,13 @@ Estes são os pilares inegociáveis do projeto:
 
 ### ✅ Está no escopo
 
-- Operar **símbolos selecionados** (cripto) na **Binance** (Spot e/ou Futures).
+- Operar **símbolos selecionados** na **Binance Futures USDT-M**.
 - Aplicar as regras da estratégia **BO Williams Phicube** de forma automatizada.
 - Permitir configuração de **gestão de risco** (% por operação, *stop loss*,
   *take profit*).
 - Registrar histórico de sinais, ordens e resultados.
 - Notificar o usuário sobre operações realizadas.
+- Operar em **instância única** para o próprio operador.
 
 ### ❌ Fora do escopo (por ora)
 
@@ -122,12 +126,8 @@ Estes são os pilares inegociáveis do projeto:
 
 ## 👥 Público-alvo
 
-- **Traders adeptos da metodologia Phicube** que desejam automatizar
-  suas operações.
-- **Investidores em criptoativos** que buscam disciplina e isenção emocional
-  em sua operação.
-- **Estudantes de trading algorítmico** interessados em ver uma estratégia
-  de *price action* implementada em código.
+- **Operador / dono do sistema**, adepto da metodologia Phicube, que deseja
+   automatizar sua própria execução com disciplina e rastreabilidade.
 
 ---
 

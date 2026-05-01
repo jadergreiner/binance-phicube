@@ -1,0 +1,47 @@
+name: dev-cycle-v3
+
+stages:
+  - name: REFINEMENT_SPEC
+    owner: time-a-refinamento
+    description: Time A refina o problema, especifica e gera a SPEC.
+    output:
+      - docs/SDD/SPEC_NNN_*/SPEC.md
+      - acceptance_criteria.json
+
+  - name: REFINEMENT_PLAN
+    owner: time-a-refinamento
+    description: Time A refina novamente e gera o plano de execucao.
+    input:
+      - docs/SDD/SPEC_NNN_*/SPEC.md
+    output:
+      - plan.md
+
+  - name: REFINEMENT_TASKS
+    owner: time-a-refinamento
+    description: Time A refina novamente e gera as tasks executaveis.
+    input:
+      - plan.md
+      - contracts/task.json
+    output:
+      - tasks.json
+
+  - name: IMPLEMENTATION
+    owner: time-b-execucao
+    description: Time B implementa as tasks.
+    input:
+      - tasks.json
+    tools:
+      - serena
+    output:
+      - code_changes
+      - diagnostics_report
+
+  - name: STATUS_UPDATE
+    owner: time-b-execucao
+    description: Time B atualiza status das tasks e da SPEC.
+    input:
+      - tasks.json
+      - docs/SDD/SPEC_NNN_*/SPEC.md
+    output:
+      - tasks_status.json
+      - spec_status_update.md

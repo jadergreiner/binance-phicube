@@ -1,0 +1,25 @@
+{
+  "spec_id": "SPEC_NNN",
+  "updated_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "done": 0
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "implementacao concluida",
+      "updated_by": "time-b-execucao",
+      "updated_at": "YYYY-MM-DDTHH:MM:SSZ",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    }
+  ]
+}
