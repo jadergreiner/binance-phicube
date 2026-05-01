@@ -56,7 +56,7 @@ Cada SPEC incremental vive em seu próprio diretório:
 
 | Diretório | ID | Título | Status |
 |---|---|---|---|
-| [SPEC_001_AJUSTE_PRD_CONFORMIDADE_SDD/](SPEC_001_AJUSTE_PRD_CONFORMIDADE_SDD/SPEC.md) | SPEC_001 | Ajuste do PRD para Conformidade SDD | Aprovada |
+| [SPEC_001_PAINEL_POSICOES_TEMPO_REAL/](SPEC_001_PAINEL_POSICOES_TEMPO_REAL/SPEC.md) | SPEC_001 | Painel de Posições em Tempo Real (Somente Leitura) | Aprovada |
 
 ---
 
@@ -70,7 +70,7 @@ PRD.md (Requisitos de Negócio)
 SDD/ (Especificação Técnica) ← VOCÊ ESTÁ AQUI
     ├─ SPEC.md                              ← arquitetura geral
     ├─ SPEC_TEMPLATE.md                     ← template de novas specs
-    ├─ SPEC_001_AJUSTE_PRD_CONFORMIDADE_SDD/
+    ├─ SPEC_001_PAINEL_POSICOES_TEMPO_REAL/
     │   └─ SPEC.md
     ├─ ARCHITECTURE.md
     ├─ DATA_MODELS.md
