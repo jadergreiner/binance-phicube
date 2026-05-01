@@ -154,7 +154,9 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 2. **Cálculo de Posição**
    - Input: `Signal`, saldo disponível, `risk_per_trade_pct`
    - Processamento: `qty = (balance * risk%) / stop_distance`
+     - **`balance` = campo `free` retornado pelo ccxt** (saldo livre de margem — exclui margem em uso e reservas)
    - Limite: Nunca exceder `max_capital_allocation_pct` por símbolo
+     - **Violação → bloquear a operação + emitir log WARN** (nunca silencioso, nunca executar parcialmente)
    - Limite: Nunca ter mais de `max_open_positions` simultâneas
    - Output: `PositionSize(quantity, risk, reward, RRR)`
    - Critério de sucesso: Testes com 50 cenários; 0 violações de limite
@@ -276,6 +278,7 @@ LOG_LEVEL=INFO
 - [ ] **Container** roda com user não-root
 - [ ] **MongoDB** requer autenticação em produção
 - [ ] **Dockerfile** multi-stage: builder → runtime
+- [ ] **`LEVERAGE` máximo aceito = 20x** — o bot deve rejeitar na inicialização qualquer valor acima desse limite; não é negociável por configuração
 
 ---
 
@@ -316,6 +319,7 @@ LOG_LEVEL=INFO
 ### Para **Engenheiros**
 
 - Use escopo e requisitos técnicos como spec de implementação
+- **As regras exatas de entrada, saída, cálculo de SL/TP e contratos de interface estão em [`docs/SDD/SPEC.md`](docs/SDD/SPEC.md) — essa é a fonte de verdade técnica; o PRD define o *quê*, a SPEC define o *como***
 - Valide cada feature contra critérios de sucesso
 - Use roadmap para priorização
 - Ative skills de validação (@signal-review, @qa-review, @security-audit) ao implementar
