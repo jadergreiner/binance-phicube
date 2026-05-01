@@ -1,8 +1,8 @@
 # SPEC — Especificação Técnica Completa — Binance Phicube
 
-**Versão:** 1.0  
-**Data:** 2026-05-01  
-**Tipo:** Especificação Executável  
+**Versão:** 1.0
+**Data:** 2026-05-01
+**Tipo:** Especificação Executável
 **Audiência:** Backend Engineers, Quant Developers, QA Engineers
 
 ---
@@ -11,7 +11,7 @@
 
 ### 1.1 Estrutura Geral
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                    TRADING MONITOR                       │
 │  (main.py: loop assíncrono, orquestra componentes)      │
@@ -60,7 +60,7 @@
 
 ### 1.2 Fluxo de Dados Principal (1 tick)
 
-```
+```text
 TradingMonitor._tick()
     │
     ├─ fetch OHLCV (drop last candle)
@@ -101,6 +101,7 @@ TradingMonitor._tick()
 ### 2.1 Signal Engine (`src/strategy/signal_engine.py`)
 
 #### Responsabilidade
+
 Detectar sinais de entrada (LONG/SHORT) baseado em indicadores: Alligator, Awesome Oscillator, Fractais.
 
 #### Interface Pública
@@ -120,17 +121,17 @@ class Signal:
     take_profit: float
     fractal_ref: float  # Reference fractal (high/low)
     detected_at: datetime
-    
+
     @property
     def risk(self) -> float:
         """Risk em valor absoluto: entry - SL"""
         return self.entry_price - self.stop_loss
-    
+
     @property
     def reward(self) -> float:
         """Reward em valor absoluto: TP - entry"""
         return self.take_profit - self.entry_price
-    
+
     @property
     def risk_reward_ratio(self) -> float:
         """RRR = reward / risk"""
@@ -142,19 +143,19 @@ class SignalEngine:
     def evaluate(self, symbol: str, timeframe: str, df: pd.DataFrame) -> Signal | None:
         """
         Detecta sinal na última candle fechada.
-        
+
         Args:
             symbol: Ex. "BTCUSDT"
             timeframe: Ex. "4h"
             df: DataFrame com colunas OHLCV + indicadores computados
-        
+
         Returns:
             Signal se detectado, None caso contrário
-        
+
         Pré-requisito:
             - df deve ter >= 50 linhas (mínimo para indicadores)
             - indicadores já computados (alligator, ao, fractais)
-        
+
         Contrato (invariantes):
             - Nunca retorna sinal na última candle (aguarda fechamento)
             - Sempre valida Alligator, AO, Fractais SIMULTANEAMENTE
@@ -165,7 +166,7 @@ class SignalEngine:
 
 #### Regras Lógicas (LONG)
 
-```
+```text
 Condições (TODAS devem ser verdadeiras):
 1. Alligator bullish: lips > teeth > jaw (últimas 3 barras)
 2. Awesome Oscillator > 0 (última barra)
@@ -183,7 +184,7 @@ Cálculo de SL e TP (LONG):
 
 #### Regras Lógicas (SHORT) — Inverso de LONG
 
-```
+```text
 Condições (TODAS devem ser verdadeiras):
 1. Alligator bearish: lips < teeth < jaw
 2. Awesome Oscillator < 0
@@ -211,6 +212,7 @@ Cálculo de SL e TP (SHORT):
 ### 2.2 Risk Manager (`src/trading/risk_manager.py`)
 
 #### Responsabilidade
+
 Calcular tamanho de posição baseado em risco controlado, respeitando limites de alavancagem e capital.
 
 #### Interface Pública
@@ -225,21 +227,21 @@ class PositionSize:
     margin_used: float  # % do saldo utilizado
 
 class RiskManager:
-    def calculate(self, 
-                 signal: Signal, 
+    def calculate(self,
+                 signal: Signal,
                  available_balance: float,
                  quantity_precision: int = 3) -> PositionSize | None:
         """
         Calcula tamanho de posição para risco controlado.
-        
+
         Args:
             signal: Signal com entry, SL, TP já computados
             available_balance: Saldo USDT disponível
             quantity_precision: Casas decimais da quantidade
-        
+
         Returns:
             PositionSize se viável, None se violaria limites
-        
+
         Contrato (invariantes):
             - Quantidade sempre > 0 e respeitando precision
             - Risco nunca excede risk_per_trade_pct
@@ -251,7 +253,7 @@ class RiskManager:
 
 #### Fórmula de Cálculo
 
-```
+```text
 1. Risk amount (USDT):
    risk_amount = available_balance * (risk_per_trade_pct / 100)
    Ex: balance=1000, risk_pct=1% → risk_amount = 10 USDT
@@ -271,7 +273,7 @@ class RiskManager:
    Se margin_required > (balance * max_capital_allocation_pct):
       scale_factor = (balance * max_capital_allocation_pct) / margin_required
       qty = qty_base * scale_factor
-   
+
 6. Redondear para precision:
    qty = round(qty, quantity_precision)
 
@@ -295,6 +297,7 @@ class RiskManager:
 ### 2.3 Order Manager (`src/trading/order_manager.py`)
 
 #### Responsabilidade
+
 Executar operação atomicamente: entrada → stop loss → take profit, com rollback se falhar.
 
 #### Interface Pública
@@ -323,29 +326,29 @@ class Trade:
     status: TradeStatus
     created_at: datetime
     closed_at: datetime | None = None
-    
+
     # IDs de ordens (pode ser None se não executadas)
     stop_loss_order_id: str | None = None
     take_profit_order_id: str | None = None
-    
+
     # Resultado final
     exit_price: float | None = None
     pnl_usdt: float | None = None  # Lucro/prejuízo em USDT
 
 class OrderManager:
-    def execute(self, 
-               signal: Signal, 
+    def execute(self,
+               signal: Signal,
                position: PositionSize) -> Trade | None:
         """
         Executa operação: entrada → SL → TP
-        
+
         Args:
             signal: Signal com entry, SL, TP
             position: PositionSize com quantidade
-        
+
         Returns:
             Trade se todas as 3 ordens executadas, None se falha
-        
+
         Contrato (invariantes):
             - Trade nunca fica em estado indefinido
             - Se qualquer ordem falha, cancel_all e retorna FAILED
@@ -358,7 +361,7 @@ class OrderManager:
 
 #### Fluxo de Execução
 
-```
+```text
 1. Set Leverage
    └─ ExchangeClient.set_leverage(signal.symbol, config.leverage)
       └─ Se erro: return None (não abre posição)
@@ -377,12 +380,12 @@ class OrderManager:
 
 4. Stop Loss Order
    └─ sl_order = ExchangeClient.create_stop_loss_order(
-        symbol, side=OPPOSITE(direction), 
-        stop_price=signal.stop_loss, 
+        symbol, side=OPPOSITE(direction),
+        stop_price=signal.stop_loss,
         quantity=position.quantity,
         reduceOnly=True
       )
-      └─ Se erro: 
+      └─ Se erro:
          ├─ cancel_all_orders(symbol)
          ├─ trade.status = FAILED
          └─ return trade
@@ -421,6 +424,7 @@ class OrderManager:
 ### 2.4 Exchange Integration (`src/exchange/binance_client.py`)
 
 #### Responsabilidade
+
 Comunicação assíncrona com Binance (via ccxt), com retry e tratamento de erros.
 
 #### Interface Pública
@@ -429,63 +433,63 @@ Comunicação assíncrona com Binance (via ccxt), com retry e tratamento de erro
 class BinanceClient:
     async def connect(self) -> None:
         """Inicializa conexão ccxt"""
-    
+
     async def close(self) -> None:
         """Fecha conexão"""
-    
-    async def fetch_ohlcv(self, symbol: str, timeframe: str, 
+
+    async def fetch_ohlcv(self, symbol: str, timeframe: str,
                          limit: int = 200) -> pd.DataFrame:
         """
         Retorna OHLCV em DataFrame (sem última candle "em progresso")
-        
+
         Contrato:
             - Nunca inclui candle atual (em progresso)
             - Retorna >= limit linhas ou erro
         """
-    
+
     async def fetch_ohlcv_with_retry(self, symbol: str, timeframe: str,
                                      retries: int = 3) -> pd.DataFrame:
         """Idem, com retry exponencial"""
-    
+
     async def fetch_usdt_balance(self) -> float:
         """Retorna saldo USDT disponível"""
-    
+
     async def fetch_open_positions(self) -> list[dict]:
         """Retorna posições abertas (Futures)"""
-    
+
     async def set_leverage(self, symbol: str, leverage: int) -> None:
         """Define alavancagem (Futures)"""
-    
+
     async def set_margin_mode(self, symbol: str, mode: str) -> None:
         """Define "isolated" ou "cross" (Futures)"""
-    
-    async def create_market_order(self, symbol: str, side: str, 
+
+    async def create_market_order(self, symbol: str, side: str,
                                  quantity: float) -> dict:
         """Executa order de mercado (LONG=buy, SHORT=sell)"""
-    
+
     async def create_stop_loss_order(self, symbol: str, side: str,
                                     stop_price: float, quantity: float,
                                     reduceOnly: bool = True) -> dict:
         """Executa STOP_MARKET order"""
-    
+
     async def create_take_profit_order(self, symbol: str, side: str,
                                       limit_price: float, quantity: float,
                                       reduceOnly: bool = True) -> dict:
         """Executa TAKE_PROFIT_MARKET order"""
-    
+
     async def cancel_all_orders(self, symbol: str) -> None:
         """Cancela todas as ordens abertas do símbolo"""
-    
+
     def round_quantity(self, symbol: str, quantity: float) -> float:
         """Arredonda quantidade para precisão permitida"""
-    
+
     def round_price(self, symbol: str, price: float) -> float:
         """Arredonda preço para tick size"""
 ```
 
 #### Tratamento de Erros
 
-```
+```text
 Erros recuperáveis (retry 3x com backoff exponencial):
   - Rate limit (429)
   - Timeout de rede
@@ -511,6 +515,7 @@ Erros fatais (falha imediata):
 ### 2.5 Storage Layer (`src/storage/repository.py`)
 
 #### Responsabilidade
+
 Persistência em MongoDB (assíncrona via motor), com indexação e auditoria.
 
 #### Interface Pública
@@ -519,26 +524,26 @@ Persistência em MongoDB (assíncrona via motor), com indexação e auditoria.
 class MongoRepository:
     async def setup_indexes(self) -> None:
         """Cria índices obrigatórios na inicialização"""
-    
+
     async def save_signal(self, signal: Signal) -> None:
         """Persiste sinal em collection 'signals'"""
-    
+
     async def save_trade(self, trade: Trade) -> None:
         """Persiste trade em collection 'trades' (com índice em entry_order_id)"""
-    
-    async def update_trade_status(self, entry_order_id: str, 
+
+    async def update_trade_status(self, entry_order_id: str,
                                   status: TradeStatus) -> None:
         """Atualiza status de trade (ex: ACTIVE → CLOSED_BY_SL)"""
-    
+
     async def get_open_trades(self) -> list[Trade]:
         """Retorna trades com status ACTIVE"""
-    
+
     async def get_open_trades_for_symbol(self, symbol: str) -> list[Trade]:
         """Retorna trades ACTIVE de um símbolo específico"""
-    
+
     async def count_open_positions(self) -> int:
         """Retorna quantidade de trades ACTIVE"""
-    
+
     async def audit(self, event: str, details: dict) -> None:
         """Registra evento de auditoria em collection 'audit_log'"""
 ```
@@ -602,6 +607,7 @@ class MongoRepository:
 ### 2.6 Logger (`src/monitoring/logger.py`)
 
 #### Responsabilidade
+
 Logging estruturado (JSON em produção, console em dev).
 
 #### Interface Pública
@@ -663,6 +669,7 @@ logger.info("tick", open_positions_count, balance_usdt)
 ### 3.1 Async/Await Obrigatório
 
 Todas as operações I/O são assíncronas:
+
 - ❌ NÃO usar threads
 - ✅ SIM usar `async def`, `await`, `asyncio.gather()`
 
@@ -727,25 +734,25 @@ async def main():
     # 1. Configuração
     settings = load_settings()
     logger = get_logger(__name__)
-    
+
     # 2. Conexão com Binance
     exchange = BinanceClient(settings)
     await exchange.connect()
-    
+
     # 3. Conexão com MongoDB
     repo = MongoRepository(settings)
     await repo.setup_indexes()
-    
+
     # 4. Iniciar monitor
     monitor = TradingMonitor(exchange, repo, settings)
-    
+
     # 5. Loop infinito
     await monitor.run()
 ```
 
 ### 4.2 Um Tick (1 min ou 1 min, conforme timeframe)
 
-```
+```text
 _tick():
   1. FETCH OHLCV (drop última candle)
   2. CHECK max_open_positions
@@ -777,7 +784,7 @@ _tick():
 def test_long_signal_detection():
     df = load_historical("BTCUSDT", "4h", "2024-01-01", "2024-12-31")
     engine = SignalEngine()
-    
+
     # Candle com sinal válido
     signal = engine.evaluate("BTCUSDT", "4h", df.iloc[-1:])
     assert signal is not None
@@ -794,9 +801,9 @@ def test_long_signal_detection():
 def test_position_sizing():
     signal = Signal(...)
     balance = 1000.0
-    
+
     position = RiskManager().calculate(signal, balance)
-    
+
     assert position.quantity > 0
     assert position.risk == balance * 0.01  # 1% risk
     margin_used = (signal.entry_price * position.quantity) / 5
@@ -807,7 +814,7 @@ def test_position_sizing():
 
 ## 6. Checklist de Code Review
 
-### Para Toda PR:
+### Para Toda PR
 
 - [ ] Tipo hints completos (sem `Any`)
 - [ ] Async/await correto (sem threads)
@@ -817,7 +824,7 @@ def test_position_sizing():
 - [ ] Nenhuma chave hardcoded
 - [ ] Contrato em SPEC.md respeitado
 
-### Para Signal Engine:
+### Para Signal Engine
 
 - [ ] Alligator validado: lips > teeth > jaw
 - [ ] AO validado: > 0 (LONG) ou < 0 (SHORT)
@@ -825,7 +832,7 @@ def test_position_sizing():
 - [ ] SL, TP calculados sem divisão por zero
 - [ ] Teste manual vs. histórico: 10+ setups
 
-### Para Risk Manager:
+### Para Risk Manager
 
 - [ ] Fórmula de risco exata
 - [ ] Scale-down aplicado se necessário
@@ -833,7 +840,7 @@ def test_position_sizing():
 - [ ] max_capital_allocation_pct respeitado
 - [ ] Teste: 50 cenários diferentes
 
-### Para Order Manager:
+### Para Order Manager
 
 - [ ] Leverage + margin mode antes de ordem
 - [ ] Rollback (cancel_all) se falha
@@ -853,7 +860,7 @@ def test_position_sizing():
 
 ### 7.2 Comunicação de Mudanças
 
-```
+```text
 Commit message:
 feat(spec): add fraud detection to Signal Engine
 
@@ -868,6 +875,6 @@ Refs: PRD.md § Risks (Whipsaw detection)
 
 **SPEC.md é a verdade executável. Todo código deve conformar a isto.**
 
-*Mantido por: Backend Sênior + Quant Developer*  
-*Governado por: Time A + Risk Manager*  
+*Mantido por: Backend Sênior + Quant Developer*
+*Governado por: Time A + Risk Manager*
 *Última atualização: 2026-05-01*

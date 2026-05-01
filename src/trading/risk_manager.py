@@ -27,13 +27,13 @@ logger = get_logger(__name__)
 class PositionSize:
     symbol: str
     direction: Direction
-    quantity: float          # contratos (unidades do ativo base)
-    notional: float          # valor nocional em USDT
-    margin_required: float   # margem necessária em USDT
+    quantity: float  # contratos (unidades do ativo base)
+    notional: float  # valor nocional em USDT
+    margin_required: float  # margem necessária em USDT
     entry_price: float
     stop_loss: float
     take_profit: float
-    risk_amount: float       # USDT arriscados nesta operação
+    risk_amount: float  # USDT arriscados nesta operação
 
     def to_dict(self) -> dict:
         return {

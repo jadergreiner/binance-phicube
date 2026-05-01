@@ -14,8 +14,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
 # ─── Alligator ────────────────────────────────────────────────────────────────
+
 
 def smma(series: pd.Series, period: int) -> pd.Series:
     """Smoothed Moving Average (SMMA / Wilder's MA / RMA).
@@ -64,6 +64,7 @@ def alligator(df: pd.DataFrame) -> pd.DataFrame:
 
 # ─── Awesome Oscillator ───────────────────────────────────────────────────────
 
+
 def awesome_oscillator(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate the Awesome Oscillator (AO).
 
@@ -78,6 +79,7 @@ def awesome_oscillator(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─── Fractais ─────────────────────────────────────────────────────────────────
+
 
 def fractals(df: pd.DataFrame) -> pd.DataFrame:
     """Detect Bill Williams Fractals (5-bar pattern).
@@ -118,6 +120,7 @@ def fractals(df: pd.DataFrame) -> pd.DataFrame:
 
 # ─── Pipeline completo ────────────────────────────────────────────────────────
 
+
 def compute_all(df: pd.DataFrame) -> pd.DataFrame:
     """Apply all indicators to a OHLCV DataFrame in one call.
 
@@ -132,6 +135,7 @@ def compute_all(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─── Helper utilities ─────────────────────────────────────────────────────────
+
 
 def last_valid_fractal_high(df: pd.DataFrame, lookback: int = 100) -> float | None:
     """Return the most recent bearish fractal high within lookback bars.

@@ -8,7 +8,7 @@ Coleções:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
@@ -34,23 +34,29 @@ class MongoRepository:
     async def setup_indexes(self) -> None:
         """Create indexes on first startup. Safe to call on every start."""
         trades = self._db[_TRADES_COLLECTION]
-        await trades.create_indexes([
-            IndexModel([("symbol", ASCENDING), ("status", ASCENDING)]),
-            IndexModel([("opened_at", DESCENDING)]),
-            IndexModel([("entry_order_id", ASCENDING)], unique=True),
-        ])
+        await trades.create_indexes(
+            [
+                IndexModel([("symbol", ASCENDING), ("status", ASCENDING)]),
+                IndexModel([("opened_at", DESCENDING)]),
+                IndexModel([("entry_order_id", ASCENDING)], unique=True),
+            ]
+        )
 
         signals = self._db[_SIGNALS_COLLECTION]
-        await signals.create_indexes([
-            IndexModel([("symbol", ASCENDING), ("timeframe", ASCENDING)]),
-            IndexModel([("detected_at", DESCENDING)]),
-        ])
+        await signals.create_indexes(
+            [
+                IndexModel([("symbol", ASCENDING), ("timeframe", ASCENDING)]),
+                IndexModel([("detected_at", DESCENDING)]),
+            ]
+        )
 
         audit = self._db[_AUDIT_COLLECTION]
-        await audit.create_indexes([
-            IndexModel([("ts", DESCENDING)]),
-            IndexModel([("event", ASCENDING)]),
-        ])
+        await audit.create_indexes(
+            [
+                IndexModel([("ts", DESCENDING)]),
+                IndexModel([("event", ASCENDING)]),
+            ]
+        )
 
         logger.info("mongodb_indexes_ready")
 
@@ -74,7 +80,7 @@ class MongoRepository:
         update: dict[str, Any] = {
             "$set": {
                 "status": status.value,
-                "closed_at": datetime.now(timezone.utc),
+                "closed_at": datetime.now(UTC),
             }
         }
         if pnl is not None:
@@ -112,7 +118,7 @@ class MongoRepository:
     async def audit(self, event: str, data: dict[str, Any]) -> None:
         """Append an immutable audit entry."""
         doc = {
-            "ts": datetime.now(timezone.utc),
+            "ts": datetime.now(UTC),
             "event": event,
             **data,
         }

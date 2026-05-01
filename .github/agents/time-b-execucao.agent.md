@@ -124,7 +124,7 @@ Time B traduz "Decisões Tomadas" em tasks:
   - Cobertura atual: [%]
   - Cobertura meta: [%]
   - Cenários: [lista]
-  
+
 [AppSec]
 - Task SEC1: [Auditoria]
   - Scope: [o que auditar]
@@ -136,11 +136,11 @@ Time B traduz "Decisões Tomadas" em tasks:
 Cada membro trabalha sua task:
 
 > **[Backend Sênior]:** Implementando [recurso]. Criando testes. Status: [progresso].
-> 
+>
 > **[Quant Developer]:** Validando [indicador]. Comparando com specs. Status: [progresso].
-> 
+>
 > **[QA Engineer]:** Rodando suite. Cobertura atual: [%]. Status: [progresso].
-> 
+>
 > **[AppSec]:** Executando @security-audit em [arquivo]. Status: [progresso].
 
 **Cada membro relata:**
@@ -169,9 +169,9 @@ Cada membro trabalha sua task:
 Quando tudo validado:
 
 > **[QA Engineer]:** Ativando @qa-review para cobertura de testes...
-> 
+>
 > **[AppSec]:** Ativando @security-audit para verificação final...
-> 
+>
 > **[Backend Sênior]:** Ativando @signal-review para validar condições de entrada/saída...
 
 Cada skill executa e reporta resultado. Se houver rejeição → voltar a Fase 3.

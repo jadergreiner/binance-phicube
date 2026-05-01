@@ -1,8 +1,8 @@
 # PRD — Product Requirement Document — Binance Phicube
 
-**Versão:** 1.0  
-**Data de Criação:** 2026-05-01  
-**Proprietário:** Equipe Phicube  
+**Versão:** 1.0
+**Data de Criação:** 2026-05-01
+**Proprietário:** Equipe Phicube
 **Status:** Ativo — Refinamento Contínuo
 
 ---
@@ -73,24 +73,28 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 ### Personas Principais
 
 #### 1. **Trader Metodista (Early Adopter)**
+
 - **Perfil:** Conhece BO Williams, pratica Phicube há meses
 - **Necessidade:** Automatizar disciplina operacional
 - **Sucesso:** 100 operações idênticas ao método, com histórico auditável
 - **Preocupação:** "Preciso ter certeza de que o bot segue exatamente as regras"
 
 #### 2. **Investidor Iniciante em Crypto**
+
 - **Perfil:** Quer começar em crypto, mas não confia em emoções
 - **Necessidade:** Método transparente, sem risco de over-leverage
 - **Sucesso:** Opera em Testnet, valida rentabilidade, move para real com confiança
 - **Preocupação:** "Perdi dinheiro antes por impulsividade — como garanto disciplina?"
 
 #### 3. **Engenheiro / Quant Developer**
+
 - **Perfil:** Estuda trading algorítmico, quer entender price action + código
 - **Necessidade:** Código limpo, bem testado, extensível
 - **Sucesso:** Lê codebase, contribui melhorias, faz fork próprio
 - **Preocupação:** "O código é profissional? Posso confiar e estender?"
 
 #### 4. **Auditor / Compliance**
+
 - **Perfil:** Valida segurança, risco, conformidade
 - **Necessidade:** Rastreabilidade completa, sem pontos cegos
 - **Sucesso:** Acessa MongoDB, revisa logs, certifica operações
@@ -102,8 +106,9 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 
 ### OKR Nível 1 — Visão (12 meses)
 
-**Objetivo:** Ser referência em automação Phicube  
+**Objetivo:** Ser referência em automação Phicube
 **Key Results:**
+
 - [ ] 100+ traders ativos testando em Testnet
 - [ ] 1000+ horas de operação validadas em produção
 - [ ] 0 casos de fuga de credencial ou operação não autorizada
@@ -111,8 +116,9 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 
 ### OKR Nível 2 — Escopo MVP (3-6 meses)
 
-**Objetivo:** Lançar MVP robusto com core funcional  
+**Objetivo:** Lançar MVP robusto com core funcional
 **Key Results:**
+
 - [ ] Signal Engine acurado (validado contra histórico 200+ candles)
 - [ ] Risk Manager preciso (testes com 50+ cenários de posição)
 - [ ] Order Manager executando sem falhas em Testnet (100% success rate)
@@ -122,8 +128,9 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 
 ### OKR Nível 3 — Trimestral (Meta atual)
 
-**Objetivo:** Consolidar infraestrutura + validar estratégia  
+**Objetivo:** Consolidar infraestrutura + validar estratégia
 **Key Results:**
+
 - [ ] ccxt + Motor async rodando sem memory leaks
 - [ ] Alligator + AO + Fractais implementados e testados (vs. teoria)
 - [ ] MongoDB indexes otimizados para queries rápidas
@@ -137,6 +144,7 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 ### ✅ MVP — Fase 1 (Mínimo Viável)
 
 #### Funcionalidades Críticas
+
 1. **Detecção de Sinal**
    - Input: Histórico OHLCV (Open, High, Low, Close, Volume) em qualquer timeframe
    - Processamento: Alligator (SMMA), Awesome Oscillator, Fractais 5-barra
@@ -153,7 +161,7 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 
 3. **Execução de Ordem**
    - Input: `PositionSize`
-   - Processamento: 
+   - Processamento:
      - Set leverage + margin mode
      - Market order entrada
      - Stop loss order (STOP_MARKET, reduceOnly)
@@ -176,6 +184,7 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
    - Critério de sucesso: Testnet 48h contínuas sem falha
 
 #### Configuração (User-facing)
+
 ```ini
 # .env
 BINANCE_API_KEY=xxx
@@ -273,18 +282,21 @@ LOG_LEVEL=INFO
 ## 📅 Roadmap (Planejamento de Alto Nível)
 
 ### Sprint 1-2 (Semanas 1-4) — Core Engine
+
 - Signal Engine (Alligator + AO + Fractals)
 - Risk Manager (Position Sizing)
 - Order Manager (Execução básica)
 - Testes unitários (≥ 70% coverage)
 
 ### Sprint 3-4 (Semanas 5-8) — Integração
+
 - ccxt + Motor integrados
 - MongoDB storage + indexação
 - Testnet execução end-to-end
 - Testes de integração
 
 ### Sprint 5-6 (Semanas 9-12) — Hardening
+
 - Resiliência (retry, reconexão)
 - Segurança (secrets management)
 - Observabilidade (logging estruturado)
@@ -292,6 +304,7 @@ LOG_LEVEL=INFO
 - **MVP Release em Testnet**
 
 ### Sprint 7+ (Fase 2) — Expansão
+
 - Dashboard
 - Backtests
 - Mais estratégias / timeframes
@@ -301,23 +314,27 @@ LOG_LEVEL=INFO
 ## 🎬 Como Este Documento é Usado
 
 ### Para **Engenheiros**
+
 - Use escopo e requisitos técnicos como spec de implementação
 - Valide cada feature contra critérios de sucesso
 - Use roadmap para priorização
 - Ative skills de validação (@signal-review, @qa-review, @security-audit) ao implementar
 
 ### Para **Product Owners / Stakeholders**
+
 - Use OKRs para rastrear progresso
 - Use personas para manter empatia com usuário
 - Use scope para dizer "sim" ou "não" a features
 - Use escopo out-of-scope para gerenciar expectativas
 
 ### Para **Time A (Refinamento)**
+
 - Novo tema de sessão? Valide se está em escopo deste PRD
 - Refinamento = conversa sobre PRD ou algo novo?
 - Se novo, produz artefatos que atualizam este PRD
 
 ### Para **Time B (Execução)**
+
 - Artefatos do Time A devem referenciar este PRD
 - Se há novo requisito, valide se está alinhado com PRD
 - PRD é a "fonte de verdade" — bloqueie fora de escopo
@@ -327,17 +344,20 @@ LOG_LEVEL=INFO
 ## 📞 Governance
 
 ### Proprietários
+
 - **Product Vision:** Trader Sênior + Product Owner
 - **Requisitos Técnicos:** Backend Sênior + Quant Developer
 - **Segurança:** AppSec
 - **Operação:** DevOps + QA Engineer
 
 ### Decisões de Escopo
+
 - **Dentro de scope:** Time B executa
 - **Fora de scope:** Time A debate em próxima sessão
 - **Urgente:** Escalar para humano (você)
 
 ### Atualização do PRD
+
 - **Trimestral:** Revisão completa com Time A + Time B
 - **Ad-hoc:** Se decisão do Time A impacta PRD, atualizar antes de Time B executar
 - **Versionamento:** Incrementar versão; guardar histórico

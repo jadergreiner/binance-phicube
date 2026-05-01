@@ -16,8 +16,8 @@ from src.strategy.indicators import (
     smma,
 )
 
-
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _make_df(n: int = 100, seed: int = 42) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
@@ -26,12 +26,11 @@ def _make_df(n: int = 100, seed: int = 42) -> pd.DataFrame:
     low = close - rng.uniform(0.1, 1.0, n)
     open_ = close + rng.normal(0, 0.3, n)
     volume = rng.uniform(100, 1000, n)
-    return pd.DataFrame(
-        {"open": open_, "high": high, "low": low, "close": close, "volume": volume}
-    )
+    return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": volume})
 
 
 # ─── SMMA ─────────────────────────────────────────────────────────────────────
+
 
 class TestSMMA:
     def test_length_preserved(self):
@@ -67,6 +66,7 @@ class TestSMMA:
 
 # ─── Alligator ────────────────────────────────────────────────────────────────
 
+
 class TestAlligator:
     def test_columns_added(self):
         df = _make_df(100)
@@ -96,6 +96,7 @@ class TestAlligator:
 
 # ─── Awesome Oscillator ───────────────────────────────────────────────────────
 
+
 class TestAO:
     def test_column_added(self):
         df = _make_df(50)
@@ -115,7 +116,13 @@ class TestAO:
         # Steadily rising prices
         prices = np.linspace(100, 200, n)
         df = pd.DataFrame(
-            {"high": prices + 0.5, "low": prices - 0.5, "close": prices, "open": prices, "volume": 1.0}
+            {
+                "high": prices + 0.5,
+                "low": prices - 0.5,
+                "close": prices,
+                "open": prices,
+                "volume": 1.0,
+            }
         )
         out = awesome_oscillator(df)
         last_ao = out["ao"].dropna().iloc[-1]
@@ -123,6 +130,7 @@ class TestAO:
 
 
 # ─── Fractais ─────────────────────────────────────────────────────────────────
+
 
 class TestFractals:
     def test_columns_added(self):
@@ -174,6 +182,7 @@ class TestFractals:
 
 # ─── Fractal helpers ──────────────────────────────────────────────────────────
 
+
 class TestFractalHelpers:
     def _df_with_fractals(self) -> pd.DataFrame:
         """Return a DataFrame with at least one bearish and bullish fractal."""
@@ -190,9 +199,7 @@ class TestFractalHelpers:
         # Force bullish fractal at 60
         low[60] = low[60] - 10.0
 
-        df = pd.DataFrame(
-            {"high": high, "low": low, "close": close, "open": close, "volume": 1.0}
-        )
+        df = pd.DataFrame({"high": high, "low": low, "close": close, "open": close, "volume": 1.0})
         return fractals(df)
 
     def test_last_valid_fractal_high_returns_float(self):

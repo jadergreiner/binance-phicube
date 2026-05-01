@@ -82,7 +82,9 @@ class BinanceClient:
 
         df = pd.DataFrame(raw, columns=["open_time", "open", "high", "low", "close", "volume"])
         df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
-        df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": float})
+        df = df.astype(
+            {"open": float, "high": float, "low": float, "close": float, "volume": float}
+        )
         return df
 
     async def fetch_balance(self) -> dict[str, Any]:

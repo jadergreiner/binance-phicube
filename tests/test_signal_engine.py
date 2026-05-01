@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.strategy.signal_engine import Direction, Signal, SignalEngine
-
+from src.strategy.signal_engine import Direction, SignalEngine
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _flat_df(n: int = 200, price: float = 100.0) -> pd.DataFrame:
     """Flat market — should never produce a signal."""
@@ -29,10 +29,10 @@ def _trending_long_df(n: int = 200) -> pd.DataFrame:
     """Strong uptrend designed to trigger a LONG signal eventually."""
     prices = np.linspace(80, 130, n)
     # Add a clear fractal-high spike early to give the engine a reference to break
-    prices[50] = prices[50] - 5.0   # local dip (bullish fractal support)
+    prices[50] = prices[50] - 5.0  # local dip (bullish fractal support)
     high = prices + 0.5
     low = prices - 0.5
-    high[40] = high[40] + 3.0       # bearish fractal (resistance to break)
+    high[40] = high[40] + 3.0  # bearish fractal (resistance to break)
     return pd.DataFrame(
         {
             "open": prices,
@@ -49,8 +49,8 @@ def _trending_short_df(n: int = 200) -> pd.DataFrame:
     prices = np.linspace(130, 80, n)
     high = prices + 0.5
     low = prices - 0.5
-    low[40] = low[40] - 3.0        # bullish fractal (support to break)
-    high[50] = high[50] + 3.0      # bearish fractal (resistance for SL)
+    low[40] = low[40] - 3.0  # bullish fractal (support to break)
+    high[50] = high[50] + 3.0  # bearish fractal (resistance for SL)
     return pd.DataFrame(
         {
             "open": prices,
@@ -63,6 +63,7 @@ def _trending_short_df(n: int = 200) -> pd.DataFrame:
 
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
+
 
 class TestSignalEngine:
     def setup_method(self):
@@ -136,9 +137,17 @@ class TestSignalEngine:
         if result is not None:
             d = result.to_dict()
             for key in [
-                "symbol", "timeframe", "direction", "entry_price",
-                "stop_loss", "take_profit", "fractal_ref", "risk",
-                "reward", "risk_reward_ratio", "detected_at",
+                "symbol",
+                "timeframe",
+                "direction",
+                "entry_price",
+                "stop_loss",
+                "take_profit",
+                "fractal_ref",
+                "risk",
+                "reward",
+                "risk_reward_ratio",
+                "detected_at",
             ]:
                 assert key in d
 
@@ -146,10 +155,16 @@ class TestSignalEngine:
 class TestAlligatorHelpers:
     def test_bullish_condition(self):
         from src.strategy.signal_engine import SignalEngine
+
         assert SignalEngine._is_alligator_bullish(10.0, 12.0, 14.0, 15.0) is True
-        assert SignalEngine._is_alligator_bullish(10.0, 12.0, 14.0, 13.0) is False  # price below lips
+        assert (
+            SignalEngine._is_alligator_bullish(10.0, 12.0, 14.0, 13.0) is False
+        )  # price below lips
 
     def test_bearish_condition(self):
         from src.strategy.signal_engine import SignalEngine
+
         assert SignalEngine._is_alligator_bearish(14.0, 12.0, 10.0, 9.0) is True
-        assert SignalEngine._is_alligator_bearish(14.0, 12.0, 10.0, 11.0) is False  # price above lips
+        assert (
+            SignalEngine._is_alligator_bearish(14.0, 12.0, 10.0, 11.0) is False
+        )  # price above lips

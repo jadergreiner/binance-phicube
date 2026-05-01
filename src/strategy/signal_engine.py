@@ -25,17 +25,17 @@ Stop Loss:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 import pandas as pd
 
+from src.monitoring.logger import get_logger
 from src.strategy.indicators import (
     compute_all,
     last_valid_fractal_high,
     last_valid_fractal_low,
 )
-from src.monitoring.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -54,7 +54,7 @@ class Signal:
     stop_loss: float
     take_profit: float
     fractal_ref: float
-    detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    detected_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def risk(self) -> float:

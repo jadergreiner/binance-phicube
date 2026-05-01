@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import signal
 import sys
-from datetime import datetime, timezone
 
 from src.config.settings import get_settings
 from src.exchange.binance_client import BinanceClient

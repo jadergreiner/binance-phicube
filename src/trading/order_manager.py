@@ -13,7 +13,7 @@ e registra o erro — nunca deixa uma posição sem proteção.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -48,7 +48,7 @@ class Trade:
     sl_order_id: str | None = None
     tp_order_id: str | None = None
     status: TradeStatus = TradeStatus.OPEN
-    opened_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    opened_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     closed_at: datetime | None = None
     pnl: float | None = None
     signal: dict[str, Any] = field(default_factory=dict)

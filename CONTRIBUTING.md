@@ -67,7 +67,7 @@ git checkout -b docs/atualizacao-de-documentacao
 
 Use mensagens de commit descritivas (em português ou inglês):
 
-```
+```text
 feat: adiciona monitoramento de múltiplos símbolos
 fix: corrige cálculo do stop loss no Futures
 docs: atualiza instruções de instalação no README
