@@ -1,11 +1,11 @@
 {
   "spec_id": "SPEC_001",
-  "updated_at": "2026-05-01T23:30:00Z",
+  "updated_at": "2026-05-01T23:45:00Z",
   "summary": {
     "todo": 0,
     "in_progress": 0,
-    "blocked": 1,
-    "done": 9
+    "blocked": 0,
+    "done": 10
   },
   "tasks": [
     {
@@ -127,11 +127,11 @@
     },
     {
       "id": "task_010",
-      "status": "blocked",
-      "progress_pct": 90,
-      "notes": "Suite de integração adaptada para Binance Futures (produção/Demo Trading), sem requisito de BINANCE_TESTNET=true. Execução permanece bloqueada por ExchangeNotAvailable ao acessar Binance Futures durante startup do stream/snapshot (fapi.binance.com/fapi/v2/positionRisk). Para desbloquear: estabilizar conectividade/acesso ao endpoint no ambiente de execução.",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Suite de integração validada com sucesso em ambiente real (3/3 passed) após migração do snapshot/listenKey/polling para Binance Connector e ajuste de DNS resolver no stream WebSocket.",
       "updated_by": "time-b-execucao",
-      "updated_at": "2026-05-01T23:30:00Z",
+      "updated_at": "2026-05-01T23:45:00Z",
       "links": {
         "pr": "",
         "commit": "",

@@ -141,10 +141,10 @@ async def test_snapshot_inicial_e_mapeado_para_position_view() -> None:
     websocket = _FakeWebSocket()
     session = _FakeSession(websocket)
 
-    client._exchange.fapiPrivateV2GetPositionRisk = AsyncMock(return_value=_make_snapshot_payload())
-    client._exchange.fapiPrivatePostListenKey = AsyncMock(return_value={"listenKey": "listen-key"})
-    client._exchange.fapiPrivatePutListenKey = AsyncMock(return_value={})
-    client._exchange.fapiPrivateDeleteListenKey = AsyncMock(return_value={})
+    client.fetch_position_risk = AsyncMock(return_value=_make_snapshot_payload())
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
 
     stream = PositionStream(
         client,
@@ -177,10 +177,10 @@ async def test_account_update_atualiza_posicao_correta_em_memoria() -> None:
     websocket = _FakeWebSocket()
     session = _FakeSession(websocket)
 
-    client._exchange.fapiPrivateV2GetPositionRisk = AsyncMock(return_value=_make_snapshot_payload())
-    client._exchange.fapiPrivatePostListenKey = AsyncMock(return_value={"listenKey": "listen-key"})
-    client._exchange.fapiPrivatePutListenKey = AsyncMock(return_value={})
-    client._exchange.fapiPrivateDeleteListenKey = AsyncMock(return_value={})
+    client.fetch_position_risk = AsyncMock(return_value=_make_snapshot_payload())
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
 
     stream = PositionStream(
         client,
@@ -213,9 +213,9 @@ async def test_falha_de_stream_altera_status_para_degraded_sem_propagar_excecao(
     client = DashboardClient(_make_settings())
     statuses: list[str] = []
 
-    client._exchange.fapiPrivateV2GetPositionRisk = AsyncMock(return_value=_make_snapshot_payload())
-    client._exchange.fapiPrivatePostListenKey = AsyncMock(return_value={"listenKey": "listen-key"})
-    client._exchange.fapiPrivateDeleteListenKey = AsyncMock(return_value={})
+    client.fetch_position_risk = AsyncMock(return_value=_make_snapshot_payload())
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.delete_listen_key = AsyncMock(return_value=None)
 
     stream = PositionStream(
         client,
@@ -241,12 +241,10 @@ async def test_snapshot_rest_fallback_para_cache_na_inicializacao() -> None:
     session = _FakeSession(websocket)
     cache = _StubCache([_make_cached_position()])
 
-    client._exchange.fapiPrivateV2GetPositionRisk = AsyncMock(
-        side_effect=RuntimeError("rest indisponivel")
-    )
-    client._exchange.fapiPrivatePostListenKey = AsyncMock(return_value={"listenKey": "listen-key"})
-    client._exchange.fapiPrivatePutListenKey = AsyncMock(return_value={})
-    client._exchange.fapiPrivateDeleteListenKey = AsyncMock(return_value={})
+    client.fetch_position_risk = AsyncMock(side_effect=RuntimeError("rest indisponivel"))
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
 
     stream = PositionStream(
         client,
@@ -273,10 +271,10 @@ async def test_snapshot_valido_e_salvo_no_cache_apos_update() -> None:
     session = _FakeSession(websocket)
     cache = _StubCache()
 
-    client._exchange.fapiPrivateV2GetPositionRisk = AsyncMock(return_value=_make_snapshot_payload())
-    client._exchange.fapiPrivatePostListenKey = AsyncMock(return_value={"listenKey": "listen-key"})
-    client._exchange.fapiPrivatePutListenKey = AsyncMock(return_value={})
-    client._exchange.fapiPrivateDeleteListenKey = AsyncMock(return_value={})
+    client.fetch_position_risk = AsyncMock(return_value=_make_snapshot_payload())
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
 
     stream = PositionStream(
         client,
@@ -303,12 +301,10 @@ async def test_keepalive_com_falha_fecha_transporte_e_marca_stream_como_degraded
     session = _FakeSession(websocket)
     statuses: list[str] = []
 
-    client._exchange.fapiPrivateV2GetPositionRisk = AsyncMock(return_value=_make_snapshot_payload())
-    client._exchange.fapiPrivatePostListenKey = AsyncMock(return_value={"listenKey": "listen-key"})
-    client._exchange.fapiPrivatePutListenKey = AsyncMock(
-        side_effect=RuntimeError("keepalive falhou")
-    )
-    client._exchange.fapiPrivateDeleteListenKey = AsyncMock(return_value={})
+    client.fetch_position_risk = AsyncMock(return_value=_make_snapshot_payload())
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(side_effect=RuntimeError("keepalive falhou"))
+    client.delete_listen_key = AsyncMock(return_value=None)
 
     stream = PositionStream(
         client,
@@ -323,6 +319,6 @@ async def test_keepalive_com_falha_fecha_transporte_e_marca_stream_como_degraded
     assert websocket.closed is True
     assert session.closed is True
     assert statuses[-1] == "degraded"
-    client._exchange.fapiPrivateDeleteListenKey.assert_awaited()
+    client.delete_listen_key.assert_awaited()
 
     await stream.stop()

@@ -105,7 +105,11 @@ class _FakeStream:
     ) -> None:
         self._status = status
         self._positions = {position.symbol: position for position in positions}
-        self._client = SimpleNamespace(_exchange=exchange or _FakeExchange())
+        self._exchange = exchange or _FakeExchange()
+        self._client = SimpleNamespace(
+            fetch_position_risk=self._fetch_position_risk,
+            get_last_response_headers=self._get_last_response_headers,
+        )
         self.fail_start = fail_start
         self.status_events: list[str] = []
         self.saved_snapshots: list[list[PositionView]] = []
@@ -135,6 +139,12 @@ class _FakeStream:
         self.stop_statuses.append(status)
         if status != self._status:
             await self._set_status(status)
+
+    async def _fetch_position_risk(self) -> list[dict[str, str]]:
+        return await self._exchange.fapiPrivateV2GetPositionRisk()
+
+    def _get_last_response_headers(self) -> dict[str, str]:
+        return self._exchange.last_response_headers
 
     def _build_snapshot_position(
         self,
@@ -202,7 +212,7 @@ async def test_polling_inicia_em_2s_e_recua_para_10s_apos_30s() -> None:
 
     assert 2.0 in clock.sleeps
     assert 10.0 in clock.sleeps
-    assert stream._client._exchange.calls >= 2
+    assert stream._exchange.calls >= 2
 
     await updater.stop()
 

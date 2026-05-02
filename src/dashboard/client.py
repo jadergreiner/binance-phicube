@@ -42,6 +42,7 @@ class DashboardClient:
         # Demo Trading (substituto do Testnet descontinuado) usa endpoints de produção
         self._exchange: ccxt.binanceusdm = ccxt.binanceusdm(params)
         self._settings = settings
+        self._um_futures_client: Any | None = None
 
     # ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -87,6 +88,69 @@ class DashboardClient:
             )
 
         return response
+
+    def _get_um_futures_client(self) -> Any:
+        if self._um_futures_client is not None:
+            return self._um_futures_client
+
+        try:
+            from binance.um_futures import UMFutures
+        except ImportError as exc:
+            raise DashboardClientError(
+                "Dependência ausente para operações de Futures da Dashboard API Key. "
+                "Instale `binance-sdk-derivatives-trading-usds-futures`."
+            ) from exc
+
+        self._um_futures_client = UMFutures(
+            key=self._settings.dashboard_api_key,
+            secret=self._settings.dashboard_api_secret,
+        )
+        return self._um_futures_client
+
+    async def _call_um_futures(self, method_name: str, **params: Any) -> Any:
+        client = self._get_um_futures_client()
+        method = getattr(client, method_name, None)
+        if method is None:
+            raise DashboardClientError(
+                f"SDK Binance Futures sem suporte ao método '{method_name}' neste ambiente."
+            )
+
+        try:
+            return await asyncio.to_thread(method, **params)
+        except Exception as exc:
+            raise DashboardClientError(
+                f"Falha ao executar '{method_name}' no SDK Binance Futures: {exc}"
+            ) from exc
+
+    async def fetch_position_risk(self, *, symbol: str | None = None) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if symbol:
+            params["symbol"] = symbol
+
+        response = await self._call_um_futures("get_position_risk", **params)
+        payload = response if isinstance(response, list) else [response]
+        return [raw for raw in payload if isinstance(raw, dict)]
+
+    async def create_listen_key(self) -> str:
+        response = await self._call_um_futures("new_listen_key")
+        if not isinstance(response, dict):
+            raise DashboardClientError("Resposta inválida ao criar listenKey da Binance Futures")
+
+        listen_key = response.get("listenKey")
+        if not listen_key:
+            raise DashboardClientError("Binance não retornou listenKey válido para o painel")
+
+        return str(listen_key)
+
+    async def renew_listen_key(self, listen_key: str) -> None:
+        await self._call_um_futures("renew_listen_key", listenKey=listen_key)
+
+    async def delete_listen_key(self, listen_key: str) -> None:
+        await self._call_um_futures("close_listen_key", listenKey=listen_key)
+
+    def get_last_response_headers(self) -> dict[str, Any]:
+        # O SDK oficial não expõe headers HTTP de forma estável para controle de rate limit.
+        return {}
 
     async def _validate_readonly_permissions(self) -> None:
         """Verifica que a Key NÃO possui permissão de trade.

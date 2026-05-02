@@ -176,12 +176,12 @@ class AdaptiveUpdater:
             raise
 
     async def _refresh_positions(self, stream: PositionStream) -> None:
-        exchange = stream._client._exchange
         current_positions = {position.symbol: position for position in stream.get_positions()}
 
         try:
-            payload = await exchange.fapiPrivateV2GetPositionRisk()
-            headers = getattr(exchange, "last_response_headers", {}) or {}
+            payload = await stream._client.fetch_position_risk()
+            get_headers = getattr(stream._client, "get_last_response_headers", None)
+            headers = get_headers() if callable(get_headers) else {}
         except Exception as exc:
             logger.warning(
                 "dashboard_adaptive_updater_poll_failed",

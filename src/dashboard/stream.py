@@ -28,6 +28,12 @@ _DEFAULT_KEEPALIVE_INTERVAL_SECONDS = 30 * 60
 StatusChangeCallback = Callable[[ConnectionStatus], Awaitable[None] | None]
 
 
+def _default_session_factory() -> aiohttp.ClientSession:
+    # Usa resolvedor por thread para evitar falhas intermitentes do AsyncResolver/aiodns.
+    connector = aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver())
+    return aiohttp.ClientSession(connector=connector)
+
+
 class PositionStream:
     """Mantém em memória o snapshot de posições e aplica updates incrementais."""
 
@@ -43,7 +49,7 @@ class PositionStream:
         self._client = client
         self._cache = cache
         self.on_status_change = on_status_change
-        self._session_factory = session_factory or aiohttp.ClientSession
+        self._session_factory = session_factory or _default_session_factory
         self._keepalive_interval = keepalive_interval
 
         self._positions: dict[str, PositionView] = {}
@@ -129,7 +135,7 @@ class PositionStream:
 
     async def _load_initial_snapshot(self) -> None:
         try:
-            payload = await self._client._exchange.fapiPrivateV2GetPositionRisk()
+            payload = await self._client.fetch_position_risk()
         except Exception as exc:
             logger.warning("dashboard_position_snapshot_load_failed", error=str(exc))
             if self._cache is None:
@@ -160,13 +166,7 @@ class PositionStream:
         logger.info("dashboard_position_snapshot_loaded", positions=len(self._positions))
 
     async def _create_listen_key(self) -> str:
-        payload = await self._client._exchange.fapiPrivatePostListenKey()
-        listen_key = payload.get("listenKey")
-
-        if not listen_key:
-            raise ValueError("Binance não retornou listenKey válido para o painel")
-
-        return str(listen_key)
+        return await self._client.create_listen_key()
 
     async def _consume_stream(self) -> None:
         if self._websocket is None:
@@ -258,7 +258,7 @@ class PositionStream:
         updated_at: datetime,
     ) -> PositionView | None:
         try:
-            payload = await self._client._exchange.fapiPrivateV2GetPositionRisk({"symbol": symbol})
+            payload = await self._client.fetch_position_risk(symbol=symbol)
         except Exception as exc:
             logger.warning(
                 "dashboard_position_snapshot_refresh_failed",
@@ -281,9 +281,7 @@ class PositionStream:
                 await asyncio.sleep(self._keepalive_interval)
                 if self._listen_key is None:
                     return
-                await self._client._exchange.fapiPrivatePutListenKey(
-                    {"listenKey": self._listen_key}
-                )
+                await self._client.renew_listen_key(self._listen_key)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -299,12 +297,8 @@ class PositionStream:
         if self._listen_key is None:
             return
 
-        delete_listen_key = getattr(self._client._exchange, "fapiPrivateDeleteListenKey", None)
-        if delete_listen_key is None:
-            return
-
         try:
-            await delete_listen_key({"listenKey": self._listen_key})
+            await self._client.delete_listen_key(self._listen_key)
         except Exception as exc:
             logger.warning("dashboard_position_stream_delete_listen_key_failed", error=str(exc))
 
