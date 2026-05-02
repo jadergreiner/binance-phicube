@@ -9,6 +9,7 @@ description = "Auto trade system for Binance Futures implementing the BO William
 requires-python = ">=3.11"
 dependencies = [
     "ccxt>=4.3.0",
+    "binance-sdk-derivatives-trading-usds-futures>=7.1.0",
     "pandas>=2.2.0",
     "numpy>=1.26.0",
     "motor>=3.4.0",

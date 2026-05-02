@@ -8,6 +8,7 @@ trade, lançando `DashboardClientError` caso contrário.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import ccxt.async_support as ccxt
@@ -57,62 +58,71 @@ class DashboardClient:
 
     # ─── Validação de permissões ───────────────────────────────────────────────
 
+    async def _fetch_api_restrictions(self) -> dict[str, Any]:
+        """Consulta restrições da API Key via SDK oficial da Binance."""
+        try:
+            from binance.spot import Spot
+        except ImportError as exc:
+            raise DashboardClientError(
+                "Dependência ausente para validar permissões da Dashboard API Key. "
+                "Instale `binance-sdk-derivatives-trading-usds-futures`."
+            ) from exc
+
+        spot_client = Spot(
+            api_key=self._settings.dashboard_api_key,
+            api_secret=self._settings.dashboard_api_secret,
+        )
+
+        try:
+            response = await asyncio.to_thread(spot_client.api_restrictions)
+        except Exception as exc:
+            raise DashboardClientError(
+                "Falha ao consultar restrições da Dashboard API Key via SDK oficial da Binance."
+            ) from exc
+
+        if not isinstance(response, dict):
+            raise DashboardClientError(
+                "Resposta inválida ao consultar restrições da Dashboard API Key via SDK oficial da "
+                "Binance."
+            )
+
+        return response
+
     async def _validate_readonly_permissions(self) -> None:
         """Verifica que a Key NÃO possui permissão de trade.
 
-        Obtém as permissões da API Key via endpoint `/fapi/v1/apiTradingStatus`
-        ou equivalente disponível no ccxt. Se a Key possuir permissão de
-        negociação (`enableTrading=True`), lança `DashboardClientError`.
+        Obtém as restrições da API Key via SDK oficial da Binance. Se a Key
+        possuir permissão de negociação spot/margin ou futuros, lança
+        `DashboardClientError`.
 
         Raises:
             DashboardClientError: se a Key tiver permissão de trade ou se não
                 for possível verificar as permissões.
         """
-        try:
-            # fetch_api_key_permissions está disponível na Binance Futures
-            response: dict[str, Any] = await self._exchange.fetch_api_key_permissions()
-        except ccxt.AuthenticationError as exc:
-            raise DashboardClientError(
-                "Falha de autenticação ao validar permissões da Dashboard API Key. "
-                "Verifique DASHBOARD_API_KEY e DASHBOARD_API_SECRET."
-            ) from exc
-        except ccxt.NotSupported as exc:
-            logger.warning(
-                "dashboard_permission_check_not_supported",
-                message=(
-                    "Inicializacao bloqueada: nao foi possivel verificar a permissao "
-                    "READ_ONLY da Dashboard API Key."
-                ),
-            )
-            raise DashboardClientError(
-                "Inicializacao bloqueada: nao foi possivel verificar a permissao READ_ONLY da "
-                "Dashboard API Key porque o endpoint de validacao nao e suportado neste ambiente."
-            ) from exc
-        except Exception as exc:
-            raise DashboardClientError(
-                f"Erro inesperado ao verificar permissões da Dashboard API Key: {exc}"
-            ) from exc
+        response = await self._fetch_api_restrictions()
 
-        required_fields = {"enableTrading", "enableFutures"}
+        required_fields = {"enableFutures", "enableSpotAndMarginTrading"}
         if not required_fields.issubset(response.keys()):
             raise DashboardClientError(
                 "Permissões não puderam ser verificadas: payload incompleto da API"
             )
 
-        enable_trading: bool = response["enableTrading"]
-        enable_futures: bool = response["enableFutures"]
+        enable_futures: bool = bool(response["enableFutures"])
+        enable_spot_margin_trading: bool = bool(response["enableSpotAndMarginTrading"])
 
-        if enable_trading or enable_futures:
+        if enable_futures or enable_spot_margin_trading:
             raise DashboardClientError(
-                "A Dashboard API Key possui permissão de trade (enableTrading="
-                f"{enable_trading}, enableFutures={enable_futures}). "
+                "A Dashboard API Key não é READ_ONLY (enableFutures="
+                f"{enable_futures}, "
+                "enableSpotAndMarginTrading="
+                f"{enable_spot_margin_trading}). "
                 "Utilize uma Key exclusivamente READ_ONLY para o painel."
             )
 
         logger.info(
             "dashboard_api_key_readonly_validated",
-            enable_trading=enable_trading,
             enable_futures=enable_futures,
+            enable_spot_margin_trading=enable_spot_margin_trading,
         )
 
     # ─── Dados de mercado ─────────────────────────────────────────────────────

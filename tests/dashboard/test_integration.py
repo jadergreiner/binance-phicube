@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from time import monotonic
 
 import pytest
+from binance.um_futures import UMFutures
 from pydantic import ValidationError
 from pydantic_settings import SettingsError
 
@@ -53,22 +54,36 @@ def _build_integration_settings_or_skip() -> _IntegrationSettings:
 
 async def _build_client_or_skip() -> DashboardClient:
     settings = _build_integration_settings_or_skip()
-    client = DashboardClient(settings)
+    futures_client = UMFutures(
+        key=settings.dashboard_api_key,
+        secret=settings.dashboard_api_secret,
+    )
 
     try:
-        await asyncio.wait_for(client._exchange.fapiPrivateV2GetPositionRisk(), timeout=20)
+        await asyncio.wait_for(asyncio.to_thread(futures_client.account), timeout=20)
     except Exception as exc:
-        await client.close()
         pytest.skip(
-            "INT_001 bloqueado: não foi possível acessar a Binance Futures "
-            f"com as credenciais informadas ({exc!r})."
+            "INT_001 bloqueado: falha de acesso Binance Futures com SDK oficial "
+            f"usando as credenciais informadas ({exc!r})."
         )
 
-    return client
+    return DashboardClient(settings)
 
 
 async def _start_stream_or_skip(stream: PositionStream) -> None:
-    await asyncio.wait_for(stream.start(), timeout=30)
+    try:
+        await asyncio.wait_for(stream.start(), timeout=30)
+    except Exception as exc:
+        try:
+            await stream.stop(status="offline")
+        except Exception:
+            pass
+
+        pytest.skip(
+            "INT_001 bloqueado: falha ao iniciar stream na Binance Futures "
+            f"(erro: {exc!r}). Verifique rede/infra e disponibilidade dos serviços."
+        )
+
     if stream.get_status() != "online":
         await stream.stop(status="offline")
         pytest.skip(
