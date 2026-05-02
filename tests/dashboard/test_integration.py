@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import monotonic
 
 import pytest
+from pydantic import ValidationError
+from pydantic_settings import SettingsError
 
+from src.config.settings import get_settings
 from src.dashboard.client import DashboardClient
 from src.dashboard.models import PositionView
 from src.dashboard.stream import PositionStream
@@ -22,13 +24,18 @@ class _IntegrationSettings:
     binance_testnet: bool = True
 
 
-def _is_truthy(value: str) -> bool:
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
 def _build_integration_settings_or_skip() -> _IntegrationSettings:
-    api_key = os.getenv("DASHBOARD_API_KEY", "").strip()
-    api_secret = os.getenv("DASHBOARD_API_SECRET", "").strip()
+    get_settings.cache_clear()
+
+    try:
+        settings = get_settings()
+        api_key = settings.dashboard_api_key.strip()
+        api_secret = settings.dashboard_api_secret.strip()
+    except (SettingsError, ValidationError) as exc:
+        raise pytest.skip.Exception(
+            "INT_001 bloqueado: .env ausente ou inválido para integração real. "
+            "Configure DASHBOARD_API_KEY, DASHBOARD_API_SECRET e BINANCE_TESTNET=true.",
+        ) from exc
 
     if not api_key or not api_secret:
         pytest.skip(
@@ -36,8 +43,7 @@ def _build_integration_settings_or_skip() -> _IntegrationSettings:
             "Configure credenciais da Binance Testnet para executar integração real."
         )
 
-    testnet_env = os.getenv("BINANCE_TESTNET", "true")
-    if not _is_truthy(testnet_env):
+    if not settings.binance_testnet:
         pytest.skip(
             "INT_001 bloqueado por segurança: BINANCE_TESTNET precisa estar habilitado "
             "(true/1/yes/on). Execução em produção não é permitida."

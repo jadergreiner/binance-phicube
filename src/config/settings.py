@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Any, cast
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -12,6 +12,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # Binance
@@ -20,8 +21,8 @@ class Settings(BaseSettings):
     binance_testnet: bool = Field(default=True)
 
     # Symbols and timeframes
-    symbols: list[str] = Field(default=["BTCUSDT"])
-    timeframes: list[str] = Field(default=["15m"])
+    symbols: Annotated[list[str], NoDecode] = Field(default=["BTCUSDT"])
+    timeframes: Annotated[list[str], NoDecode] = Field(default=["15m"])
 
     # Risk management
     risk_per_trade_pct: Annotated[float, Field(gt=0, le=5)] = 1.0
@@ -57,8 +58,43 @@ class Settings(BaseSettings):
     # Dashboard (API Key READ_ONLY — sem permissão de trade)
     dashboard_api_key: str = Field(..., description="Dashboard API Key (READ_ONLY)")
     dashboard_api_secret: str = Field(..., description="Dashboard API Secret (READ_ONLY)")
+    dashboard_testnet_api_key: str | None = Field(
+        default=None,
+        description="Dashboard API Key da Binance Testnet (READ_ONLY)",
+    )
+    dashboard_testnet_api_secret: str | None = Field(
+        default=None,
+        description="Dashboard API Secret da Binance Testnet (READ_ONLY)",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_dashboard_testnet_alias(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        raw_binance_testnet = data.get("binance_testnet", True)
+        is_testnet_enabled = raw_binance_testnet
+        if isinstance(raw_binance_testnet, str):
+            is_testnet_enabled = raw_binance_testnet.strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+
+        if is_testnet_enabled:
+            testnet_api_key = data.get("dashboard_testnet_api_key")
+            testnet_api_secret = data.get("dashboard_testnet_api_secret")
+
+            if testnet_api_key:
+                data["dashboard_api_key"] = testnet_api_key
+            if testnet_api_secret:
+                data["dashboard_api_secret"] = testnet_api_secret
+
+        return data
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    return cast(Any, Settings)()
