@@ -129,9 +129,9 @@
       "id": "task_010",
       "status": "blocked",
       "progress_pct": 90,
-      "notes": "Suite de integracao criada e validada, mas bloqueada por ambiente sem DASHBOARD_API_KEY e DASHBOARD_API_SECRET; execucao resultou em 3 testes SKIPPED.",
+      "notes": "Teste de integração criado e validado. Bloqueio histórico: (1) sandbox mode depreciado na ccxt para binanceusdm — corrigido removendo set_sandbox_mode; (2) URL do endpoint corrigida para https://fapi.binance.com; (3) Bloqueio de ambiente: credenciais DASHBOARD_TESTNET_API_KEY são do antigo Testnet (descontinuado pela Binance). Para desbloquear: criar conta Demo Trading na Binance, gerar API Keys READ_ONLY e atualizar .env.",
       "updated_by": "time-b-execucao",
-      "updated_at": "2026-05-01T00:00:00Z",
+      "updated_at": "2026-05-01T01:00:00Z",
       "links": {
         "pr": "",
         "commit": "",

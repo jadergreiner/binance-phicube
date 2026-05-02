@@ -37,16 +37,8 @@ class DashboardClient:
             "enableRateLimit": True,
         }
 
-        if settings.binance_testnet:
-            params["urls"] = {
-                "api": {
-                    "public": "https://testnet.binancefuture.com/fapi/v1",
-                    "private": "https://testnet.binancefuture.com/fapi/v1",
-                }
-            }
-            params["options"]["sandboxMode"] = True
-
         # Instância exclusiva — não compartilhada com BinanceClient
+        # Demo Trading (substituto do Testnet descontinuado) usa endpoints de produção
         self._exchange: ccxt.binanceusdm = ccxt.binanceusdm(params)
         self._settings = settings
 
