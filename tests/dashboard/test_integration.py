@@ -34,25 +34,20 @@ def _build_integration_settings_or_skip() -> _IntegrationSettings:
     except (SettingsError, ValidationError) as exc:
         raise pytest.skip.Exception(
             "INT_001 bloqueado: .env ausente ou inválido para integração real. "
-            "Configure DASHBOARD_API_KEY, DASHBOARD_API_SECRET e BINANCE_TESTNET=true.",
+            "Configure DASHBOARD_API_KEY e DASHBOARD_API_SECRET com API Key READ_ONLY.",
         ) from exc
 
     if not api_key or not api_secret:
         pytest.skip(
             "INT_001 bloqueado: variáveis DASHBOARD_API_KEY/DASHBOARD_API_SECRET ausentes. "
-            "Configure credenciais da Binance Testnet para executar integração real."
-        )
-
-    if not settings.binance_testnet:
-        pytest.skip(
-            "INT_001 bloqueado por segurança: BINANCE_TESTNET precisa estar habilitado "
-            "(true/1/yes/on). Execução em produção não é permitida."
+            "Configure credenciais da Binance Futures em ambiente real ou Demo Trading "
+            "com API Key READ_ONLY."
         )
 
     return _IntegrationSettings(
         dashboard_api_key=api_key,
         dashboard_api_secret=api_secret,
-        binance_testnet=True,
+        binance_testnet=settings.binance_testnet,
     )
 
 
@@ -65,7 +60,7 @@ async def _build_client_or_skip() -> DashboardClient:
     except Exception as exc:
         await client.close()
         pytest.skip(
-            "INT_001 bloqueado: não foi possível acessar a Binance Testnet "
+            "INT_001 bloqueado: não foi possível acessar a Binance Futures "
             f"com as credenciais informadas ({exc!r})."
         )
 
@@ -77,7 +72,7 @@ async def _start_stream_or_skip(stream: PositionStream) -> None:
     if stream.get_status() != "online":
         await stream.stop(status="offline")
         pytest.skip(
-            "INT_001 bloqueado: stream não ficou online na Testnet após inicialização. "
+            "INT_001 bloqueado: stream não ficou online na Binance Futures após inicialização. "
             "Verifique conectividade e permissões da API key."
         )
 
@@ -113,7 +108,7 @@ def _build_divergent_position() -> PositionView:
 
 @pytest.mark.asyncio
 async def test_int_001_01_stream_ativo_com_atualizacao_continua() -> None:
-    """INT_001_01: stream ativo com atualização contínua na Testnet."""
+    """INT_001_01: stream ativo com atualização contínua na Binance Futures."""
     client = await _build_client_or_skip()
     stream = PositionStream(client, keepalive_interval=1800)
 
@@ -138,7 +133,7 @@ async def test_int_001_01_stream_ativo_com_atualizacao_continua() -> None:
 
 @pytest.mark.asyncio
 async def test_int_001_02_queda_de_stream_com_fallback_automatico() -> None:
-    """INT_001_02: queda de stream deve acionar fallback e restauração."""
+    """INT_001_02: queda de stream deve acionar fallback e restauração na Binance Futures."""
     client = await _build_client_or_skip()
     stream = PositionStream(client, keepalive_interval=1800)
     updater = AdaptiveUpdater(
@@ -166,7 +161,7 @@ async def test_int_001_02_queda_de_stream_com_fallback_automatico() -> None:
 
 @pytest.mark.asyncio
 async def test_int_001_03_reconciliacao_apos_divergencia_de_cache() -> None:
-    """INT_001_03: reconciliação deve sobrescrever cache divergente com snapshot Binance."""
+    """INT_001_03: reconciliação deve sobrescrever cache divergente com snapshot Binance Futures."""
     client = await _build_client_or_skip()
     stream = PositionStream(client, keepalive_interval=1800)
     updater = AdaptiveUpdater(
