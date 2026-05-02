@@ -25,18 +25,14 @@
 | task_007 | done | Tabela de posicoes + resumo agregado implementados na UI. |
 | task_008 | done | Indicador de status + modo degradado implementados. |
 | task_009 | done | Testes unitarios implementados e validados. |
-| task_010 | blocked | Bloqueio de ambiente: sem DASHBOARD_API_KEY e DASHBOARD_API_SECRET no ambiente atual. |
+| task_010 | blocked | Bloqueio de ambiente: ExchangeNotAvailable ao acessar Binance Futures no startup do stream/snapshot (fapi.binance.com/fapi/v2/positionRisk). |
 
 ## Evidencias
 
 - diagnostics_report: ruff check (slices alterados) aprovado; ruff format --check (slices alterados) aprovado.
 - testes:
-  - tests/dashboard/test_client.py: 8 passed
-  - tests/dashboard/test_models.py tests/dashboard/test_updater.py tests/dashboard/test_cache.py -q: 12 passed
-  - tests/dashboard/test_ui.py -q: 4 passed
-  - tests/dashboard/test_stream.py tests/dashboard/test_updater.py: 10 passed
-  - pytest tests/dashboard: 25 passed
-  - pytest -v -rs tests/dashboard/test_integration.py: 3 skipped
+  - pytest -q tests/dashboard/test_client.py tests/dashboard/test_models.py tests/dashboard/test_stream.py tests/dashboard/test_cache.py tests/dashboard/test_updater.py tests/dashboard/test_ui.py: 29 passed
+  - pytest -v -rs tests/dashboard/test_integration.py: 3 skipped por ExchangeNotAvailable no startup do stream/snapshot (fapi.binance.com/fapi/v2/positionRisk)
 - codigo:
   - .env.example
   - src/config/settings.py
@@ -59,14 +55,14 @@
 ## Desvios de SPEC
 
 - Nenhum desvio funcional no slice principal.
-- A pendencia da task_010 e de ambiente de execucao (credenciais ausentes), nao de implementacao.
+- A pendencia da task_010 e de disponibilidade de acesso a Binance Futures no ambiente de execucao (ExchangeNotAvailable), nao de implementacao.
 
 ## Bloqueios
 
-- task_010 bloqueada por ausencia das variaveis DASHBOARD_API_KEY e DASHBOARD_API_SECRET no ambiente atual.
+- task_010 bloqueada por ExchangeNotAvailable ao acessar Binance Futures no startup do stream/snapshot (fapi.binance.com/fapi/v2/positionRisk).
 
 ## Proximos Passos
 
-1. Definir DASHBOARD_API_KEY e DASHBOARD_API_SECRET em ambiente de teste autorizado.
+1. Estabilizar conectividade/acesso ao endpoint Binance Futures `fapi.binance.com/fapi/v2/positionRisk` no ambiente de execucao.
 2. Reexecutar pytest -v -rs tests/dashboard/test_integration.py para converter SKIPPED em execucao efetiva.
 3. Atualizar status_geral para concluido apos validacao dos 3 cenarios de integracao.

@@ -1,6 +1,6 @@
 {
   "spec_id": "SPEC_001",
-  "updated_at": "2026-05-01T00:00:00Z",
+  "updated_at": "2026-05-01T23:30:00Z",
   "summary": {
     "todo": 0,
     "in_progress": 0,
@@ -129,9 +129,9 @@
       "id": "task_010",
       "status": "blocked",
       "progress_pct": 90,
-      "notes": "Suite de integração adaptada para Binance Futures (produção/Demo Trading), sem requisito de BINANCE_TESTNET=true. Execução permanece bloqueada por indisponibilidade de acesso/credenciais válidas no ambiente atual (ExchangeNotAvailable). Para desbloquear: configurar API Key READ_ONLY ativa para Futures (produção ou Demo Trading) e conectividade de rede.",
+      "notes": "Suite de integração adaptada para Binance Futures (produção/Demo Trading), sem requisito de BINANCE_TESTNET=true. Execução permanece bloqueada por ExchangeNotAvailable ao acessar Binance Futures durante startup do stream/snapshot (fapi.binance.com/fapi/v2/positionRisk). Para desbloquear: estabilizar conectividade/acesso ao endpoint no ambiente de execução.",
       "updated_by": "time-b-execucao",
-      "updated_at": "2026-05-01T02:00:00Z",
+      "updated_at": "2026-05-01T23:30:00Z",
       "links": {
         "pr": "",
         "commit": "",
