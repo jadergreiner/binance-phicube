@@ -1,0 +1,145 @@
+{
+  "spec_id": "SPEC_003",
+  "generated_at": "2026-05-02T00:00:00Z",
+  "phases": [
+    "Fase 1 — Modelo de Dados",
+    "Fase 2 — API e Contratos",
+    "Fase 3 — Frontend",
+    "Fase 4 — Testes",
+    "Fase 5 — Validação Final"
+  ],
+  "tasks": [
+    {
+      "id": "task_001",
+      "phase": "Fase 1 — Modelo de Dados",
+      "title": "Atualizar PositionView com novos campos e cálculos",
+      "description": "Adicionar position_size_usdt e roi_adjusted_pct ao PositionView, implementar cálculos baseados em margin_used_usdt e leverage.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [],
+      "target_files": [
+        "src/dashboard/models.py"
+      ],
+      "constraints": [
+        "Campos opcionais para backward compatibility",
+        "Cálculos: position_size_usdt = margin_used_usdt * leverage, roi_adjusted_pct = (unrealized_pnl_usdt / position_size_usdt) * 100 se position_size_usdt > 0"
+      ],
+      "acceptance_criteria": [
+        "PositionView inclui novos campos",
+        "Cálculos corretos para exemplos dados",
+        "Unit tests passando"
+      ],
+      "evidence_required": [
+        "pytest output",
+        "diagnostics_report"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_002",
+      "phase": "Fase 2 — API e Contratos",
+      "title": "Atualizar contratos de API GET /positions e WS /ws/positions",
+      "description": "Incluir position_size_usdt e roi_adjusted_pct no JSON de resposta da API.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_001"],
+      "target_files": [
+        "src/api/routes/positions.py"
+      ],
+      "constraints": [
+        "Campos adicionais, não substituem existentes",
+        "Backward compatible"
+      ],
+      "acceptance_criteria": [
+        "GET /positions retorna novos campos",
+        "WS /ws/positions inclui novos campos",
+        "JSON válido"
+      ],
+      "evidence_required": [
+        "curl output",
+        "WebSocket test"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_003",
+      "phase": "Fase 3 — Frontend",
+      "title": "Atualizar frontend para exibir novos campos",
+      "description": "Adicionar colunas na tabela de posições para position_size_usdt e roi_adjusted_pct.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_002"],
+      "target_files": [
+        "src/frontend/static/index.html",
+        "src/frontend/static/app.js"
+      ],
+      "constraints": [
+        "Formatação adequada (2 casas decimais, %)",
+        "Cor baseada no sinal do ROI"
+      ],
+      "acceptance_criteria": [
+        "Tabela exibe novos campos",
+        "Frontend renderiza corretamente"
+      ],
+      "evidence_required": [
+        "Screenshot do browser",
+        "Console sem erros"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_004",
+      "phase": "Fase 4 — Testes",
+      "title": "Implementar testes unitários e integração",
+      "description": "Criar testes para cálculos, API e frontend.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_001", "task_002", "task_003"],
+      "target_files": [
+        "tests/dashboard/test_models.py",
+        "tests/dashboard/test_api.py"
+      ],
+      "constraints": [
+        "100% cobertura crítica",
+        "Testnet validation"
+      ],
+      "acceptance_criteria": [
+        "pytest passando",
+        "Integração com Testnet"
+      ],
+      "evidence_required": [
+        "pytest --cov output",
+        "Testnet log"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_005",
+      "phase": "Fase 5 — Validação Final",
+      "title": "QA review e documentação",
+      "description": "Revisar conformidade, evidências para PR.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_004"],
+      "target_files": [],
+      "constraints": [
+        "DoD SPEC_003 completo"
+      ],
+      "acceptance_criteria": [
+        "SPEC_003 fechada",
+        "PR pronta"
+      ],
+      "evidence_required": [
+        "QA report",
+        "PR link"
+      ],
+      "validation": "qa-review"
+    }
+  ]
+}</content>
+<parameter name="filePath">c:\repo\binance-phicube\docs\SDD\SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES\tasks.json
