@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Binance Phicube | Consulta de Posições</title>
+    <meta
+      name="description"
+      content="Painel local somente leitura para consulta de posições da Binance Futures USDT-M."
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script defer src="/static/app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Binance Phicube</p>
+          <h1>Consulta de Posições</h1>
+          <p class="subtitle">Painel local somente leitura com atualização em tempo real via WebSocket.</p>
+        </div>
+
+        <div class="status-card">
+          <span id="connection-status" class="status-pill status-pill--offline">offline</span>
+          <p id="last-update" class="status-meta">Aguardando snapshot inicial</p>
+        </div>
+      </section>
+
+      <section id="banner" class="banner banner--hidden" aria-live="polite">
+        <strong id="banner-title"></strong>
+        <span id="banner-message"></span>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-card">
+          <p>Exposição total</p>
+          <strong id="summary-exposure">—</strong>
+        </article>
+        <article class="summary-card">
+          <p>Margem usada</p>
+          <strong id="summary-margin">—</strong>
+        </article>
+        <article class="summary-card">
+          <p>PnL não realizado</p>
+          <strong id="summary-pnl">—</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Posições abertas</h2>
+          <span id="snapshot-status" class="snapshot-status">online</span>
+        </div>
+
+        <div class="table-wrap">
+          <table class="positions-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Lev</th>
+                <th>Entry</th>
+                <th>Mark</th>
+                <th>PnL</th>
+                <th>Margin</th>
+                <th>Liquidation</th>
+                <th>Updated At</th>
+              </tr>
+            </thead>
+            <tbody id="positions-body">
+              <tr class="empty-row">
+                <td colspan="10">Nenhuma posição aberta no momento.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

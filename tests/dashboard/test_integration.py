@@ -4,18 +4,27 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from time import monotonic
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
-from binance.um_futures import UMFutures
 from pydantic import ValidationError
 from pydantic_settings import SettingsError
+from fastapi.testclient import TestClient
+
+try:
+    from binance.um_futures import UMFutures
+except ImportError:  # pragma: no cover - depende do ambiente de integração real
+    UMFutures = None
 
 from src.config.settings import get_settings
 from src.dashboard.client import DashboardClient
 from src.dashboard.models import PositionView
 from src.dashboard.stream import PositionStream
 from src.dashboard.updater import AdaptiveUpdater
+from src.api import main as api_main
 
 
 @dataclass(slots=True)
@@ -23,6 +32,34 @@ class _IntegrationSettings:
     dashboard_api_key: str
     dashboard_api_secret: str
     binance_testnet: bool = True
+
+
+class _FakeStream:
+    def __init__(self, *, positions: list[PositionView], status: str) -> None:
+        self._positions = positions
+        self._status = status
+        self.on_update = None
+
+    def get_positions(self) -> list[PositionView]:
+        return list(self._positions)
+
+    def get_status(self) -> str:
+        return self._status
+
+
+def _make_spec_002_position(*, symbol: str, updated_at: datetime) -> PositionView:
+    return PositionView(
+        symbol=symbol,
+        side="LONG",
+        quantity=0.5,
+        leverage=10,
+        entry_price=95000.0,
+        mark_price=96000.0,
+        unrealized_pnl_usdt=250.0,
+        margin_used_usdt=2400.0,
+        liquidation_price=87000.0,
+        updated_at=updated_at,
+    )
 
 
 def _build_integration_settings_or_skip() -> _IntegrationSettings:
@@ -53,6 +90,12 @@ def _build_integration_settings_or_skip() -> _IntegrationSettings:
 
 
 async def _build_client_or_skip() -> DashboardClient:
+    if UMFutures is None:
+        pytest.skip(
+            "INT_001 bloqueado: SDK binance ausente no ambiente local. "
+            "Os testes da SPEC_002 continuam válidos sem a integração real."
+        )
+
     settings = _build_integration_settings_or_skip()
     futures_client = UMFutures(
         key=settings.dashboard_api_key,
@@ -118,6 +161,30 @@ def _build_divergent_position() -> PositionView:
         margin_used_usdt=1000.0,
         liquidation_price=9000.0,
         updated_at=datetime.now(UTC),
+    )
+
+
+def _patch_api_lifespan(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api_main,
+        "get_settings",
+        lambda: SimpleNamespace(
+            dashboard_api_key="dash_key",
+            dashboard_api_secret="dash_secret",
+            binance_testnet=True,
+        ),
+    )
+    monkeypatch.setattr(api_main.DashboardClient, "connect", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.DashboardClient, "close", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.PositionStream, "stop", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.AdaptiveUpdater, "start", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.AdaptiveUpdater, "stop", AsyncMock(return_value=None))
+
+
+def _load_compose_text() -> str:
+    return Path(__file__).resolve().parents[2].joinpath("docker-compose.yml").read_text(
+        encoding="utf-8"
     )
 
 
@@ -203,3 +270,78 @@ async def test_int_001_03_reconciliacao_apos_divergencia_de_cache() -> None:
         await updater.stop()
         await stream.stop()
         await client.close()
+
+
+def test_int_002_01_compose_expoe_dashboard_api_localmente() -> None:
+    """INT_002_01: o compose deve declarar o serviço dashboard-api com binding local."""
+    compose_text = _load_compose_text()
+
+    assert "dashboard-api:" in compose_text
+    assert "dockerfile: docker/Dockerfile.api" in compose_text
+    assert "127.0.0.1:8080:8080" in compose_text
+    assert "env_file:" in compose_text
+    assert "phicube-net" in compose_text
+    assert "mongo:" in compose_text
+
+
+def test_int_002_02_api_serva_frontend_e_snapshot_cached(monkeypatch) -> None:
+    """INT_002_02: a API deve servir o frontend e responder snapshot cached localmente."""
+    _patch_api_lifespan(monkeypatch)
+
+    app = api_main.create_app()
+    with TestClient(app) as client:
+        cached_position = _make_spec_002_position(
+            symbol="BTCUSDT",
+            updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+        )
+        client.app.state.position_stream = _FakeStream(
+            positions=[cached_position],
+            status="cached",
+        )
+
+        root_response = client.get("/")
+        health_response = client.get("/health")
+        positions_response = client.get("/positions")
+
+    assert root_response.status_code == 200
+    assert "Consulta de Posições" in root_response.text
+    assert health_response.status_code == 200
+    assert health_response.json() == {"status": "cached"}
+    assert positions_response.status_code == 200
+    assert positions_response.json()["status"] == "cached"
+    assert positions_response.json()["positions"][0]["symbol"] == "BTCUSDT"
+
+
+def test_int_002_03_websocket_entrega_snapshot_e_broadcast_local(monkeypatch) -> None:
+    """INT_002_03: o WebSocket deve entregar snapshot inicial e broadcast local."""
+    _patch_api_lifespan(monkeypatch)
+
+    app = api_main.create_app()
+    with TestClient(app) as client:
+        stream = _FakeStream(
+            positions=[
+                _make_spec_002_position(
+                    symbol="BTCUSDT",
+                    updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+                )
+            ],
+            status="online",
+        )
+        client.app.state.position_stream = stream
+
+        with client.websocket_connect("/ws/positions") as websocket:
+            initial_payload = websocket.receive_json()
+            assert initial_payload["status"] == "online"
+
+            stream._positions = [
+                _make_spec_002_position(
+                    symbol="ETHUSDT",
+                    updated_at=datetime(2026, 5, 1, 12, 31, tzinfo=UTC),
+                )
+            ]
+            assert stream.on_update is not None
+            client.portal.call(stream.on_update, stream)
+            broadcast_payload = websocket.receive_json()
+
+    assert broadcast_payload["status"] == "online"
+    assert broadcast_payload["positions"][0]["symbol"] == "ETHUSDT"

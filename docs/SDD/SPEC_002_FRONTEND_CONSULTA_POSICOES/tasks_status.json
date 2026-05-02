@@ -1,0 +1,90 @@
+{
+  "spec_id": "SPEC_002",
+  "updated_at": "2026-05-02T00:00:00Z",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "done": 6
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Base FastAPI concluída em src/api/__init__.py e src/api/main.py, dependências sincronizadas no ambiente e lifecycle validado com TestClient, incluindo startup/shutdown e app.state.stream.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-02T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Endpoints REST /positions e /health implementados em src/api/routes/positions.py e validados com snapshot JSON, status degradado e fallback 503 para stream offline.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-02T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "WebSocket /ws/positions concluído com broadcast do mesmo snapshot serializado pelo REST e atualização do stream via callback on_update.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-02T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    },
+    {
+      "id": "task_004",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Frontend estático HTML/JS vanilla concluído em src/frontend/static, servindo o dashboard local com WebSocket, banner, status e estado vazio.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-02T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    },
+    {
+      "id": "task_005",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Serviço dashboard-api adicionado ao docker-compose.yml com binding local em 127.0.0.1:8080 e Dockerfile da API em user não-root.",
+      "updated_by": "time-a-refinamento",
+      "updated_at": "2026-05-02T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    },
+    {
+      "id": "task_006",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Suíte da SPEC_002 concluída com testes unitários e integração local cobrindo API, WebSocket, frontend e compose; integração real da Binance permanece opcional no ambiente sem SDK.",
+      "updated_by": "time-a-refinamento",
+      "updated_at": "2026-05-02T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ""
+      }
+    }
+  ]
+}

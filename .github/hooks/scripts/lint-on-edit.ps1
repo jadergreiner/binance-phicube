@@ -17,18 +17,19 @@ if (-not $input_json) { exit 0 }
 
 # Ferramentas que editam arquivos
 $edit_tools = @("create_file", "replace_string_in_file", "multi_replace_string_in_file")
-$tool_name = $input_json.toolName
+# VS Code envia tool_name e tool_input em snake_case no nível raiz
+$tool_name = $input_json.tool_name
 
 if ($tool_name -notin $edit_tools) { exit 0 }
 
-# Extrair caminho do arquivo
+# Extrair caminho do arquivo (tool_input usa camelCase interno do VS Code)
 $file_path = $null
 
-if ($input_json.toolInput.filePath) {
-    $file_path = $input_json.toolInput.filePath
-} elseif ($input_json.toolInput.replacements) {
+if ($input_json.tool_input.filePath) {
+    $file_path = $input_json.tool_input.filePath
+} elseif ($input_json.tool_input.replacements) {
     # multi_replace_string_in_file — usar primeiro arquivo
-    $file_path = $input_json.toolInput.replacements[0].filePath
+    $file_path = $input_json.tool_input.replacements[0].filePath
 }
 
 if (-not $file_path) { exit 0 }

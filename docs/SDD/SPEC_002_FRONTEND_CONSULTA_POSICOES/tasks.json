@@ -1,0 +1,217 @@
+{
+  "spec_id": "SPEC_002",
+  "generated_at": "2026-05-02T00:00:00Z",
+  "phases": [
+    "Fase 1 — Infraestrutura da API",
+    "Fase 2 — Endpoints REST",
+    "Fase 3 — WebSocket /ws/positions",
+    "Fase 4 — Frontend HTML/JS Vanilla",
+    "Fase 5 — Docker Compose",
+    "Fase 6 — Testes e Validação"
+  ],
+  "tasks": [
+    {
+      "id": "task_001",
+      "phase": "Fase 1 — Infraestrutura da API",
+      "title": "Criar FastAPI base e ciclo de vida do dashboard",
+      "description": "Criar a base da API FastAPI para o frontend de consulta de posições, incluindo app principal, lifecycle startup/shutdown e registro da instância compartilhada do PositionStream em app.state. O ciclo de vida deve instanciar DashboardClient, iniciar PositionStream e AdaptiveUpdater no startup e executar o encerramento na ordem inversa no shutdown. Esta task é pré-requisito para os endpoints REST e WebSocket.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [],
+      "target_files": [
+        "pyproject.toml",
+        "src/api/__init__.py",
+        "src/api/main.py"
+      ],
+      "constraints": [
+        "FastAPI e uvicorn devem ser adicionados ao projeto como dependências explícitas",
+        "PositionStream deve ser instância única por processo, exposta em app.state",
+        "Ciclo de vida deve reutilizar os contratos públicos da SPEC_001 sem duplicar lógica",
+        "Não criar segundo DashboardClient no mesmo processo"
+      ],
+      "acceptance_criteria": [
+        "src/api/main.py cria a aplicação FastAPI com lifespan funcional",
+        "Startup inicializa DashboardClient, PositionStream e AdaptiveUpdater na ordem definida",
+        "Shutdown encerra os recursos na ordem inversa sem deixar tarefas penduradas",
+        "Instância do PositionStream fica disponível em app.state para os handlers",
+        "Projeto passa a resolver imports de FastAPI/uvicorn corretamente"
+      ],
+      "evidence_required": [
+        "diagnostics_report sem erros",
+        "validação de startup/shutdown da aplicação",
+        "confirmação de que o PositionStream não é duplicado"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_002",
+      "phase": "Fase 2 — Endpoints REST",
+      "title": "Implementar GET /positions e GET /health",
+      "description": "Implementar os endpoints REST do dashboard para consulta pontual do snapshot atual e do estado da conexão. O endpoint /positions deve serializar PositionView e AccountSummary para JSON com datetime em ISO 8601. O endpoint /health deve expor o ConnectionStatus do stream e retornar 503 quando o stream não estiver ativo.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_001"],
+      "target_files": [
+        "src/api/routes/__init__.py",
+        "src/api/routes/positions.py"
+      ],
+      "constraints": [
+        "GET /positions deve retornar JSON no formato {positions, summary, status}",
+        "A serialização deve ser centralizada em uma função única reutilizável pelo WebSocket",
+        "A resposta deve usar o estado atual do PositionStream sem recalcular regras de negócio no frontend",
+        "GET /health deve refletir o estado real do stream e não um valor fixo"
+      ],
+      "acceptance_criteria": [
+        "GET /positions retorna lista de posições e resumo agregado no formato definido na SPEC",
+        "GET /health retorna online, degraded, offline ou cached conforme o estado do stream",
+        "Fallback 503 ocorre quando o stream não estiver ativo",
+        "Campos de PositionView e AccountSummary são preservados sem perdas de contrato",
+        "Datetime é serializado em ISO 8601"
+      ],
+      "evidence_required": [
+        "diagnostics_report sem erros",
+        "teste unitário do snapshot REST com payload válido",
+        "teste unitário do health endpoint com status degradado"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_003",
+      "phase": "Fase 3 — WebSocket /ws/positions",
+      "title": "Implementar push em tempo real via WebSocket",
+      "description": "Implementar o canal WebSocket do dashboard para transmitir snapshots completos das posições sempre que o PositionStream atualizar. O endpoint deve enviar um snapshot imediato na conexão, registrar clientes ativos e reconectar de forma segura após falhas de transporte, sem bloquear o stream principal.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_001", "task_002"],
+      "target_files": [
+        "src/api/routes/positions.py"
+      ],
+      "constraints": [
+        "WebSocket deve usar o mesmo formato de payload do GET /positions",
+        "Não duplicar a lógica de serialização entre REST e WebSocket",
+        "A implementação deve usar o callback on_update do PositionStream para notificar os handlers ativos",
+        "Desconexões de cliente não podem derrubar o stream nem gerar exceção não tratada"
+      ],
+      "acceptance_criteria": [
+        "Conexão WebSocket recebe snapshot imediato ao abrir",
+        "Cada atualização do PositionStream é enviada para todos os clientes conectados",
+        "Payload do WebSocket é equivalente ao payload do GET /positions",
+        "Desconexão de cliente é tratada sem impactar os demais consumidores",
+        "Reconexão automática do cliente é suportada no fluxo do frontend"
+      ],
+      "evidence_required": [
+        "teste unitário de broadcast WebSocket",
+        "teste de atualização incremental com payload completo",
+        "evidência de reconexão sem perda do stream"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_004",
+      "phase": "Fase 4 — Frontend HTML/JS Vanilla",
+      "title": "Criar interface web local de consulta",
+      "description": "Criar o frontend HTML/JS vanilla servido pelo próprio FastAPI, com tabela de posições, card de resumo, indicador de status e banner de alerta para estados degradado, offline e cached. O frontend deve consumir o WebSocket relativo /ws/positions e não depender de CDN ou build step.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": ["task_002", "task_003"],
+      "target_files": [
+        "src/frontend/static/index.html",
+        "src/frontend/static/app.js",
+        "src/frontend/static/style.css",
+        "src/api/main.py"
+      ],
+      "constraints": [
+        "Sem React, Vue, Angular ou qualquer build step",
+        "Sem dependências de CDN externo no HTML",
+        "Frontend deve ser somente leitura e não conter ações de trade",
+        "A renderização de banner e status deve refletir o estado vindo do backend"
+      ],
+      "acceptance_criteria": [
+        "Página inicial carrega e exibe tabela e card de resumo",
+        "Front-end abre WebSocket relativo /ws/positions e atualiza a tela em tempo real",
+        "Banner aparece em modo degradado/offline/cached e desaparece ao voltar para online",
+        "Estado vazio é exibido explicitamente quando não houver posições abertas",
+        "Nenhum elemento de trade aparece na interface"
+      ],
+      "evidence_required": [
+        "screenshot do frontend com dados reais ou simulados",
+        "inspeção do HTML sem scripts de CDN",
+        "confirmação de ausência de ações de trade no código"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_005",
+      "phase": "Fase 5 — Docker Compose",
+      "title": "Adicionar serviço dashboard-api ao compose",
+      "description": "Adicionar o container dashboard-api ao docker-compose.yml, usando a rede interna do projeto, porta vinculada apenas a 127.0.0.1 e as mesmas credenciais do painel já presentes no .env. O serviço deve permitir acesso ao MongoDB e seguir a política de segurança do projeto, incluindo execução como user não-root no Dockerfile da API.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_001", "task_004"],
+      "target_files": [
+        "docker-compose.yml",
+        "docker/Dockerfile.api"
+      ],
+      "constraints": [
+        "Porta deve ser publicada somente em 127.0.0.1:8080:8080",
+        "Credenciais devem ser consumidas via env_file .env",
+        "Serviço deve ingressar na rede phicube-net para acessar o MongoDB",
+        "Container deve rodar com user não-root",
+        "Não replicar a exposição incorreta do mongo-express"
+      ],
+      "acceptance_criteria": [
+        "docker compose sobe o novo serviço sem ajustes manuais",
+        "dashboard-api responde na porta local definida",
+        "Serviço enxerga o MongoDB pela rede interna do compose",
+        "Porta não fica exposta além de localhost",
+        "Dockerfile da API respeita a política de usuário não-root"
+      ],
+      "evidence_required": [
+        "docker compose up com dashboard-api funcionando",
+        "confirmação de binding 127.0.0.1 no compose",
+        "validação de segurança para porta e segredos"
+      ],
+      "validation": "security-audit"
+    },
+    {
+      "id": "task_006",
+      "phase": "Fase 6 — Testes e Validação",
+      "title": "Cobrir endpoints, WebSocket e integração de frontend",
+      "description": "Criar a suíte de testes unitários e de integração do dashboard de posições, cobrindo startup/shutdown, endpoints REST, canal WebSocket, reconexão automática, estado vazio e exposição local do serviço. A validação deve incluir evidências do comportamento em modo online, degraded, offline e cached.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": ["task_001", "task_002", "task_003", "task_004", "task_005"],
+      "target_files": [
+        "tests/dashboard/test_api.py",
+        "tests/dashboard/test_websocket.py",
+        "tests/dashboard/test_frontend.py",
+        "tests/dashboard/test_integration.py"
+      ],
+      "constraints": [
+        "Cobrir testes unitários TEST_002_01 a TEST_002_05",
+        "Cobrir testes de integração INT_002_01 a INT_002_03",
+        "Validar ausência de CDN externo e ausência de ações de trade",
+        "Testes devem ser compatíveis com o fluxo local e com credenciais READ_ONLY"
+      ],
+      "acceptance_criteria": [
+        "Todos os testes unitários da SPEC_002 passam",
+        "Todos os testes de integração da SPEC_002 passam",
+        "Evidências de GET /positions, GET /health e WS /ws/positions são registradas",
+        "Banner de degradação é validado em cenário controlado",
+        "Confirmação de que o frontend é somente leitura"
+      ],
+      "evidence_required": [
+        "relatório de testes com status verde",
+        "screenshot ou log do WebSocket no browser",
+        "confirmação de @security-audit e @qa-review"
+      ],
+      "validation": "qa-review"
+    }
+  ]
+}

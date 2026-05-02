@@ -204,6 +204,7 @@ class AdaptiveUpdater:
         self._log_reconciliation_inconsistency(current_positions, positions)
         stream._positions = positions
         stream._save_current_snapshot()
+        await stream._notify_update()
         self._last_update_at = updated_at
 
         logger.info(

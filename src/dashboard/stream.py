@@ -26,6 +26,7 @@ _STREAM_HEARTBEAT_SECONDS = 30
 _DEFAULT_KEEPALIVE_INTERVAL_SECONDS = 30 * 60
 
 StatusChangeCallback = Callable[[ConnectionStatus], Awaitable[None] | None]
+UpdateCallback = Callable[["PositionStream"], Awaitable[None] | None]
 
 
 def _default_session_factory() -> aiohttp.ClientSession:
@@ -43,12 +44,14 @@ class PositionStream:
         *,
         cache: DashboardCache | None = None,
         on_status_change: StatusChangeCallback | None = None,
+        on_update: UpdateCallback | None = None,
         session_factory: Callable[[], aiohttp.ClientSession] | None = None,
         keepalive_interval: float = _DEFAULT_KEEPALIVE_INTERVAL_SECONDS,
     ) -> None:
         self._client = client
         self._cache = cache
         self.on_status_change = on_status_change
+        self.on_update = on_update
         self._session_factory = session_factory or _default_session_factory
         self._keepalive_interval = keepalive_interval
 
@@ -163,6 +166,7 @@ class PositionStream:
 
         self._positions = positions
         self._save_current_snapshot()
+        await self._notify_update()
         logger.info("dashboard_position_snapshot_loaded", positions=len(self._positions))
 
     async def _create_listen_key(self) -> str:
@@ -197,6 +201,7 @@ class PositionStream:
             return
 
         await self._apply_account_update(payload)
+        await self._notify_update()
         await self._set_status("online")
 
     async def _apply_account_update(self, payload: dict[str, Any]) -> None:
@@ -334,6 +339,17 @@ class PositionStream:
                 error=str(exc),
             )
 
+    async def _notify_update(self) -> None:
+        if self.on_update is None:
+            return
+
+        try:
+            callback_result = self.on_update(self)
+            if inspect.isawaitable(callback_result):
+                await callback_result
+        except Exception as exc:
+            logger.warning("dashboard_position_stream_update_callback_failed", error=str(exc))
+
     def _save_current_snapshot(self) -> None:
         if self._cache is None or not self._positions:
             return
@@ -423,4 +439,4 @@ class PositionStream:
         return None
 
 
-__all__ = ["PositionStream", "StatusChangeCallback"]
+__all__ = ["PositionStream", "StatusChangeCallback", "UpdateCallback"]
