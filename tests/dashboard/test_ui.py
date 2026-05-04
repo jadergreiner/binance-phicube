@@ -75,6 +75,7 @@ def test_snapshot_renderiza_tabela_com_campos_obrigatorios() -> None:
     assert snapshot["readonly"] is True
     assert set(snapshot) == {
         "alert",
+        "analysis",
         "banner",
         "readonly",
         "status_indicator",

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api import main as api_main
@@ -128,7 +129,7 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
         response = client.get("/positions")
 
     assert response.status_code == 200
-    assert response.json() == {
+    expected = {
         "positions": [
             {
                 "symbol": "BTCUSDT",
@@ -139,19 +140,39 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
                 "mark_price": 96000.0,
                 "unrealized_pnl_usdt": 250.0,
                 "margin_used_usdt": 2400.0,
+                "position_size_usdt": 24000.0,
+                "roi_adjusted_pct": 1.0416666666666667,
                 "liquidation_price": 87000.0,
                 "updated_at": "2026-05-01T12:30:00Z",
             }
         ],
         "summary": {
-            "total_exposure_usdt": 48000.0,
+            "total_exposure_usdt": 24000.0,
             "total_margin_used_usdt": 2400.0,
             "total_unrealized_pnl_usdt": 250.0,
             "connection_status": "online",
             "last_update_at": "2026-05-01T12:30:00Z",
         },
         "status": "online",
+        "analysis": {
+            "bias": {
+                "direction": "LONG",
+                "confidence": "high",
+                "score": 1.0,
+                "reason": "Bias LONG: exposicao LONG de 24000.00 contra 0.00 do lado oposto. Forca do bias: 100%.",
+            },
+            "opportunities": [
+                {
+                    "symbol": "BTCUSDT",
+                    "direction": "LONG",
+                    "action": "ADD",
+                    "rationale": "O mercado favorece LONG e esta posicao possui a maior exposicao LONG atual. Considere reforcar a tendencia ou manter a posicao.",
+                    "exposure_usdt": 24000.0,
+                }
+            ],
+        },
     }
+    assert response.json() == expected, response.json()
 
 
 def test_get_health_retorna_status_degradado(monkeypatch) -> None:
@@ -178,3 +199,130 @@ def test_get_positions_retornara_503_quando_stream_inativo(monkeypatch) -> None:
 
     assert response.status_code == 503
     assert response.json() == {"status": "offline"}
+
+
+def test_get_root_entrega_pagina_frontend_index_html(monkeypatch) -> None:
+    """GET / deve entregar a página principal do frontend."""
+    _patch_lifespan(monkeypatch)
+
+    with TestClient(api_main.create_app()) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Consulta de Posições" in response.text
+    assert "<html" in response.text.lower()
+
+
+def test_get_positions_retorna_snapshot_com_fallback_de_calculo(monkeypatch) -> None:
+    """GET /positions deve aceitar position_size_usdt indefinido e aplicar fallback."""
+    _patch_lifespan(monkeypatch)
+
+    valid_position = _make_position(
+        symbol="BTCUSDT",
+        updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+    )
+    valid_position.position_size_usdt = None
+
+    invalid_position = _make_position(
+        symbol="ETHUSDT",
+        updated_at=datetime(2026, 5, 1, 12, 31, tzinfo=UTC),
+    )
+    invalid_position.leverage = 0
+    invalid_position.position_size_usdt = None
+
+    with TestClient(api_main.create_app()) as client:
+        client.app.state.position_stream = _FakeStream(
+            positions=[valid_position, invalid_position],
+            status="online",
+        )
+
+        response = client.get("/positions")
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["summary"]["total_exposure_usdt"] == pytest.approx(24000.0)
+    assert payload["summary"]["total_margin_used_usdt"] == pytest.approx(4800.0)
+    assert payload["summary"]["total_unrealized_pnl_usdt"] == pytest.approx(500.0)
+    assert payload["positions"][0]["position_size_usdt"] == pytest.approx(24000.0)
+    assert payload["positions"][1]["position_size_usdt"] is None
+    assert payload["positions"][1]["roi_adjusted_pct"] is None
+    assert payload["analysis"]["bias"]["direction"] == "LONG"
+    assert payload["analysis"]["opportunities"][0]["symbol"] == "BTCUSDT"
+
+
+def test_websocket_positions_emite_snapshot_inicial(monkeypatch) -> None:
+    """WS /ws/positions deve enviar snapshot inicial ao conectar."""
+    _patch_lifespan(monkeypatch)
+
+    with TestClient(api_main.create_app()) as client:
+        client.app.state.position_stream = _FakeStream(
+            positions=[
+                _make_position(
+                    symbol="BTCUSDT",
+                    updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+                )
+            ],
+            status="online",
+        )
+
+        with client.websocket_connect("/ws/positions") as websocket:
+            payload = websocket.receive_json()
+
+        assert payload["status"] == "online"
+        assert payload["positions"][0]["symbol"] == "BTCUSDT"
+        assert payload["analysis"]["bias"]["direction"] == "LONG"
+        assert payload["analysis"]["opportunities"][0]["action"] == "ADD"
+
+
+def test_websocket_positions_inclui_analysis_no_snapshot_inicial(monkeypatch) -> None:
+    """WS /ws/positions deve incluir objeto analysis no snapshot inicial."""
+    _patch_lifespan(monkeypatch)
+
+    with TestClient(api_main.create_app()) as client:
+        client.app.state.position_stream = _FakeStream(
+            positions=[
+                _make_position(
+                    symbol="BTCUSDT",
+                    updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+                )
+            ],
+            status="online",
+        )
+
+        with client.websocket_connect("/ws/positions") as websocket:
+            payload = websocket.receive_json()
+
+    assert payload["analysis"]["bias"]["direction"] == "LONG"
+    assert payload["analysis"]["bias"]["confidence"] == "high"
+    assert payload["analysis"]["opportunities"][0]["action"] == "ADD"
+
+
+def test_lifespan_mantem_aplicacao_no_ar_quando_binance_falha(monkeypatch) -> None:
+    """O startup não deve derrubar a API se a conexão com a Binance falhar."""
+    monkeypatch.setattr(
+        api_main,
+        "get_settings",
+        lambda: SimpleNamespace(
+            dashboard_api_key="dash_key",
+            dashboard_api_secret="dash_secret",
+            binance_testnet=True,
+        ),
+    )
+    monkeypatch.setattr(
+        api_main.DashboardClient,
+        "connect",
+        AsyncMock(side_effect=RuntimeError("timestamp skew")),
+    )
+    monkeypatch.setattr(api_main.DashboardClient, "close", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.PositionStream, "stop", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.AdaptiveUpdater, "start", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.AdaptiveUpdater, "stop", AsyncMock(return_value=None))
+
+    with TestClient(api_main.create_app()) as client:
+        assert client.app.state.startup_mode == "offline"
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Consulta de Posições" in response.text

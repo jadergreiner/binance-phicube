@@ -209,6 +209,52 @@ async def test_account_update_atualiza_posicao_correta_em_memoria() -> None:
 
 
 @pytest.mark.asyncio
+async def test_account_update_nao_cria_posicao_sem_snapshot_de_alavancagem() -> None:
+    client = DashboardClient(_make_settings())
+    websocket = _FakeWebSocket()
+    session = _FakeSession(websocket)
+
+    client.fetch_position_risk = AsyncMock(side_effect=[_make_snapshot_payload(), []])
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
+
+    stream = PositionStream(
+        client,
+        session_factory=lambda: session,
+        keepalive_interval=3600,
+    )
+
+    await stream.start()
+    assert len(stream.get_positions()) == 1
+
+    await websocket.push_json(
+        {
+            "e": "ACCOUNT_UPDATE",
+            "a": {
+                "P": [
+                    {
+                        "s": "NEWUSDT",
+                        "pa": "1.0",
+                        "ep": "10.0",
+                        "up": "1.0",
+                        "iw": "0.5",
+                    }
+                ]
+            },
+        }
+    )
+    await asyncio.sleep(0.1)
+
+    positions = stream.get_positions()
+    assert len(positions) == 1
+    assert positions[0].symbol == "BTCUSDT"
+    assert all(position.symbol != "NEWUSDT" for position in positions)
+
+    await stream.stop()
+
+
+@pytest.mark.asyncio
 async def test_falha_de_stream_altera_status_para_degraded_sem_propagar_excecao() -> None:
     client = DashboardClient(_make_settings())
     statuses: list[str] = []

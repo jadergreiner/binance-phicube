@@ -10,6 +10,10 @@
   const elements = {
     connectionStatus: document.getElementById("connection-status"),
     lastUpdate: document.getElementById("last-update"),
+    analysisBiasDirection: document.getElementById("analysis-bias-direction"),
+    analysisBiasConfidence: document.getElementById("analysis-bias-confidence"),
+    analysisBiasReason: document.getElementById("analysis-bias-reason"),
+    analysisOpportunities: document.getElementById("analysis-opportunities"),
     banner: document.getElementById("banner"),
     bannerTitle: document.getElementById("banner-title"),
     bannerMessage: document.getElementById("banner-message"),
@@ -32,11 +36,56 @@
     maximumFractionDigits: 8,
   });
 
+  const percentFormatter = new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    signDisplay: "always",
+  });
+
+  const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+
+  function formatDateTimeToLocalBrazil(isoString) {
+    if (!isoString) {
+      return "—";
+    }
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) {
+        return isoString;
+      }
+      return dateTimeFormatter.format(date);
+    } catch (e) {
+      return isoString;
+    }
+  }
+
   function formatMoney(value) {
     if (value === null || value === undefined || value === "—") {
       return "—";
     }
     return moneyFormatter.format(Number(value));
+  }
+
+  function formatPercent(value) {
+    if (value === null || value === undefined || value === "—") {
+      return "—";
+    }
+    return `${percentFormatter.format(Number(value))}%`;
+  }
+
+  function getRoiClass(value) {
+    if (value === null || value === undefined || value === "—") {
+      return "";
+    }
+    return Number(value) >= 0 ? "text-positive" : "text-negative";
   }
 
   function formatNumber(value) {
@@ -71,7 +120,40 @@
     elements.summaryExposure.textContent = formatMoney(summary.total_exposure_usdt);
     elements.summaryMargin.textContent = formatMoney(summary.total_margin_used_usdt);
     elements.summaryPnl.textContent = formatMoney(summary.total_unrealized_pnl_usdt);
-    elements.lastUpdate.textContent = `Atualizado em ${summary.last_update_at}`;
+    elements.lastUpdate.textContent = `Atualizado em ${formatDateTimeToLocalBrazil(summary.last_update_at)}`;
+  }
+
+  function renderMarketAnalysis(analysis) {
+    if (!analysis) {
+      elements.analysisBiasDirection.textContent = "—";
+      elements.analysisBiasConfidence.textContent = "—";
+      elements.analysisBiasReason.textContent = "Aguardando dados para calcular bias e oportunidades.";
+      elements.analysisOpportunities.innerHTML = "<li>Nenhuma oportunidade detectada.</li>";
+      return;
+    }
+
+    elements.analysisBiasDirection.textContent = analysis.bias.direction;
+    elements.analysisBiasConfidence.textContent = analysis.bias.confidence;
+    elements.analysisBiasReason.textContent = analysis.bias.reason;
+    elements.analysisOpportunities.innerHTML = renderOpportunities(analysis.opportunities);
+  }
+
+  function renderOpportunities(opportunities) {
+    if (!Array.isArray(opportunities) || opportunities.length === 0) {
+      return `<li>Nenhuma oportunidade detectada.</li>`;
+    }
+
+    return opportunities
+      .map(
+        (opportunity) => `
+          <li>
+            <strong>${opportunity.action}</strong> ${opportunity.direction}
+            ${opportunity.symbol ? `em ${opportunity.symbol}` : ""}
+            <div class="opportunity-rationale">${opportunity.rationale}</div>
+          </li>
+        `,
+      )
+      .join("");
   }
 
   function renderEmptyState() {
@@ -100,6 +182,8 @@
             <td>${formatMoney(position.mark_price)}</td>
             <td>${formatMoney(position.unrealized_pnl_usdt)}</td>
             <td>${formatMoney(position.margin_used_usdt)}</td>
+            <td>${formatNumber(position.position_size_usdt)}</td>
+            <td class="${getRoiClass(position.roi_adjusted_pct)}">${formatPercent(position.roi_adjusted_pct)}</td>
             <td>${formatMoney(position.liquidation_price)}</td>
             <td>${position.updated_at}</td>
           </tr>
@@ -112,6 +196,7 @@
     state.lastSnapshot = snapshot;
     renderPositions(snapshot.positions);
     renderSummary(snapshot.summary);
+    renderMarketAnalysis(snapshot.analysis);
     setStatus(snapshot.status);
     setBanner(snapshot.banner);
   }

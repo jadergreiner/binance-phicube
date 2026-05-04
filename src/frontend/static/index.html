@@ -26,6 +26,21 @@
         </div>
       </section>
 
+      <section class="analysis-grid">
+        <article class="analysis-card">
+          <p>Bias de mercado</p>
+          <strong id="analysis-bias-direction">—</strong>
+          <span id="analysis-bias-confidence" class="analysis-badge">—</span>
+          <p id="analysis-bias-reason" class="analysis-text">Aguardando dados para calcular bias e oportunidades.</p>
+        </article>
+        <article class="analysis-card">
+          <p>Oportunidades de trade</p>
+          <ul id="analysis-opportunities" class="opportunities-list">
+            <li>Nenhuma oportunidade detectada.</li>
+          </ul>
+        </article>
+      </section>
+
       <section id="banner" class="banner banner--hidden" aria-live="polite">
         <strong id="banner-title"></strong>
         <span id="banner-message"></span>
@@ -64,13 +79,15 @@
                 <th>Mark</th>
                 <th>PnL</th>
                 <th>Margin</th>
+                <th>Position Size</th>
+                <th>ROI Ajustado</th>
                 <th>Liquidation</th>
                 <th>Updated At</th>
               </tr>
             </thead>
             <tbody id="positions-body">
               <tr class="empty-row">
-                <td colspan="10">Nenhuma posição aberta no momento.</td>
+                <td colspan="12">Nenhuma posição aberta no momento.</td>
               </tr>
             </tbody>
           </table>

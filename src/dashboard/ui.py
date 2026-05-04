@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from src.dashboard.analysis import MarketAnalysis, MarketBias, TradeOpportunity, build_market_analysis
 from src.dashboard.models import (
     AccountSummary,
     ConnectionStatus,
@@ -177,6 +178,35 @@ def serialize_account_summary(summary: AccountSummary) -> dict[str, object]:
     }
 
 
+def serialize_market_bias(market_bias: MarketBias) -> dict[str, object]:
+    return {
+        "direction": market_bias.direction,
+        "confidence": market_bias.confidence,
+        "score": market_bias.score,
+        "reason": market_bias.reason,
+    }
+
+
+def serialize_trade_opportunity(opportunity: TradeOpportunity) -> dict[str, object]:
+    return {
+        "symbol": opportunity.symbol,
+        "direction": opportunity.direction,
+        "action": opportunity.action,
+        "rationale": opportunity.rationale,
+        "exposure_usdt": opportunity.exposure_usdt,
+    }
+
+
+def serialize_market_analysis(market_analysis: MarketAnalysis) -> dict[str, object]:
+    return {
+        "bias": serialize_market_bias(market_analysis.bias),
+        "opportunities": [
+            serialize_trade_opportunity(opportunity)
+            for opportunity in market_analysis.opportunities
+        ],
+    }
+
+
 def build_dashboard_snapshot(
     positions: list[PositionView],
     status: ConnectionStatus,
@@ -195,9 +225,11 @@ def _compose_dashboard_snapshot(
 ) -> dict[str, object]:
     """Centraliza a montagem do snapshot da UI com status, banner e alerta."""
     summary = build_account_summary(positions, status)
+    market_analysis = build_market_analysis(positions)
     return {
         "readonly": True,
         "summary": serialize_account_summary(summary),
+        "analysis": serialize_market_analysis(market_analysis),
         "table": serialize_position_table(positions, status),
         "status_indicator": _build_status_indicator(status),
         "banner": _build_banner(status),
@@ -211,4 +243,5 @@ __all__ = [
     "build_dashboard_snapshot",
     "serialize_account_summary",
     "serialize_position_table",
+    "serialize_market_analysis",
 ]

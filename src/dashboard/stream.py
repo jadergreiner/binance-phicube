@@ -223,23 +223,15 @@ class PositionStream:
             if current_position is None:
                 current_position = await self._fetch_position_snapshot(symbol, updated_at)
 
-            if current_position is not None and updated_at <= current_position.updated_at:
-                updated_at = current_position.updated_at + timedelta(microseconds=1)
-
             if current_position is None:
-                self._positions[symbol] = PositionView(
+                logger.warning(
+                    "dashboard_position_update_without_snapshot",
                     symbol=symbol,
-                    side=self._resolve_side(quantity),
-                    quantity=quantity,
-                    leverage=0,
-                    entry_price=self._to_float(raw_update.get("ep")),
-                    mark_price=0.0,
-                    unrealized_pnl_usdt=self._to_float(raw_update.get("up")),
-                    margin_used_usdt=self._resolve_stream_margin(raw_update),
-                    liquidation_price=None,
-                    updated_at=updated_at,
                 )
                 continue
+
+            if updated_at <= current_position.updated_at:
+                updated_at = current_position.updated_at + timedelta(microseconds=1)
 
             self._positions[symbol] = replace(
                 current_position,

@@ -1,0 +1,46 @@
+name: Local MCP Servers
+version: 1.0.0
+schema: v1
+
+mcpServers:
+  # 📁 Acesso ao código
+  - name: filesystem
+    command: npx
+    args:
+      - -y
+      - @modelcontextprotocol/server-filesystem
+      - C:\repo\binance-phicube
+    env: {}
+
+  # 🌿 Git
+  - name: git
+    command: npx
+    args:
+      - -y
+      - @modelcontextprotocol/server-git
+    env: {}
+
+  # 🐍 Execução Python
+  - name: python-runner
+    command: python
+    args:
+      - C:\repo\binance-phicube\tools\mcp_python_runner.py
+    env:
+      PYTHONUNBUFFERED: "1"
+
+  # 🌐 HTTP (Binance / APIs)
+  - name: http-client
+    command: npx
+    args:
+      - -y
+      - @modelcontextprotocol/server-http
+    env: {}
+
+  # 🧠 Serena MCP (orquestração)
+  - name: serena
+    command: npx
+    args:
+      - -y
+      - @serena-ai/mcp-server
+    env:
+      SERENA_WORKSPACE: C:\repo\binance-phicube

@@ -143,6 +143,9 @@ class _FakeStream:
     async def _fetch_position_risk(self) -> list[dict[str, str]]:
         return await self._exchange.fapiPrivateV2GetPositionRisk()
 
+    async def _notify_update(self) -> None:
+        return None
+
     def _get_last_response_headers(self) -> dict[str, str]:
         return self._exchange.last_response_headers
 

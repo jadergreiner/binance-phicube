@@ -1,0 +1,172 @@
+{
+  "spec_id": "SPEC_004",
+  "generated_at": "2026-05-02T00:00:00Z",
+  "phases": [
+    "Fase 1 - Configuracao",
+    "Fase 2 - Infraestrutura de Notificacao",
+    "Fase 3 - Integracao de Eventos",
+    "Fase 4 - Testes e Seguranca",
+    "Fase 5 - Validacao Final"
+  ],
+  "tasks": [
+    {
+      "id": "task_001",
+      "phase": "Fase 1 - Configuracao",
+      "title": "Adicionar configuracao opcional de Telegram no Settings",
+      "description": "Incluir TELEGRAM_TOKEN e TELEGRAM_CHAT_ID como opcionais em src/config/settings.py e atualizar .env.example.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [],
+      "target_files": [
+        "src/config/settings.py",
+        ".env.example",
+        "tests/config/test_settings.py"
+      ],
+      "constraints": [
+        "Configuracao deve permanecer opcional",
+        "Ausencia de variaveis nao pode quebrar startup",
+        "Nao expor valores em logs"
+      ],
+      "acceptance_criteria": [
+        "Settings carrega sem TELEGRAM_TOKEN/TELEGRAM_CHAT_ID",
+        "Com ambos configurados, canal Telegram fica habilitado",
+        "Tests de configuracao atualizados passam"
+      ],
+      "evidence_required": [
+        "pytest tests/config/test_settings.py",
+        "diagnostics_report"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_002",
+      "phase": "Fase 2 - Infraestrutura de Notificacao",
+      "title": "Implementar modulo notifications com TelegramNotifier e NullNotifier",
+      "description": "Criar contratos de NotificationEvent e Notifier, implementando envio async para Telegram com timeout e retry.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/notifications/__init__.py",
+        "src/notifications/events.py",
+        "src/notifications/notifier.py",
+        "src/notifications/telegram_notifier.py",
+        "tests/notifications/test_telegram_notifier.py"
+      ],
+      "constraints": [
+        "Sem excecao fatal no fluxo de envio",
+        "Retry maximo 3x com backoff curto",
+        "Nao logar token/chat_id"
+      ],
+      "acceptance_criteria": [
+        "TelegramNotifier.send retorna True em sucesso",
+        "TelegramNotifier.send retorna False em falha recuperavel",
+        "NullNotifier ativo quando configuracao ausente"
+      ],
+      "evidence_required": [
+        "pytest tests/notifications/test_telegram_notifier.py",
+        "diagnostics_report"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_003",
+      "phase": "Fase 3 - Integracao de Eventos",
+      "title": "Conectar notificacoes aos eventos criticos de operacao",
+      "description": "Integrar notificador no TradingMonitor e OrderManager para trade aberto, erro critico e alerta de SL nao protegido.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_002"
+      ],
+      "target_files": [
+        "src/main.py",
+        "src/trading/order_manager.py",
+        "src/storage/repository.py"
+      ],
+      "constraints": [
+        "Nao alterar contratos principais de execucao de trade",
+        "Nao bloquear tick por envio lento de notificacao",
+        "Evento de SL falho apos entrada deve gerar alerta critico"
+      ],
+      "acceptance_criteria": [
+        "trade_opened dispara notificacao com campos minimos",
+        "sl_order_failed apos entry dispara alerta critico",
+        "Excecao em notificacao nao interrompe TradingMonitor._tick"
+      ],
+      "evidence_required": [
+        "pytest tests/test_main.py tests/test_order_manager.py",
+        "log de execucao local"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_004",
+      "phase": "Fase 4 - Testes e Seguranca",
+      "title": "Expandir cobertura de testes e garantir ausencia de vazamento de segredos",
+      "description": "Adicionar testes de integracao local com notifier mockado e assercoes de sanitizacao de logs/payload.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_003"
+      ],
+      "target_files": [
+        "tests/test_main.py",
+        "tests/test_order_manager.py",
+        "tests/notifications/test_telegram_notifier.py"
+      ],
+      "constraints": [
+        "Cobrir casos de token ausente, timeout, erro 4xx/5xx",
+        "Verificar que logs nao contem TELEGRAM_TOKEN",
+        "Nao depender de rede real"
+      ],
+      "acceptance_criteria": [
+        "Testes de falha de notificacao passando",
+        "Teste de vazamento de segredos passando",
+        "Fluxo de fallback sem Telegram validado"
+      ],
+      "evidence_required": [
+        "pytest -v tests/config/test_settings.py tests/notifications/test_telegram_notifier.py tests/test_main.py tests/test_order_manager.py",
+        "coverage report"
+      ],
+      "validation": "security-audit"
+    },
+    {
+      "id": "task_005",
+      "phase": "Fase 5 - Validacao Final",
+      "title": "Fechar SPEC_004 com rastreabilidade completa",
+      "description": "Atualizar tasks_status.json e spec_status_update.md com evidencias e liberar para review gate.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_004"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/tasks_status.json",
+        "docs/SDD/SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/spec_status_update.md"
+      ],
+      "constraints": [
+        "DoD da SPEC_004 completo",
+        "Evidencias objetivas anexadas"
+      ],
+      "acceptance_criteria": [
+        "tasks_status atualizado",
+        "spec_status_update publicado",
+        "Pronto para commit/review gate"
+      ],
+      "evidence_required": [
+        "qa report",
+        "security report",
+        "lista de arquivos alterados"
+      ],
+      "validation": "qa-review"
+    }
+  ]
+}

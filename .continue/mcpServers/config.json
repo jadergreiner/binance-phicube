@@ -1,0 +1,22 @@
+{
+  "models": [
+    {
+      "title": "Qwen2.5-Coder 32B (Local)",
+      "provider": "ollama",
+      "model": "qwen2.5-coder:32b",
+      "apiBase": "http://localhost:11434"
+    },
+    {
+      "title": "DeepSeek-R1 14B (Reasoning)",
+      "provider": "ollama",
+      "model": "deepseek-r1:14b",
+      "apiBase": "http://localhost:11434"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Qwen2.5-Coder 7B (Autocomplete)",
+    "provider": "ollama",
+    "model": "qwen2.5-coder:7b",
+    "apiBase": "http://localhost:11434"
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "spec_id": "SPEC_005",
+  "generated_at": "2026-05-03T00:00:00Z",
+  "phases": [
+    "Fase 1 - Contrato de Análise",
+    "Fase 2 - Integração API e UI",
+    "Fase 3 - Testes e Validação",
+    "Fase 4 - Documentação e Entrega"
+  ],
+  "tasks": [
+    {
+      "id": "task_001",
+      "phase": "Fase 1 - Contrato de Análise",
+      "title": "Formalizar modelos de MarketAnalysis e bias de mercado",
+      "description": "Confirmar e documentar os contratos de MarketBias, TradeOpportunity e MarketAnalysis em src/dashboard/analysis.py e src/dashboard/models.py.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [],
+      "target_files": [
+        "src/dashboard/analysis.py",
+        "src/dashboard/models.py",
+        "tests/dashboard/test_analysis.py"
+      ],
+      "constraints": [
+        "Contrato deve permanecer independente de ordens.",
+        "Dados invalidos de exposicao devem ser ignorados sem permitir excecao.",
+        "Bias deve ser limitado a LONG, SHORT ou NEUTRAL."
+      ],
+      "acceptance_criteria": [
+        "Models e calculos estao documentados.",
+        "build_market_analysis() trata posicoes invalidas sem falha.",
+        "Testes unitarios iniciais definidos."
+      ],
+      "evidence_required": [
+        "pytest tests/dashboard/test_analysis.py",
+        "spec_status_update.md"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_002",
+      "phase": "Fase 2 - Integração API e UI",
+      "title": "Serializar analysis no endpoint de posicoes e no dashboard",
+      "description": "Garantir que o payload de /positions e o stream WebSocket incluem o objeto de analysis e que a UI pode exibí-lo.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/api/routes/positions.py",
+        "src/dashboard/ui.py"
+      ],
+      "constraints": [
+        "Nenhuma funcionalidade de trade deve ser acionada neste fluxo.",
+        "Objeto analysis deve ser consistente entre snapshot e stream.",
+        "Nao expor dados sensiveis no payload."
+      ],
+      "acceptance_criteria": [
+        "GET /positions retorna field analysis.",
+        "WebSocket stream inclui analysis em atualizacoes.",
+        "UI nao quebra com analysis absent ou NEUTRAL."
+      ],
+      "evidence_required": [
+        "teste manual ou automatizado do endpoint /positions",
+        "log de stream websocket"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_003",
+      "phase": "Fase 3 - Testes e Validação",
+      "title": "Cobrir com testes unitarios e de integração",
+      "description": "Criar e validar testes que garantam bias correto, score plausível e oportunidades de trade oferecidas.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [
+        "task_002"
+      ],
+      "target_files": [
+        "tests/dashboard/test_analysis.py",
+        "tests/dashboard/test_api.py"
+      ],
+      "constraints": [
+        "Testes nao devem depender de ambiente real de exchange.",
+        "Cobertura deve incluir bias NEUTRAL, LONG e SHORT.",
+        "Inclusao de exposicao invalida deve ser testada."
+      ],
+      "acceptance_criteria": [
+        "pytest -v tests/dashboard/test_analysis.py passando.",
+        "Teste de integração de endpoint valida analysis em JSON.",
+        "Reutilizacao de modelos nao quebra snapshot de posicoes."
+      ],
+      "evidence_required": [
+        "pytest -v tests/dashboard/test_analysis.py tests/dashboard/test_positions_api.py",
+        "coverage report"
+      ],
+      "validation": "qa-review"
+    },
+    {
+      "id": "task_004",
+      "phase": "Fase 4 - Documentação e Entrega",
+      "title": "Atualizar documentação e status do SPEC",
+      "description": "Atualizar docs/SDD/README.md, criar spec_status_update.md e tasks_status.json com o progresso final.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": [
+        "task_003"
+      ],
+      "target_files": [
+        "docs/SDD/README.md",
+        "docs/SDD/SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/spec_status_update.md",
+        "docs/SDD/SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/tasks_status.json"
+      ],
+      "constraints": [
+        "Docs devem refletir o estado real de refinamento.",
+        "Tasks status deve ser inicializado antes do PR.",
+        "Nenhum item de escopo deixado de fora sem justificativa."
+      ],
+      "acceptance_criteria": [
+        "README atualizado com a nova SPEC.",
+        "status final registrado em spec_status_update.md.",
+        "tasks_status.json atualizado com todas as tasks."
+      ],
+      "evidence_required": [
+        "arquivos de documentacao atualizados",
+        "resumo do status de entrega final"
+      ],
+      "validation": "qa-review"
+    }
+  ]
+}

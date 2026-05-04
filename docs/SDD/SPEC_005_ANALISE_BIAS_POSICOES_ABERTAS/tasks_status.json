@@ -1,0 +1,16 @@
+{
+  "spec_id": "SPEC_005",
+  "updated_at": "2026-05-03T00:00:00Z",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "done": 4
+  },
+  "tasks": [
+    { "id": "task_001", "status": "done", "observacao": "Contratos de análise implementados e validados." },
+    { "id": "task_002", "status": "done", "observacao": "Endpoint e WebSocket agora incluem analysis." },
+    { "id": "task_003", "status": "done", "observacao": "Testes de análise e API executados com sucesso." },
+    { "id": "task_004", "status": "done", "observacao": "Documentação finalizada; evidências de teste validadas." }
+  ]
+}

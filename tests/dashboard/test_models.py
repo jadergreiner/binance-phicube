@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -74,7 +75,7 @@ def test_test_001_02_lista_de_posicoes_multiplas_gera_totais_corretos() -> None:
 
     summary = build_account_summary(positions, "online")
 
-    assert summary.total_exposure_usdt == pytest.approx(51000.0)
+    assert summary.total_exposure_usdt == pytest.approx(50940.0)
     assert summary.total_margin_used_usdt == pytest.approx(5180.0)
     assert summary.total_unrealized_pnl_usdt == pytest.approx(600.0)
     assert summary.connection_status == "online"
@@ -180,3 +181,36 @@ def test_roi_adjusted_pct_position_size_zero_retorna_none() -> None:
         updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
     )
     assert position.roi_adjusted_pct is None
+
+
+def test_build_account_summary_fallback_calcula_exposicao_quando_position_size_none() -> None:
+    """Resumo deve calcular exposure mesmo se position_size_usdt estiver indefinido."""
+    positions = [
+        SimpleNamespace(
+            symbol="BTCUSDT",
+            side="LONG",
+            quantity=0.5,
+            leverage=10,
+            entry_price=95000.0,
+            mark_price=96000.0,
+            unrealized_pnl_usdt=250.0,
+            margin_used_usdt=2400.0,
+            liquidation_price=87000.0,
+            updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+            position_size_usdt=None,
+        )
+    ]
+
+    summary = build_account_summary(positions, "online")
+
+    assert summary.total_exposure_usdt == pytest.approx(24000.0)
+    assert summary.total_margin_used_usdt == pytest.approx(2400.0)
+    assert summary.total_unrealized_pnl_usdt == pytest.approx(250.0)
+    assert summary.connection_status == "online"
+    assert summary.last_update_at == datetime(2026, 5, 1, 12, 30, tzinfo=UTC)
+
+
+def test_build_account_summary_status_invalido_gera_value_error() -> None:
+    """Status inválido deve ser rejeitado pelo resumo agregado."""
+    with pytest.raises(ValueError, match="status deve ser um de"):
+        build_account_summary([], "invalid_status")

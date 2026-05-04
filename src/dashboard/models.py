@@ -101,8 +101,19 @@ def build_account_summary(
     if status not in _CONNECTION_STATUS_VALUES:
         raise ValueError("status deve ser um de: online, degraded, offline, cached")
 
+    def _extract_position_size(position: PositionView) -> float | None:
+        size = getattr(position, "position_size_usdt", None)
+        if size is not None:
+            return size
+        try:
+            if position.margin_used_usdt < 0 or position.leverage <= 0:
+                return None
+            return position.margin_used_usdt * position.leverage
+        except Exception:
+            return None
+
     total_exposure_usdt = sum(
-        abs(position.quantity * position.mark_price) for position in positions
+        _extract_position_size(position) or 0.0 for position in positions
     )
     total_margin_used_usdt = sum(position.margin_used_usdt for position in positions)
     total_unrealized_pnl_usdt = sum(position.unrealized_pnl_usdt for position in positions)

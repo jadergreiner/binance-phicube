@@ -9,6 +9,7 @@ trade, lançando `DashboardClientError` caso contrário.
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 import ccxt.async_support as ccxt
@@ -35,6 +36,7 @@ class DashboardClient:
             "apiKey": settings.dashboard_api_key,
             "secret": settings.dashboard_api_secret,
             "options": {"defaultType": "future"},
+            "adjustForTimeDifference": True,
             "enableRateLimit": True,
         }
 
@@ -43,17 +45,26 @@ class DashboardClient:
         self._exchange: ccxt.binanceusdm = ccxt.binanceusdm(params)
         self._settings = settings
         self._um_futures_client: Any | None = None
+        self._sdk_get_timestamp_original: Any | None = None
+        self._sdk_clock_offset_ms: int | None = None
 
     # ─── Lifecycle ────────────────────────────────────────────────────────────
 
     async def connect(self) -> None:
         """Carrega mercados e valida permissões da API Key."""
-        await self._exchange.load_markets()
+        await self._sync_exchange_clock()
+        await self._sync_sdk_clock()
+
+        try:
+            await self._exchange.load_markets()
+        except Exception as exc:
+            logger.warning("dashboard_client_load_markets_failed", error=str(exc))
         await self._validate_readonly_permissions()
         logger.info("dashboard_client_connected", testnet=self._settings.binance_testnet)
 
     async def close(self) -> None:
         """Fecha a conexão com a exchange."""
+        self._restore_sdk_timestamp()
         await self._exchange.close()
         logger.info("dashboard_client_closed")
 
@@ -66,7 +77,7 @@ class DashboardClient:
         except ImportError as exc:
             raise DashboardClientError(
                 "Dependência ausente para validar permissões da Dashboard API Key. "
-                "Instale `binance-sdk-derivatives-trading-usds-futures`."
+                "Instale `binance-connector`."
             ) from exc
 
         spot_client = Spot(
@@ -98,7 +109,7 @@ class DashboardClient:
         except ImportError as exc:
             raise DashboardClientError(
                 "Dependência ausente para operações de Futures da Dashboard API Key. "
-                "Instale `binance-sdk-derivatives-trading-usds-futures`."
+                "Instale `binance-futures-connector`."
             ) from exc
 
         self._um_futures_client = UMFutures(
@@ -106,6 +117,68 @@ class DashboardClient:
             secret=self._settings.dashboard_api_secret,
         )
         return self._um_futures_client
+
+    async def _sync_exchange_clock(self) -> None:
+        try:
+            await self._exchange.load_time_difference()
+        except Exception as exc:
+            logger.warning("dashboard_client_load_time_difference_failed", error=str(exc))
+
+    async def _sync_sdk_clock(self) -> None:
+        try:
+            response = await self._call_um_futures("time")
+        except Exception as exc:
+            logger.warning("dashboard_client_sdk_clock_sync_failed", error=str(exc))
+            return
+
+        if not isinstance(response, dict):
+            logger.warning("dashboard_client_sdk_clock_sync_failed", error="Resposta inválida do endpoint de tempo")
+            return
+
+        server_time = response.get("serverTime")
+        if server_time is None:
+            logger.warning("dashboard_client_sdk_clock_sync_failed", error="Servidor não retornou serverTime")
+            return
+
+        try:
+            from binance import api as binance_api
+        except ImportError:
+            logger.warning(
+                "dashboard_client_sdk_clock_sync_failed",
+                error="Módulo binance.api indisponível para ajustar o timestamp",
+            )
+            return
+
+        offset_ms = int(server_time) - int(time.time() * 1000)
+        self._sdk_clock_offset_ms = offset_ms
+
+        if self._sdk_get_timestamp_original is None:
+            self._sdk_get_timestamp_original = binance_api.get_timestamp
+
+        def _adjusted_get_timestamp() -> int:
+            return int(time.time() * 1000) + offset_ms
+
+        binance_api.get_timestamp = _adjusted_get_timestamp
+        logger.info(
+            "dashboard_client_sdk_clock_synchronized",
+            server_time=int(server_time),
+            offset_ms=offset_ms,
+        )
+
+    def _restore_sdk_timestamp(self) -> None:
+        if self._sdk_get_timestamp_original is None:
+            return
+
+        try:
+            from binance import api as binance_api
+        except ImportError:
+            self._sdk_get_timestamp_original = None
+            self._sdk_clock_offset_ms = None
+            return
+
+        binance_api.get_timestamp = self._sdk_get_timestamp_original
+        self._sdk_get_timestamp_original = None
+        self._sdk_clock_offset_ms = None
 
     async def _call_um_futures(self, method_name: str, **params: Any) -> Any:
         client = self._get_um_futures_client()
@@ -127,9 +200,27 @@ class DashboardClient:
         if symbol:
             params["symbol"] = symbol
 
-        response = await self._call_um_futures("get_position_risk", **params)
-        payload = response if isinstance(response, list) else [response]
-        return [raw for raw in payload if isinstance(raw, dict)]
+        try:
+            response = await self._call_um_futures("get_position_risk", **params)
+            payload = response if isinstance(response, list) else [response]
+            positions = [raw for raw in payload if isinstance(raw, dict)]
+            if positions:
+                return positions
+        except Exception as exc:
+            logger.warning("dashboard_client_fetch_position_risk_sdk_failed", error=str(exc))
+
+        try:
+            positions = await self._exchange.fetch_positions()
+        except Exception as exc:
+            logger.warning("dashboard_client_fetch_position_risk_ccxt_failed", error=str(exc))
+            return []
+
+        payload = positions if isinstance(positions, list) else [positions]
+        filtered_positions = [raw for raw in payload if isinstance(raw, dict)]
+        if symbol:
+            filtered_positions = [raw for raw in filtered_positions if raw.get("symbol") == symbol]
+
+        return filtered_positions
 
     async def create_listen_key(self) -> str:
         response = await self._call_um_futures("new_listen_key")
@@ -193,8 +284,30 @@ class DashboardClient:
 
     async def fetch_open_positions(self) -> list[dict[str, Any]]:
         """Retorna todas as posições abertas (contratos != 0)."""
-        positions: list[dict[str, Any]] = await self._exchange.fetch_positions()
-        return [p for p in positions if float(p.get("contracts", 0)) != 0]
+        try:
+            positions: list[dict[str, Any]] = await self._exchange.fetch_positions()
+            return [p for p in positions if float(p.get("contracts", 0)) != 0]
+        except Exception as exc:
+            logger.warning("dashboard_client_fetch_positions_ccxt_failed", error=str(exc))
+
+        raw_positions = await self._call_um_futures("get_position_risk")
+        payload = raw_positions if isinstance(raw_positions, list) else [raw_positions]
+
+        positions: list[dict[str, Any]] = []
+        for raw_position in payload:
+            if not isinstance(raw_position, dict):
+                continue
+
+            quantity = raw_position.get("positionAmt")
+            try:
+                if float(quantity) == 0:
+                    continue
+            except (TypeError, ValueError):
+                continue
+
+            positions.append(raw_position)
+
+        return positions
 
     async def fetch_ticker(self, symbol: str) -> dict[str, Any]:
         """Retorna o ticker (preço atual) de um símbolo."""

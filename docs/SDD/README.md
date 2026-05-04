@@ -61,6 +61,10 @@ Cada SPEC incremental vive em seu próprio diretório:
 | Diretório | ID | Título | Status |
 |---|---|---|---|
 | [SPEC_001_PAINEL_POSICOES_TEMPO_REAL/](SPEC_001_PAINEL_POSICOES_TEMPO_REAL/SPEC.md) | SPEC_001 | Painel de Posições em Tempo Real (Somente Leitura) | Aprovada |
+| [SPEC_002_FRONTEND_CONSULTA_POSICOES/](SPEC_002_FRONTEND_CONSULTA_POSICOES/SPEC.md) | SPEC_002 | Frontend de Consulta de Posições | Concluída |
+| [SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/](SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/SPEC.md) | SPEC_003 | Inclusão de Cálculos de Margem e ROI Ajustado | Concluída |
+| [SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/](SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/SPEC.md) | SPEC_004 | Notificações Operacionais via Telegram | Em Refinamento |
+| [SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/](SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/SPEC.md) | SPEC_005 | Análise de Bias de Mercado e Oportunidades de Posições Abertas | Em Refinamento |
 
 ---
 
@@ -76,6 +80,12 @@ SDD/ (Especificação Técnica) ← VOCÊ ESTÁ AQUI
     ├─ SPEC_TEMPLATE.md                     ← template de novas specs
     ├─ MCP_SERENA_FLOW.md                   ← pipeline oficial por agentes
     ├─ SPEC_001_PAINEL_POSICOES_TEMPO_REAL/
+    │   └─ SPEC.md
+    ├─ SPEC_002_FRONTEND_CONSULTA_POSICOES/
+    │   └─ SPEC.md
+    ├─ SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/
+    │   └─ SPEC.md
+    ├─ SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/
     │   └─ SPEC.md
     ├─ ARCHITECTURE.md
     ├─ DATA_MODELS.md

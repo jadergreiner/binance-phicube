@@ -12,9 +12,11 @@ RUN pip install --upgrade pip && \
     pip install --no-cache-dir build && \
     pip install --no-cache-dir \
         ccxt \
-        binance-sdk-derivatives-trading-usds-futures \
+        binance-connector \
+        binance-futures-connector \
         fastapi \
         uvicorn \
+        websockets \
         pandas \
         numpy \
         motor \

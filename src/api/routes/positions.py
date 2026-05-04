@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
 
+from src.dashboard.analysis import build_market_analysis
 from src.dashboard.models import AccountSummary, PositionView, build_account_summary
 
 router = APIRouter()
@@ -18,6 +20,27 @@ def _to_iso8601(value: datetime) -> str:
 
 
 def _serialize_position(position: PositionView) -> dict[str, Any]:
+    position_size_usdt = getattr(position, "position_size_usdt", None)
+    if position_size_usdt is None and hasattr(position, "margin_used_usdt"):
+        try:
+            if position.margin_used_usdt >= 0 and position.leverage > 0:
+                position_size_usdt = position.margin_used_usdt * position.leverage
+        except Exception:
+            position_size_usdt = None
+
+    roi_adjusted_pct = getattr(position, "roi_adjusted_pct", None)
+    if roi_adjusted_pct is None and position_size_usdt is not None and position_size_usdt > 0:
+        try:
+            roi_adjusted_pct = Decimal(str(position.unrealized_pnl_usdt))
+            roi_adjusted_pct = (
+                roi_adjusted_pct
+                / Decimal(str(position_size_usdt))
+                * Decimal("100")
+            ).quantize(Decimal("0.0000000000000001"))
+            roi_adjusted_pct = float(roi_adjusted_pct)
+        except (Exception, InvalidOperation):
+            roi_adjusted_pct = None
+
     return {
         "symbol": position.symbol,
         "side": position.side,
@@ -27,6 +50,8 @@ def _serialize_position(position: PositionView) -> dict[str, Any]:
         "mark_price": position.mark_price,
         "unrealized_pnl_usdt": position.unrealized_pnl_usdt,
         "margin_used_usdt": position.margin_used_usdt,
+        "position_size_usdt": position_size_usdt,
+        "roi_adjusted_pct": roi_adjusted_pct,
         "liquidation_price": position.liquidation_price,
         "updated_at": _to_iso8601(position.updated_at),
     }
@@ -39,6 +64,27 @@ def _serialize_summary(summary: AccountSummary) -> dict[str, Any]:
         "total_unrealized_pnl_usdt": summary.total_unrealized_pnl_usdt,
         "connection_status": summary.connection_status,
         "last_update_at": _to_iso8601(summary.last_update_at),
+    }
+
+
+def _serialize_market_analysis(analysis: Any) -> dict[str, Any]:
+    return {
+        "bias": {
+            "direction": analysis.bias.direction,
+            "confidence": analysis.bias.confidence,
+            "score": analysis.bias.score,
+            "reason": analysis.bias.reason,
+        },
+        "opportunities": [
+            {
+                "symbol": opportunity.symbol,
+                "direction": opportunity.direction,
+                "action": opportunity.action,
+                "rationale": opportunity.rationale,
+                "exposure_usdt": opportunity.exposure_usdt,
+            }
+            for opportunity in analysis.opportunities
+        ],
     }
 
 
@@ -56,10 +102,12 @@ def _build_snapshot(stream: Any) -> dict[str, Any]:
     positions = list(stream.get_positions())
     connection_status = stream.get_status()
     summary = build_account_summary(positions, connection_status)
+    market_analysis = build_market_analysis(positions)
     return {
         "positions": [_serialize_position(position) for position in positions],
         "summary": _serialize_summary(summary),
         "status": connection_status,
+        "analysis": _serialize_market_analysis(market_analysis),
     }
 
 
