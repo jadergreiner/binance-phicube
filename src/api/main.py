@@ -78,6 +78,14 @@ async def lifespan(app: Any) -> AsyncIterator[None]:
                 warning_message="dashboard_adaptive_updater_start_failed",
             )
 
+        # If connection failed, switch to offline mode
+        if not client_connected or not stream_started:
+            logger.warning("dashboard_connection_failed_switching_to_offline_mode")
+            offline_stream = _OfflinePositionStream()
+            app.state.position_stream = offline_stream
+            app.state.stream = offline_stream
+            app.state.startup_mode = "offline"
+
         app.state.startup_mode = position_stream.get_status()
         if not client_connected and stream_started:
             logger.warning("dashboard_api_client_connected_in_fallback_mode")
