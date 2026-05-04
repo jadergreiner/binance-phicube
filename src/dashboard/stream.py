@@ -358,6 +358,24 @@ class PositionStream:
             return None
 
         leverage = int(self._to_float(raw_position.get("leverage")))
+        margin_used_usdt = self._resolve_snapshot_margin(raw_position, leverage, quantity)
+        if leverage <= 0:
+            # Log warning when leverage is missing or invalid from Binance
+            raw_leverage = raw_position.get("leverage")
+            position_initial_margin = raw_position.get("positionInitialMargin")
+            notional = raw_position.get("notional")
+            inferred_leverage = self._infer_leverage(raw_position)
+
+            logger.warning(
+                "dashboard_position_leverage_missing",
+                symbol=raw_position.get("symbol", ""),
+                raw_leverage=raw_leverage,
+                position_initial_margin=position_initial_margin,
+                notional=notional,
+                inferred_leverage=inferred_leverage,
+            )
+            leverage = inferred_leverage
+
         return PositionView(
             symbol=str(raw_position.get("symbol", "")),
             side=self._resolve_side(quantity),
@@ -366,7 +384,7 @@ class PositionStream:
             entry_price=self._to_float(raw_position.get("entryPrice")),
             mark_price=self._to_float(raw_position.get("markPrice")),
             unrealized_pnl_usdt=self._to_float(raw_position.get("unRealizedProfit")),
-            margin_used_usdt=self._resolve_snapshot_margin(raw_position, leverage, quantity),
+            margin_used_usdt=margin_used_usdt,
             liquidation_price=self._maybe_liquidation_price(raw_position.get("liquidationPrice")),
             updated_at=updated_at,
         )
@@ -389,6 +407,25 @@ class PositionStream:
             return notional / leverage
 
         return abs(quantity) * self._to_float(raw_position.get("markPrice"))
+
+    def _infer_leverage(self, raw_position: dict[str, Any]) -> int:
+        explicit_margin = self._first_non_empty(
+            raw_position.get("positionInitialMargin"),
+            raw_position.get("isolatedMargin"),
+        )
+        if explicit_margin is None:
+            return 0
+
+        explicit_margin_value = self._to_float(explicit_margin)
+        if explicit_margin_value <= 0:
+            return 0
+
+        notional = abs(self._to_float(raw_position.get("notional")))
+        if notional <= 0:
+            return 0
+
+        leverage = int(round(notional / explicit_margin_value))
+        return leverage if leverage > 0 else 0
 
     def _resolve_stream_margin(self, raw_update: dict[str, Any]) -> float:
         return self._to_float(self._first_non_empty(raw_update.get("iw"), raw_update.get("im")))

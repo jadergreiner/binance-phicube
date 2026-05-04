@@ -172,6 +172,89 @@ async def test_snapshot_inicial_e_mapeado_para_position_view() -> None:
 
 
 @pytest.mark.asyncio
+async def test_snapshot_infer_leverage_when_field_is_missing() -> None:
+    client = DashboardClient(_make_settings())
+    websocket = _FakeWebSocket()
+    session = _FakeSession(websocket)
+
+    payload = [
+        {
+            "symbol": "BTCUSDT",
+            "positionAmt": "0.5",
+            "entryPrice": "95000",
+            "markPrice": "96000",
+            "unRealizedProfit": "250",
+            "positionInitialMargin": "2400",
+            "notional": "24000",
+            "liquidationPrice": "87000",
+        }
+    ]
+
+    client.fetch_position_risk = AsyncMock(return_value=payload)
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
+
+    stream = PositionStream(
+        client,
+        session_factory=lambda: session,
+        keepalive_interval=3600,
+    )
+
+    await stream.start()
+
+    positions = stream.get_positions()
+    assert len(positions) == 1
+    assert positions[0].leverage == 10
+    assert positions[0].margin_used_usdt == pytest.approx(2400.0)
+    assert positions[0].position_size_usdt == pytest.approx(24000.0)
+
+    await stream.stop()
+
+
+@pytest.mark.asyncio
+async def test_snapshot_warns_when_leverage_is_zero() -> None:
+    client = DashboardClient(_make_settings())
+    websocket = _FakeWebSocket()
+    session = _FakeSession(websocket)
+
+    payload = [
+        {
+            "symbol": "BTCUSDT",
+            "positionAmt": "0.5",
+            "entryPrice": "95000",
+            "markPrice": "96000",
+            "unRealizedProfit": "250",
+            "positionInitialMargin": "2400",
+            "notional": "24000",
+            "liquidationPrice": "87000",
+            "leverage": "0",  # Explicit zero leverage
+        }
+    ]
+
+    client.fetch_position_risk = AsyncMock(return_value=payload)
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
+
+    stream = PositionStream(
+        client,
+        session_factory=lambda: session,
+        keepalive_interval=3600,
+    )
+
+    await stream.start()
+
+    positions = stream.get_positions()
+    assert len(positions) == 1
+    assert positions[0].leverage == 10  # Should be inferred
+    assert positions[0].margin_used_usdt == pytest.approx(2400.0)
+    assert positions[0].position_size_usdt == pytest.approx(24000.0)
+
+    await stream.stop()
+
+
+@pytest.mark.asyncio
 async def test_account_update_atualiza_posicao_correta_em_memoria() -> None:
     client = DashboardClient(_make_settings())
     websocket = _FakeWebSocket()
