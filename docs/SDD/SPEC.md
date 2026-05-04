@@ -69,7 +69,7 @@
 ```text
 TradingMonitor._tick()
     │
-    ├─ fetch OHLCV (drop last candle)
+    ├─ fetch OHLCV (últimas 100 candles)
     │   └─ ExchangeClient.fetch_ohlcv_with_retry()
     │
     ├─ check max_open_positions
@@ -99,6 +99,33 @@ TradingMonitor._tick()
     └─ audit log
         └─ MongoRepository.audit()
 ```
+
+#### 1.3 Agendamento de Execução
+
+O backend roda em loop assíncrono com agendamento fixo a cada 5 minutos, independente do fechamento de candles.
+
+- **Intervalo:** 300 segundos (5 minutos)
+- **Comportamento:** `asyncio.sleep(300)` entre ticks
+- **Razão:** Maior responsividade para capturar sinais em tempo real, sem aguardar timeframe específico
+- **Limitação:** Máximo 10 símbolos totais (autorizados + posições abertas) para evitar sobrecarga API
+
+#### 1.4 Análise de Ativos com Posição Aberta
+
+Além da lista autorizada em `settings.symbols`, o sistema detecta automaticamente ativos com posição aberta na Binance e os inclui na análise.
+
+- **Fonte:** API `fetch_positions()` da Binance
+- **Prioridade:** Lista autorizada primeiro, depois posições abertas
+- **Limite:** Máximo 10 símbolos totais
+- **Razão:** Gestão de risco para ajustar SL/TP em posições existentes, sem abrir novas
+
+#### 1.5 Validação do Modelo de Oportunidades
+
+O modelo de detecção de sinais inclui auditoria detalhada para convicção em oportunidades.
+
+- **Logs:** Detalhes de cada condição (Alligator, AO, Fractais) em cada avaliação
+- **Testes:** Unitários para indicadores e cenários de sinal
+- **Métricas:** Contagem de sinais detectados vs. rejeitados, com razões
+- **Razão:** Garantir fidelidade à estratégia BO Williams, reduzir falsos positivos
 
 ---
 
@@ -212,6 +239,27 @@ Cálculo de SL e TP (SHORT):
 - [ ] SL, TP, entry calculados sem divisão por zero
 - [ ] Sinal não retornado na candle "em progresso" (apenas fechada)
 - [ ] Teste: 10+ históricos reais validados manualmente
+
+#### Contratos e Testes para Agendamento Fixo
+
+- **Regra:** Backend executa tick a cada 300 segundos exatos
+- **Aceite:** Logs mostram timestamps com diferença de ~300s
+- **Erro:** Se atraso > 10s, log de warning
+- **Teste:** Mock asyncio.sleep, verificar chamadas
+
+#### Contratos e Testes para Análise de Posições Abertas
+
+- **Regra:** Símbolos com posição aberta são incluídos na análise
+- **Aceite:** Lista total = autorizados + posições abertas, max 10
+- **Erro:** Se >10, priorizar autorizados
+- **Teste:** Mock fetch_positions, verificar inclusão
+
+#### Contratos e Testes para Validação do Modelo
+
+- **Regra:** Logs detalham condições de cada avaliação
+- **Aceite:** Log inclui Alligator state, AO value, Fractal found
+- **Erro:** Sem log, sinal não detectado
+- **Teste:** Unitários para cada condição, backtest com dados históricos
 
 ---
 

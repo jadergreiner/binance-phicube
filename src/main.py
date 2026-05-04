@@ -67,7 +67,7 @@ class TradingMonitor:
         self._order_manager = order_manager
         self._max_positions = max_open_positions
         self._warmup_candles = warmup_candles
-        self._interval = _TIMEFRAME_SECONDS.get(timeframe, 900)
+        self._interval = 300  # Fixed 5-minute interval
 
     async def run(self) -> None:
         logger.info("monitor_started", symbol=self._symbol, timeframe=self._timeframe)
@@ -168,6 +168,21 @@ async def _main() -> None:
     client = BinanceClient(settings)
     await client.connect()
 
+    # Fetch open positions and extract symbols
+    open_positions = await client.fetch_open_positions()
+    open_symbols = {pos["symbol"] for pos in open_positions if pos.get("symbol")}
+
+    # Combine authorized symbols with open position symbols, limit to 10 total
+    all_symbols = set(settings.symbols) | open_symbols
+    all_symbols = list(all_symbols)[:10]  # Limit to 10 symbols
+
+    logger.info(
+        "symbols_to_monitor",
+        authorized=settings.symbols,
+        open_positions=list(open_symbols),
+        total=all_symbols,
+    )
+
     repo = MongoRepository(settings.mongodb_uri, settings.mongodb_database)
     await repo.setup_indexes()
 
@@ -191,7 +206,7 @@ async def _main() -> None:
             max_open_positions=settings.max_open_positions,
             warmup_candles=settings.warmup_candles,
         )
-        for symbol in settings.symbols
+        for symbol in all_symbols
         for timeframe in settings.timeframes
     ]
 

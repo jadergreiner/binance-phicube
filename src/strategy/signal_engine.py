@@ -126,42 +126,70 @@ class SignalEngine:
         jaw, teeth, lips, ao = float(jaw), float(teeth), float(lips), float(ao)
 
         # ─── Long signal ──────────────────────────────────────────────────────
-        if self._is_alligator_bullish(jaw, teeth, lips, close) and ao > 0:
-            fractal_ref = last_valid_fractal_high(enriched)
-            if fractal_ref is not None and close > fractal_ref:
-                sl = last_valid_fractal_low(enriched)
-                if sl is not None and sl < close:
-                    tp = close + (close - sl) * self._rrr
-                    signal = Signal(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        direction=Direction.LONG,
-                        entry_price=close,
-                        stop_loss=sl,
-                        take_profit=tp,
-                        fractal_ref=fractal_ref,
-                    )
-                    logger.info("signal_detected", **signal.to_dict())
-                    return signal
+        alligator_bullish = self._is_alligator_bullish(jaw, teeth, lips, close)
+        ao_positive = ao > 0
+        fractal_high = last_valid_fractal_high(enriched)
+        close_above_fractal = fractal_high is not None and close > fractal_high
+        fractal_low = last_valid_fractal_low(enriched)
+        valid_sl = fractal_low is not None and fractal_low < close
+
+        logger.debug(
+            "long_conditions_check",
+            symbol=symbol,
+            alligator_bullish=alligator_bullish,
+            ao_positive=ao_positive,
+            fractal_high=fractal_high,
+            close_above_fractal=close_above_fractal,
+            fractal_low=fractal_low,
+            valid_sl=valid_sl,
+        )
+
+        if alligator_bullish and ao_positive and close_above_fractal and valid_sl:
+            tp = close + (close - fractal_low) * self._rrr
+            signal = Signal(
+                symbol=symbol,
+                timeframe=timeframe,
+                direction=Direction.LONG,
+                entry_price=close,
+                stop_loss=fractal_low,
+                take_profit=tp,
+                fractal_ref=fractal_high,
+            )
+            logger.info("signal_detected", **signal.to_dict())
+            return signal
 
         # ─── Short signal ─────────────────────────────────────────────────────
-        if self._is_alligator_bearish(jaw, teeth, lips, close) and ao < 0:
-            fractal_ref = last_valid_fractal_low(enriched)
-            if fractal_ref is not None and close < fractal_ref:
-                sl = last_valid_fractal_high(enriched)
-                if sl is not None and sl > close:
-                    tp = close - (sl - close) * self._rrr
-                    signal = Signal(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        direction=Direction.SHORT,
-                        entry_price=close,
-                        stop_loss=sl,
-                        take_profit=tp,
-                        fractal_ref=fractal_ref,
-                    )
-                    logger.info("signal_detected", **signal.to_dict())
-                    return signal
+        alligator_bearish = self._is_alligator_bearish(jaw, teeth, lips, close)
+        ao_negative = ao < 0
+        fractal_low_ref = last_valid_fractal_low(enriched)
+        close_below_fractal = fractal_low_ref is not None and close < fractal_low_ref
+        fractal_high_ref = last_valid_fractal_high(enriched)
+        valid_sl_short = fractal_high_ref is not None and fractal_high_ref > close
+
+        logger.debug(
+            "short_conditions_check",
+            symbol=symbol,
+            alligator_bearish=alligator_bearish,
+            ao_negative=ao_negative,
+            fractal_low=fractal_low_ref,
+            close_below_fractal=close_below_fractal,
+            fractal_high=fractal_high_ref,
+            valid_sl=valid_sl_short,
+        )
+
+        if alligator_bearish and ao_negative and close_below_fractal and valid_sl_short:
+            tp = close - (fractal_high_ref - close) * self._rrr
+            signal = Signal(
+                symbol=symbol,
+                timeframe=timeframe,
+                direction=Direction.SHORT,
+                entry_price=close,
+                stop_loss=fractal_high_ref,
+                take_profit=tp,
+                fractal_ref=fractal_low_ref,
+            )
+            logger.info("signal_detected", **signal.to_dict())
+            return signal
 
         logger.debug("no_signal", symbol=symbol, timeframe=timeframe)
         return None
