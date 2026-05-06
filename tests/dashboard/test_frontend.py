@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 
 from src.api import main as api_main
 
-
 ROOT = Path(__file__).resolve().parents[2]
 INDEX_HTML = ROOT / "src" / "frontend" / "static" / "index.html"
 APP_JS = ROOT / "src" / "frontend" / "static" / "app.js"
@@ -35,6 +34,25 @@ def test_frontend_e_somente_leitura_e_consumidor_de_websocket() -> None:
     assert "close position" not in javascript.lower()
     assert "take profit" not in javascript.lower()
     assert "stop loss" not in javascript.lower()
+
+
+def test_frontend_nao_inferir_degraded_por_idade_local() -> None:
+    """A UI não deve deduzir degradado por watchdog/timeout local."""
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert "REFRESH_THRESHOLD_MS" not in javascript
+    assert "WATCHDOG_INTERVAL_MS" not in javascript
+    assert "checkRefreshState" not in javascript
+    assert "startWatchdog" not in javascript
+    assert "lastSnapshotReceivedAt" not in javascript
+
+
+def test_frontend_prioriza_status_vindo_do_backend() -> None:
+    """O status renderizado deve vir do snapshot retornado pelo backend."""
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert "setStatus(snapshot.status);" in javascript
+    assert "setBanner(snapshot.banner);" in javascript
 
 
 def test_get_root_entrega_o_frontend_estatico(monkeypatch) -> None:

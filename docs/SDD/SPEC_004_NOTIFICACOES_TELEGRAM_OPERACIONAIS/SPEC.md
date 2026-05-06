@@ -1,7 +1,7 @@
 # SPEC 004 — Notificações Operacionais via Telegram
 
 **ID:** SPEC_004
-**Status:** Em Refinamento
+**Status:** Em Execução
 **Data:** 2026-05-02
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execução)
@@ -32,9 +32,9 @@ Notificações operacionais do bot para o operador via Telegram
 
 ### 2.1 Objetivos (o que será entregue)
 
-- [ ] Adicionar configuração opcional de Telegram (`TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`) no settings.
-- [ ] Entregar um `TelegramNotifier` assíncrono com envio HTTP para `sendMessage`.
-- [ ] Notificar os 4 eventos do PRD: trade aberto, trade fechado, erro crítico, SL não executado após entrada.
+- [x] Adicionar configuração opcional de Telegram (`TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`) no settings.
+- [x] Entregar um `TelegramNotifier` assíncrono com envio HTTP para `sendMessage`.
+- [x] Notificar os 4 eventos do PRD: trade aberto, trade fechado, erro crítico, SL não executado após entrada.
 - [ ] Garantir modo degradado seguro: se Telegram falhar, o bot continua operando sem interrupção.
 - [ ] Cobrir contratos com testes unitários e de integração local (sem chamada real de rede).
 
@@ -271,12 +271,12 @@ sequenceDiagram
 
 ## 10. Definição de Pronto (DoD Global)
 
-- [ ] SPEC aprovada pelo Time A.
-- [ ] Histórias US-004-01, US-004-02 e US-004-03 atendidas.
-- [ ] Bot segue operando em 100% dos cenários de falha de notificação.
-- [ ] Eventos críticos definidos no PRD (RF-10) notificados.
-- [ ] Sem segredos em logs ou payload de auditoria.
-- [ ] Testes críticos passando e rastreabilidade PRD -> SPEC.md -> SPEC_004 comprovada.
+- [x] SPEC aprovada pelo Time A.
+- [x] Histórias US-004-01, US-004-02 e US-004-03 atendidas.
+- [x] Bot segue operando em 100% dos cenários de falha de notificação.
+- [x] Eventos críticos definidos no PRD (RF-10) notificados.
+- [x] Sem segredos em logs ou payload de auditoria.
+- [x] Testes críticos passando e rastreabilidade PRD -> SPEC.md -> SPEC_004 comprovada.
 
 ---
 

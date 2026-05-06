@@ -9,6 +9,7 @@ trade, lançando `DashboardClientError` caso contrário.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import time
 from typing import Any
 
@@ -22,6 +23,20 @@ logger = get_logger(__name__)
 
 class DashboardClientError(Exception):
     """Erro específico do cliente do painel."""
+
+
+@dataclass(slots=True)
+class DashboardAuthIssue:
+    reason: str
+    detail: str
+
+
+class DashboardAuthError(DashboardClientError):
+    """Erro de autenticação/autorização não recuperável para o dashboard."""
+
+    def __init__(self, issue: DashboardAuthIssue) -> None:
+        self.issue = issue
+        super().__init__(issue.detail)
 
 
 class DashboardClient:
@@ -52,6 +67,13 @@ class DashboardClient:
 
     async def connect(self) -> None:
         """Carrega mercados e valida permissões da API Key."""
+        logger.info(
+            "dashboard_client_startup_context",
+            binance_testnet=self._settings.binance_testnet,
+            endpoint_target="binance_usdm_futures",
+            api_key_prefix=self._masked_key_prefix(self._settings.dashboard_api_key),
+            credential_source="dashboard_api_key",
+        )
         await self._sync_exchange_clock()
         await self._sync_sdk_clock()
 
@@ -60,6 +82,7 @@ class DashboardClient:
         except Exception as exc:
             logger.warning("dashboard_client_load_markets_failed", error=str(exc))
         await self._validate_readonly_permissions()
+        await self._validate_futures_access()
         logger.info("dashboard_client_connected", testnet=self._settings.binance_testnet)
 
     async def close(self) -> None:
@@ -132,12 +155,18 @@ class DashboardClient:
             return
 
         if not isinstance(response, dict):
-            logger.warning("dashboard_client_sdk_clock_sync_failed", error="Resposta inválida do endpoint de tempo")
+            logger.warning(
+                "dashboard_client_sdk_clock_sync_failed",
+                error="Resposta inválida do endpoint de tempo"
+            )
             return
 
         server_time = response.get("serverTime")
         if server_time is None:
-            logger.warning("dashboard_client_sdk_clock_sync_failed", error="Servidor não retornou serverTime")
+            logger.warning(
+                "dashboard_client_sdk_clock_sync_failed",
+                error="Servidor não retornou serverTime"
+            )
             return
 
         try:
@@ -194,6 +223,54 @@ class DashboardClient:
             raise DashboardClientError(
                 f"Falha ao executar '{method_name}' no SDK Binance Futures: {exc}"
             ) from exc
+
+    async def _validate_futures_access(self) -> None:
+        """Valida se a key atual consegue acessar endpoint READ de Futures."""
+        try:
+            await self._call_um_futures("get_position_risk")
+        except DashboardClientError as exc:
+            issue = self._classify_auth_issue(exc)
+            if issue is not None:
+                raise DashboardAuthError(issue) from exc
+            raise
+
+    def _classify_auth_issue(self, exc: DashboardClientError) -> DashboardAuthIssue | None:
+        raw_error = str(exc)
+        lower_error = raw_error.lower()
+        has_401 = "401" in lower_error
+        has_2015 = "-2015" in lower_error
+        has_invalid_key_msg = "invalid api-key, ip, or permissions for action" in lower_error
+        if not (has_401 and (has_2015 or has_invalid_key_msg)):
+            return None
+
+        if self._settings.binance_testnet:
+            reason = "env_mismatch_testnet_mainnet"
+            action = "Confirme se a chave pertence ao ambiente Testnet Futures."
+        else:
+            reason = "invalid_key_or_secret"
+            action = "Confirme key/secret da Mainnet, permissões Futures READ e whitelist de IP."
+
+        if "ip" in lower_error:
+            reason = "ip_not_whitelisted"
+            action = "Autorize o IP de saída do host/container na whitelist da API Key."
+        elif "permissions" in lower_error:
+            reason = "missing_futures_permission"
+            action = "Habilite permissão de Futures READ para a API Key usada no dashboard."
+
+        return DashboardAuthIssue(
+            reason=reason,
+            detail=(
+                "Credencial do dashboard rejeitada pela Binance Futures "
+                f"(reason={reason}). {action}"
+            ),
+        )
+
+    @staticmethod
+    def _masked_key_prefix(api_key: str) -> str:
+        sanitized = (api_key or "").strip()
+        if not sanitized:
+            return "missing"
+        return f"{sanitized[:6]}***"
 
     async def fetch_position_risk(self, *, symbol: str | None = None) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}

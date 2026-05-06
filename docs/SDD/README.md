@@ -63,8 +63,15 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_001_PAINEL_POSICOES_TEMPO_REAL/](SPEC_001_PAINEL_POSICOES_TEMPO_REAL/SPEC.md) | SPEC_001 | Painel de Posições em Tempo Real (Somente Leitura) | Aprovada |
 | [SPEC_002_FRONTEND_CONSULTA_POSICOES/](SPEC_002_FRONTEND_CONSULTA_POSICOES/SPEC.md) | SPEC_002 | Frontend de Consulta de Posições | Concluída |
 | [SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/](SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/SPEC.md) | SPEC_003 | Inclusão de Cálculos de Margem e ROI Ajustado | Concluída |
-| [SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/](SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/SPEC.md) | SPEC_004 | Notificações Operacionais via Telegram | Em Refinamento |
-| [SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/](SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/SPEC.md) | SPEC_005 | Análise de Bias de Mercado e Oportunidades de Posições Abertas | Em Refinamento |
+| [SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/](SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/SPEC.md) | SPEC_004 | Notificações Operacionais via Telegram | Concluída |
+| [SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/](SPEC_005_ANALISE_BIAS_POSICOES_ABERTAS/SPEC.md) | SPEC_005 | Análise de Bias de Mercado e Oportunidades de Posições Abertas | Concluída |
+| [SPEC_006_RELATORIO_PERFORMANCE_TRADES/](SPEC_006_RELATORIO_PERFORMANCE_TRADES/SPEC.md) | SPEC_006 | Relatório de Performance de Trades | Concluída |
+| [SPEC_007_RESILIENCIA_CONTINUIDADE_OPERACIONAL/](SPEC_007_RESILIENCIA_CONTINUIDADE_OPERACIONAL/SPEC.md) | SPEC_007 | Resiliência e Continuidade Operacional | Concluída |
+| [SPEC_008_RELATORIO_PERIODICO_TELEGRAM/](SPEC_008_RELATORIO_PERIODICO_TELEGRAM/SPEC.md) | SPEC_008 | Relatório Periódico de Performance via Telegram | Concluída |
+| [SPEC_009_ANALISE_PERFORMANCE_SIMBOLO_TIMEFRAME/](SPEC_009_ANALISE_PERFORMANCE_SIMBOLO_TIMEFRAME/SPEC.md) | SPEC_009 | Análise de Performance por Símbolo e Timeframe | Concluída |
+| [SPEC_010_DASHBOARD_PERFORMANCE/](SPEC_010_DASHBOARD_PERFORMANCE/SPEC.md) | SPEC_010 | Dashboard de Performance em Tempo Real | Concluída |
+| [SPEC_011_MOTOR_BACKTESTING/](SPEC_011_MOTOR_BACKTESTING/SPEC.md) | SPEC_011 | Motor de Backtesting | Concluída |
+| [SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS/](SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS/SPEC.md) | SPEC_012 | Monitoramento Ativo de Ordens e Posições Abertas | Em Execução |
 
 ---
 
@@ -86,6 +93,8 @@ SDD/ (Especificação Técnica) ← VOCÊ ESTÁ AQUI
     ├─ SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/
     │   └─ SPEC.md
     ├─ SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/
+    │   └─ SPEC.md
+    ├─ SPEC_006_RELATORIO_PERFORMANCE_TRADES/
     │   └─ SPEC.md
     ├─ ARCHITECTURE.md
     ├─ DATA_MODELS.md
@@ -127,6 +136,12 @@ Ao receber artefatos do Time A:
 3. **Executável:** Possível começar implementação sem perguntas
 4. **Vivo:** Atualizado conforme evolução (com versionamento)
 5. **Rastreável:** Cada componente mapeia para requisito em PRD e princípio em MANIFESTO
+
+## 📌 Semântica Canônica de Status
+
+- **Em Refinamento:** escopo especificado, sem implementação validada.
+- **Em Execução:** implementação parcial validada, com pendências abertas.
+- **Concluída:** DoD atendido com evidências de código/testes/documentação.
 
 ---
 

@@ -1,7 +1,12 @@
 (() => {
+  const FALLBACK_POLL_INTERVAL_MS = 30_000;
+  const MAX_RECONNECT_DELAY_MS = 5_000;
+  const PERFORMANCE_POLL_INTERVAL_MS = 60_000;
+
   const state = {
     socket: null,
     reconnectTimer: null,
+    fallbackTimer: null,
     reconnectAttempt: 0,
     lastSnapshot: null,
     intentionalClose: false,
@@ -22,6 +27,15 @@
     summaryPnl: document.getElementById("summary-pnl"),
     snapshotStatus: document.getElementById("snapshot-status"),
     positionsBody: document.getElementById("positions-body"),
+    performanceStatus: document.getElementById("performance-status"),
+    perfTotalTrades: document.getElementById("perf-total-trades"),
+    perfWinRate: document.getElementById("perf-win-rate"),
+    perfTotalPnl: document.getElementById("perf-total-pnl"),
+    perfAvgRrr: document.getElementById("perf-avg-rrr"),
+    perfMaxDrawdown: document.getElementById("perf-max-drawdown"),
+    perfProfitFactor: document.getElementById("perf-profit-factor"),
+    perfBySymbolBody: document.getElementById("perf-by-symbol-body"),
+    perfByTimeframeBody: document.getElementById("perf-by-timeframe-body"),
   };
 
   const moneyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -114,6 +128,44 @@
     elements.banner.dataset.level = banner.level;
     elements.bannerTitle.textContent = banner.title;
     elements.bannerMessage.textContent = banner.message;
+  }
+
+  function startFallbackPolling() {
+    if (state.fallbackTimer) {
+      return;
+    }
+
+    fetchSnapshotViaRest();
+    state.fallbackTimer = window.setInterval(fetchSnapshotViaRest, FALLBACK_POLL_INTERVAL_MS);
+  }
+
+  function stopFallbackPolling() {
+    if (!state.fallbackTimer) {
+      return;
+    }
+
+    window.clearInterval(state.fallbackTimer);
+    state.fallbackTimer = null;
+  }
+
+  async function fetchSnapshotViaRest() {
+    try {
+      const response = await fetch("/positions", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const snapshot = await response.json();
+      renderSnapshot(snapshot);
+    } catch (error) {
+      setStatus("offline");
+      setBanner({
+        visible: true,
+        level: "critical",
+        title: "Falha de conexão",
+        message: "Não foi possível atualizar o painel. Tentando reconectar...",
+      });
+    }
   }
 
   function renderSummary(summary) {
@@ -228,6 +280,8 @@
     socket.addEventListener("open", () => {
       state.reconnectAttempt = 0;
       setStatus("online");
+      setBanner({ visible: false });
+      stopFallbackPolling();
     });
 
     socket.addEventListener("message", (event) => {
@@ -237,6 +291,15 @@
 
     socket.addEventListener("close", () => {
       setStatus("offline");
+      setBanner({
+        visible: true,
+        level: "critical",
+        title: "Offline",
+        message: "Sem conexão com o servidor. Tentando reconectar...",
+      });
+
+      startFallbackPolling();
+
       if (state.intentionalClose) {
         state.intentionalClose = false;
         return;
@@ -246,8 +309,67 @@
     });
 
     socket.addEventListener("error", () => {
-      setStatus("offline");
+      if (state.socket?.readyState !== WebSocket.OPEN) {
+        setStatus("offline");
+      }
     });
+  }
+
+  function renderGroupTable(tbodyEl, data) {
+    const entries = Object.entries(data || {});
+    if (entries.length === 0) {
+      tbodyEl.innerHTML = `<tr class="empty-row"><td colspan="7">Sem trades fechados.</td></tr>`;
+      return;
+    }
+    tbodyEl.innerHTML = entries
+      .map(
+        ([key, m]) => `
+          <tr>
+            <td>${key}</td>
+            <td>${m.total_trades}</td>
+            <td>${formatPercent(m.win_rate_pct)}</td>
+            <td class="${m.total_pnl_usdt >= 0 ? "metric-positive" : "metric-negative"}">${formatMoney(m.total_pnl_usdt)}</td>
+            <td>${m.avg_rrr.toFixed(2)}</td>
+            <td>${formatMoney(m.max_drawdown_usdt)}</td>
+            <td>${m.profit_factor.toFixed(2)}</td>
+          </tr>
+        `,
+      )
+      .join("");
+  }
+
+  function renderPerformance(global, bySymbol, byTimeframe) {
+    elements.performanceStatus.textContent = "atualizado";
+    elements.perfTotalTrades.textContent = global.total_trades ?? "—";
+    elements.perfWinRate.textContent = formatPercent(global.win_rate_pct);
+    elements.perfTotalPnl.textContent = formatMoney(global.total_pnl_usdt);
+    elements.perfAvgRrr.textContent = global.avg_rrr != null ? global.avg_rrr.toFixed(2) : "—";
+    elements.perfMaxDrawdown.textContent = formatMoney(global.max_drawdown_usdt);
+    elements.perfProfitFactor.textContent =
+      global.profit_factor != null ? global.profit_factor.toFixed(2) : "—";
+    renderGroupTable(elements.perfBySymbolBody, bySymbol);
+    renderGroupTable(elements.perfByTimeframeBody, byTimeframe);
+  }
+
+  async function fetchPerformance() {
+    try {
+      const [globalRes, bySymbolRes, byTimeframeRes] = await Promise.all([
+        fetch("/performance", { cache: "no-store" }),
+        fetch("/performance/by-symbol", { cache: "no-store" }),
+        fetch("/performance/by-timeframe", { cache: "no-store" }),
+      ]);
+      if (!globalRes.ok || !bySymbolRes.ok || !byTimeframeRes.ok) {
+        return;
+      }
+      const [global, bySymbolData, byTimeframeData] = await Promise.all([
+        globalRes.json(),
+        bySymbolRes.json(),
+        byTimeframeRes.json(),
+      ]);
+      renderPerformance(global, bySymbolData.by_symbol, byTimeframeData.by_timeframe);
+    } catch (_) {
+      // silencioso — painel de posições não é afetado
+    }
   }
 
   function bootstrap() {
@@ -255,6 +377,8 @@
     setStatus("offline");
     setBanner({ visible: false });
     connect();
+    fetchPerformance();
+    window.setInterval(fetchPerformance, PERFORMANCE_POLL_INTERVAL_MS);
   }
 
   document.addEventListener("DOMContentLoaded", bootstrap);

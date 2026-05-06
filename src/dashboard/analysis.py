@@ -119,7 +119,9 @@ def _extract_position_exposure(position: object) -> float | None:
     return None
 
 
-def _resolve_confidence(relative_balance: float, direction: MarketBiasDirection) -> MarketBiasConfidence:
+def _resolve_confidence(
+    relative_balance: float, direction: MarketBiasDirection
+) -> MarketBiasConfidence:
     if direction == "NEUTRAL":
         return "low"
     if relative_balance >= 0.6:
@@ -138,7 +140,8 @@ def _build_bias_reason(
 ) -> str:
     if direction == "NEUTRAL":
         return (
-            "Exposicao balanceada entre LONG e SHORT; o mercado nao apresenta bias claro no momento."
+            "Exposicao balanceada entre LONG e SHORT; o mercado nao apresenta "
+            "bias claro no momento."
         )
 
     dominant = "LONG" if direction == "LONG" else "SHORT"
@@ -163,7 +166,8 @@ def _build_opportunities(
                 direction="NEUTRAL",
                 action="HOLD",
                 rationale=(
-                    "Exposicao balanceada; aguarde confirmacao adicional antes de abrir novas posicoes."
+                    "Exposicao balanceada; aguarde confirmacao adicional antes de "
+                    "abrir novas posicoes."
                 ),
                 exposure_usdt=None,
             )
@@ -180,8 +184,8 @@ def _build_opportunities(
                     direction="LONG",
                     action="ADD",
                     rationale=(
-                        "O mercado favorece LONG e esta posicao possui a maior exposicao LONG atual. "
-                        "Considere reforcar a tendencia ou manter a posicao."
+                        "O mercado favorece LONG e esta posicao possui a maior "
+                        "exposicao LONG atual. Considere reforcar a tendencia ou manter a posicao."
                     ),
                     exposure_usdt=_extract_position_exposure(top_long),
                 )
@@ -193,7 +197,8 @@ def _build_opportunities(
                     direction="SHORT",
                     action="REDUCE",
                     rationale=(
-                        "Bias LONG dominante. Considere reduzir exposicao SHORT para alinhar o portifolio."
+                        "Bias LONG dominante. Considere reduzir exposicao SHORT para "
+                        "alinhar o portifolio."
                     ),
                     exposure_usdt=_extract_position_exposure(top_short),
                 )
@@ -208,8 +213,8 @@ def _build_opportunities(
                     direction="SHORT",
                     action="ADD",
                     rationale=(
-                        "O mercado favorece SHORT e esta posicao possui a maior exposicao SHORT atual. "
-                        "Considere reforcar a tendencia ou manter a posicao."
+                        "O mercado favorece SHORT e esta posicao possui a maior "
+                        "exposicao SHORT atual. Considere reforcar a tendencia ou manter a posicao."
                     ),
                     exposure_usdt=_extract_position_exposure(top_short),
                 )
@@ -221,7 +226,8 @@ def _build_opportunities(
                     direction="LONG",
                     action="REDUCE",
                     rationale=(
-                        "Bias SHORT dominante. Considere reduzir exposicao LONG para alinhar o portifolio."
+                        "Bias SHORT dominante. Considere reduzir exposicao LONG para "
+                        "alinhar o portifolio."
                     ),
                     exposure_usdt=_extract_position_exposure(top_long),
                 )
@@ -234,7 +240,8 @@ def _build_opportunities(
                 direction=bias.direction,
                 action="HOLD",
                 rationale=(
-                    "Nenhuma oportunidade especifica identificada. Mantenha a disciplina e aguarde nova confirmacao."
+                    "Nenhuma oportunidade especifica identificada. Mantenha a disciplina e "
+                    "aguarde nova confirmacao."
                 ),
                 exposure_usdt=None,
             )

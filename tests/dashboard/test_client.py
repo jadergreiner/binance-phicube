@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import sys
-from typing import Any, cast
 from types import ModuleType
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -40,14 +40,15 @@ async def test_connect_rejeita_key_com_permissao_de_trade() -> None:
     with patch.object(client, "_sync_exchange_clock", new_callable=AsyncMock):
         with patch.object(client, "_sync_sdk_clock", new_callable=AsyncMock):
             with patch.object(client._exchange, "load_markets", new_callable=AsyncMock):
-                with patch.object(
-                    client,
-                    "_fetch_api_restrictions",
-                    new_callable=AsyncMock,
-                    return_value={"enableSpotAndMarginTrading": True, "enableFutures": False},
-                ):
-                    with pytest.raises(DashboardClientError, match="não é READ_ONLY"):
-                        await client.connect()
+                with patch.object(client, "_validate_futures_access", new_callable=AsyncMock):
+                    with patch.object(
+                        client,
+                        "_fetch_api_restrictions",
+                        new_callable=AsyncMock,
+                        return_value={"enableSpotAndMarginTrading": True, "enableFutures": False},
+                    ):
+                        with pytest.raises(DashboardClientError, match="não é READ_ONLY"):
+                            await client.connect()
 
 
 @pytest.mark.asyncio
@@ -59,14 +60,15 @@ async def test_connect_rejeita_key_com_permissao_de_futures() -> None:
     with patch.object(client, "_sync_exchange_clock", new_callable=AsyncMock):
         with patch.object(client, "_sync_sdk_clock", new_callable=AsyncMock):
             with patch.object(client._exchange, "load_markets", new_callable=AsyncMock):
-                with patch.object(
-                    client,
-                    "_fetch_api_restrictions",
-                    new_callable=AsyncMock,
-                    return_value={"enableSpotAndMarginTrading": False, "enableFutures": True},
-                ):
-                    with pytest.raises(DashboardClientError, match="não é READ_ONLY"):
-                        await client.connect()
+                with patch.object(client, "_validate_futures_access", new_callable=AsyncMock):
+                    with patch.object(
+                        client,
+                        "_fetch_api_restrictions",
+                        new_callable=AsyncMock,
+                        return_value={"enableSpotAndMarginTrading": False, "enableFutures": True},
+                    ):
+                        with pytest.raises(DashboardClientError, match="não é READ_ONLY"):
+                            await client.connect()
 
 
 @pytest.mark.asyncio
@@ -78,13 +80,14 @@ async def test_connect_aceita_key_readonly() -> None:
     with patch.object(client, "_sync_exchange_clock", new_callable=AsyncMock):
         with patch.object(client, "_sync_sdk_clock", new_callable=AsyncMock):
             with patch.object(client._exchange, "load_markets", new_callable=AsyncMock):
-                with patch.object(
-                    client,
-                    "_fetch_api_restrictions",
-                    new_callable=AsyncMock,
-                    return_value={"enableSpotAndMarginTrading": False, "enableFutures": False},
-                ):
-                    await client.connect()  # Não deve lançar exceção
+                with patch.object(client, "_validate_futures_access", new_callable=AsyncMock):
+                    with patch.object(
+                        client,
+                        "_fetch_api_restrictions",
+                        new_callable=AsyncMock,
+                        return_value={"enableSpotAndMarginTrading": False, "enableFutures": False},
+                    ):
+                        await client.connect()  # Não deve lançar exceção
 
 
 @pytest.mark.asyncio
@@ -101,13 +104,14 @@ async def test_connect_ignora_falha_de_sincronismo_de_mercados() -> None:
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("timestamp skew"),
             ):
-                with patch.object(
-                    client,
-                    "_fetch_api_restrictions",
-                    new_callable=AsyncMock,
-                    return_value={"enableSpotAndMarginTrading": False, "enableFutures": False},
-                ):
-                    await client.connect()  # Não deve lançar exceção
+                with patch.object(client, "_validate_futures_access", new_callable=AsyncMock):
+                    with patch.object(
+                        client,
+                        "_fetch_api_restrictions",
+                        new_callable=AsyncMock,
+                        return_value={"enableSpotAndMarginTrading": False, "enableFutures": False},
+                    ):
+                        await client.connect()  # Não deve lançar exceção
 
 
 @pytest.mark.asyncio
@@ -119,14 +123,15 @@ async def test_connect_rejeita_payload_vazio_de_permissoes() -> None:
     with patch.object(client, "_sync_exchange_clock", new_callable=AsyncMock):
         with patch.object(client, "_sync_sdk_clock", new_callable=AsyncMock):
             with patch.object(client._exchange, "load_markets", new_callable=AsyncMock):
-                with patch.object(
-                    client,
-                    "_fetch_api_restrictions",
-                    new_callable=AsyncMock,
-                    return_value={},
-                ):
-                    with pytest.raises(DashboardClientError, match="payload incompleto"):
-                        await client.connect()
+                with patch.object(client, "_validate_futures_access", new_callable=AsyncMock):
+                    with patch.object(
+                        client,
+                        "_fetch_api_restrictions",
+                        new_callable=AsyncMock,
+                        return_value={},
+                    ):
+                        with pytest.raises(DashboardClientError, match="payload incompleto"):
+                            await client.connect()
 
 
 @pytest.mark.asyncio
@@ -138,14 +143,15 @@ async def test_connect_rejeita_payload_parcial_de_permissoes() -> None:
     with patch.object(client, "_sync_exchange_clock", new_callable=AsyncMock):
         with patch.object(client, "_sync_sdk_clock", new_callable=AsyncMock):
             with patch.object(client._exchange, "load_markets", new_callable=AsyncMock):
-                with patch.object(
-                    client,
-                    "_fetch_api_restrictions",
-                    new_callable=AsyncMock,
-                    return_value={"enableFutures": False},
-                ):
-                    with pytest.raises(DashboardClientError, match="payload incompleto"):
-                        await client.connect()
+                with patch.object(client, "_validate_futures_access", new_callable=AsyncMock):
+                    with patch.object(
+                        client,
+                        "_fetch_api_restrictions",
+                        new_callable=AsyncMock,
+                        return_value={"enableFutures": False},
+                    ):
+                        with pytest.raises(DashboardClientError, match="payload incompleto"):
+                            await client.connect()
 
 
 @pytest.mark.asyncio
@@ -157,14 +163,47 @@ async def test_connect_lanca_erro_em_falha_de_autenticacao() -> None:
     with patch.object(client, "_sync_exchange_clock", new_callable=AsyncMock):
         with patch.object(client, "_sync_sdk_clock", new_callable=AsyncMock):
             with patch.object(client._exchange, "load_markets", new_callable=AsyncMock):
-                with patch.object(
-                    client,
-                    "_fetch_api_restrictions",
-                    new_callable=AsyncMock,
-                    side_effect=DashboardClientError("Falha de autenticação ao consultar SDK"),
-                ):
-                    with pytest.raises(DashboardClientError, match="Falha de autenticação"):
-                        await client.connect()
+                with patch.object(client, "_validate_futures_access", new_callable=AsyncMock):
+                    with patch.object(
+                        client,
+                        "_fetch_api_restrictions",
+                        new_callable=AsyncMock,
+                        side_effect=DashboardClientError("Falha de autenticação ao consultar SDK"),
+                    ):
+                        with pytest.raises(DashboardClientError, match="Falha de autenticação"):
+                            await client.connect()
+
+
+def test_classifica_erro_401_2015_como_auth_issue_mainnet() -> None:
+    settings = _make_settings(binance_testnet=False)
+    client = DashboardClient(settings)
+
+    issue = client._classify_auth_issue(
+        DashboardClientError("Falha ao executar 'new_listen_key': (401, -2015, 'Invalid API-key, IP, or permissions for action')")
+    )
+
+    assert issue is not None
+    assert issue.reason in {
+        "invalid_key_or_secret",
+        "ip_not_whitelisted",
+        "missing_futures_permission",
+    }
+
+
+def test_classifica_erro_401_2015_como_env_mismatch_no_testnet() -> None:
+    settings = _make_settings(binance_testnet=True)
+    client = DashboardClient(settings)
+
+    issue = client._classify_auth_issue(
+        DashboardClientError("Falha ao executar 'new_listen_key': (401, -2015, 'Invalid API-key, IP, or permissions for action')")
+    )
+
+    assert issue is not None
+    assert issue.reason in {
+        "env_mismatch_testnet_mainnet",
+        "ip_not_whitelisted",
+        "missing_futures_permission",
+    }
 
 
 @pytest.mark.asyncio

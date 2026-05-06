@@ -111,7 +111,7 @@ class BinanceClient:
             await self._exchange.set_leverage(leverage, symbol)
             logger.info("leverage_set", symbol=symbol, leverage=leverage)
         except Exception as exc:
-            logger.warning("leverage_set_failed", symbol=symbol, error=str(exc))
+            logger.warning("leverage_set_failed", symbol=symbol, error_type=type(exc).__name__)
 
     async def set_margin_mode(self, symbol: str, mode: str = "isolated") -> None:
         """Set margin mode: 'isolated' or 'cross'."""
@@ -120,7 +120,7 @@ class BinanceClient:
             logger.info("margin_mode_set", symbol=symbol, mode=mode)
         except Exception as exc:
             # Binance raises an error if mode is already set — safe to ignore
-            logger.debug("margin_mode_already_set", symbol=symbol, error=str(exc))
+            logger.debug("margin_mode_already_set", symbol=symbol, error_type=type(exc).__name__)
 
     async def create_market_order(
         self,
@@ -208,7 +208,23 @@ class BinanceClient:
             await self._exchange.cancel_all_orders(symbol)
             logger.info("all_orders_cancelled", symbol=symbol)
         except Exception as exc:
-            logger.warning("cancel_all_orders_failed", symbol=symbol, error=str(exc))
+            logger.warning("cancel_all_orders_failed", symbol=symbol, error_type=type(exc).__name__)
+
+    async def fetch_order(self, order_id: str, symbol: str) -> dict:
+        """Busca detalhes de uma ordem pelo ID.
+
+        Retorna o objeto de ordem ccxt, incluindo o campo `average`
+        que representa o preço médio de execução real.
+        Nunca loga str(exc) — usa type(exc).__name__ para evitar vazar credenciais.
+        """
+        order = await self._exchange.fetch_order(order_id, symbol)
+        logger.debug(
+            "fetch_order_ok",
+            order_id=order_id,
+            symbol=symbol,
+            status=order.get("status"),
+        )
+        return order
 
     # ─── Symbol Info ──────────────────────────────────────────────────────────
 
@@ -240,22 +256,40 @@ class BinanceClient:
         timeframe: str,
         limit: int = 200,
         retries: int = 3,
-        delay: float = 2.0,
+        base_delay: float = 1.0,
     ) -> pd.DataFrame:
+        """Retry com backoff exponencial apenas para erros recuperáveis.
+
+        Delays: base_delay * 2^(attempt-1) → 1s, 2s, 4s com base_delay=1.0.
+        Erros fatais (AuthenticationError, InsufficientFunds, BadSymbol,
+        InvalidOrder) falham imediatamente sem retry.
+        Nunca loga str(exc) — usa type(exc).__name__ para evitar vazar credenciais.
+        """
+        _FATAL = (
+            ccxt.AuthenticationError,
+            ccxt.InsufficientFunds,
+            ccxt.BadSymbol,
+            ccxt.InvalidOrder,
+        )
         last_exc: Exception | None = None
         for attempt in range(1, retries + 1):
             try:
                 return await self.fetch_ohlcv(symbol, timeframe, limit)
+            except _FATAL:
+                raise
             except Exception as exc:
                 last_exc = exc
+                next_delay = base_delay * (2 ** (attempt - 1))
                 logger.warning(
                     "fetch_ohlcv_retry",
                     symbol=symbol,
                     timeframe=timeframe,
                     attempt=attempt,
-                    error=str(exc),
+                    retries=retries,
+                    error_type=type(exc).__name__,
+                    next_wait_s=next_delay,
                 )
-                await asyncio.sleep(delay * attempt)
+                await asyncio.sleep(next_delay)
         raise RuntimeError(
             f"Failed to fetch OHLCV for {symbol}/{timeframe} after {retries} retries"
         ) from last_exc

@@ -1,0 +1,67 @@
+{
+  "spec_id": "SPEC_008",
+  "spec_title": "Relatório Periódico de Performance via Telegram",
+  "last_updated": "2026-05-05T00:00:00Z",
+  "updated_by": "time-b-execucao",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "done": 4,
+    "blocked": 0
+  },
+  "tasks": {
+    "task_001": {
+      "id": "task_001",
+      "title": "Configuração e eventos",
+      "status": "done",
+      "priority": "P1",
+      "description": "Adicionado performance_report_interval_hours em settings.py e PERFORMANCE_REPORT_INTERVAL_HOURS em .env.example. Adicionado NotificationEvent.PERFORMANCE_REPORT e PerformanceReportEvent com to_message() em events.py.",
+      "tests": [],
+      "files": [
+        "src/config/settings.py",
+        "src/notifications/events.py",
+        ".env.example"
+      ],
+      "progress": 100
+    },
+    "task_002": {
+      "id": "task_002",
+      "title": "Implementação do PerformanceReporter",
+      "status": "done",
+      "priority": "P1",
+      "description": "Criado src/notifications/performance_reporter.py com PerformanceReporter. run() retorna imediatamente se interval_hours == 0. _send_report() captura todas as exceções sem crash. Criados 5 testes unitários (TEST_008_01 a TEST_008_05).",
+      "tests": ["TEST_008_01", "TEST_008_02", "TEST_008_03", "TEST_008_04", "TEST_008_05"],
+      "files": [
+        "src/notifications/performance_reporter.py",
+        "tests/notifications/test_performance_reporter.py"
+      ],
+      "progress": 100
+    },
+    "task_003": {
+      "id": "task_003",
+      "title": "Integração no main.py",
+      "status": "done",
+      "priority": "P1",
+      "description": "PerformanceReporter instanciado em _main() e adicionado como task paralela no asyncio.gather() junto aos TradingMonitors.",
+      "tests": [],
+      "files": [
+        "src/main.py"
+      ],
+      "progress": 100
+    },
+    "task_004": {
+      "id": "task_004",
+      "title": "QA gate e rastreabilidade final",
+      "status": "done",
+      "priority": "P2",
+      "description": "pytest tests/ — suite completa passando. ruff check e ruff format OK. Status files atualizados para Concluída. Rastreabilidade PRD §Fase 2 linha 219 → SPEC_008 → testes → código comprovada.",
+      "tests": [],
+      "files": [
+        "docs/SDD/SPEC_008_RELATORIO_PERIODICO_TELEGRAM/tasks_status.json",
+        "docs/SDD/SPEC_008_RELATORIO_PERIODICO_TELEGRAM/spec_status_update.md",
+        "docs/SDD/README.md"
+      ],
+      "progress": 100
+    }
+  }
+}

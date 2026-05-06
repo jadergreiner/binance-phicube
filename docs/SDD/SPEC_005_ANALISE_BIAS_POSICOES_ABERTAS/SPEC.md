@@ -1,7 +1,7 @@
 # SPEC 005 — Análise de Bias de Mercado e Oportunidades de Posições Abertas
 
 **ID:** SPEC_005
-**Status:** Em Execução
+**Status:** Concluída
 **Data:** 2026-05-03
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execução)
@@ -31,11 +31,11 @@ Análise de Bias de Mercado com base nas posições abertas.
 
 ### 2.1 Objetivos (o que será entregue)
 
-- [ ] Implementar análise de bias de mercado (`LONG` / `SHORT` / `NEUTRAL`) baseada em posições abertas.
-- [ ] Expor resultado de análise no endpoint de snapshot de posições e no stream WebSocket.
-- [ ] Exibir motivo do bias, confiança e score de exposição no dashboard.
-- [ ] Garantir sugestões de oportunidade de trade com ações `ADD`, `REDUCE` ou `HOLD`.
-- [ ] Cobrir com testes unitários e de integração.
+- [x] Implementar análise de bias de mercado (`LONG` / `SHORT` / `NEUTRAL`) baseada em posições abertas.
+- [x] Expor resultado de análise no endpoint de snapshot de posições e no stream WebSocket.
+- [x] Exibir motivo do bias, confiança e score de exposição no dashboard.
+- [x] Garantir sugestões de oportunidade de trade com ações `ADD`, `REDUCE` ou `HOLD`.
+- [x] Cobrir com testes unitários e de integração.
 
 ### 2.2 Fora do Escopo (Non-Goals)
 

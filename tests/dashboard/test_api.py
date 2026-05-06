@@ -51,7 +51,8 @@ def _patch_lifespan(monkeypatch) -> None:
     )
     monkeypatch.setattr(api_main.DashboardClient, "connect", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.DashboardClient, "close", AsyncMock(return_value=None))
-    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=True))
+    monkeypatch.setattr(api_main.PositionStream, "get_status", lambda self: "online")
     monkeypatch.setattr(api_main.PositionStream, "stop", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.AdaptiveUpdater, "start", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.AdaptiveUpdater, "stop", AsyncMock(return_value=None))
@@ -70,6 +71,7 @@ def test_lifespan_inicializa_e_encerra_recursos_na_ordem_correta(monkeypatch) ->
 
     async def _stream_start(self) -> None:
         eventos.append("stream.start")
+        self._status = "online"  # type: ignore[attr-defined]
 
     async def _stream_stop(self) -> None:
         eventos.append("stream.stop")
@@ -93,6 +95,7 @@ def test_lifespan_inicializa_e_encerra_recursos_na_ordem_correta(monkeypatch) ->
     monkeypatch.setattr(api_main.DashboardClient, "connect", _connect)
     monkeypatch.setattr(api_main.DashboardClient, "close", _close)
     monkeypatch.setattr(api_main.PositionStream, "start", _stream_start)
+    monkeypatch.setattr(api_main.PositionStream, "get_status", lambda self: "online")
     monkeypatch.setattr(api_main.PositionStream, "stop", _stream_stop)
     monkeypatch.setattr(api_main.AdaptiveUpdater, "start", _updater_start)
     monkeypatch.setattr(api_main.AdaptiveUpdater, "stop", _updater_stop)
@@ -159,14 +162,20 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
                 "direction": "LONG",
                 "confidence": "high",
                 "score": 1.0,
-                "reason": "Bias LONG: exposicao LONG de 24000.00 contra 0.00 do lado oposto. Forca do bias: 100%.",
+                "reason": (
+                    "Bias LONG: exposicao LONG de 24000.00 contra 0.00 do lado oposto. "
+                    "Forca do bias: 100%."
+                ),
             },
             "opportunities": [
                 {
                     "symbol": "BTCUSDT",
                     "direction": "LONG",
                     "action": "ADD",
-                    "rationale": "O mercado favorece LONG e esta posicao possui a maior exposicao LONG atual. Considere reforcar a tendencia ou manter a posicao.",
+                    "rationale": (
+                        "O mercado favorece LONG e esta posicao possui a maior "
+                        "exposicao LONG atual. Considere reforcar a tendencia ou manter a posicao."
+                    ),
                     "exposure_usdt": 24000.0,
                 }
             ],
@@ -315,13 +324,14 @@ def test_lifespan_mantem_aplicacao_no_ar_quando_binance_falha(monkeypatch) -> No
         AsyncMock(side_effect=RuntimeError("timestamp skew")),
     )
     monkeypatch.setattr(api_main.DashboardClient, "close", AsyncMock(return_value=None))
-    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=True))
+    monkeypatch.setattr(api_main.PositionStream, "get_status", lambda self: "online")
     monkeypatch.setattr(api_main.PositionStream, "stop", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.AdaptiveUpdater, "start", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.AdaptiveUpdater, "stop", AsyncMock(return_value=None))
 
     with TestClient(api_main.create_app()) as client:
-        assert client.app.state.startup_mode == "offline"
+        assert client.app.state.startup_mode == "online"
         response = client.get("/")
 
     assert response.status_code == 200

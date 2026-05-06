@@ -1,0 +1,31 @@
+{
+  "spec_id": "SPEC_011",
+  "title": "Motor de Backtesting",
+  "summary": {"todo": 0, "in_progress": 0, "done": 4, "blocked": 0},
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Models — BacktestTrade e BacktestResult",
+      "status": "done",
+      "files": ["src/backtest/models.py"]
+    },
+    {
+      "id": "task_002",
+      "title": "BacktestEngine — loop barra-a-barra",
+      "status": "done",
+      "files": ["src/backtest/engine.py"]
+    },
+    {
+      "id": "task_003",
+      "title": "Runner CLI + Endpoint API GET /backtest",
+      "status": "done",
+      "files": ["src/backtest/runner.py", "src/api/routes/backtest.py", "src/api/main.py"]
+    },
+    {
+      "id": "task_004",
+      "title": "Testes TEST_011_01 a 06",
+      "status": "done",
+      "files": ["tests/backtest/test_engine.py", "tests/backtest/test_runner.py"]
+    }
+  ]
+}

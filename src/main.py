@@ -19,6 +19,10 @@ import sys
 from src.config.settings import get_settings
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import configure_logging, get_logger
+from src.monitoring.order_monitor import OrderMonitor
+from src.notifications import Notifier, NullNotifier, TelegramNotifier
+from src.notifications.events import NotificationEvent, TradeOpenedEvent
+from src.notifications.performance_reporter import PerformanceReporter
 from src.storage.repository import MongoRepository
 from src.strategy.signal_engine import SignalEngine
 from src.trading.order_manager import OrderManager, TradeStatus
@@ -43,6 +47,16 @@ _TIMEFRAME_SECONDS: dict[str, int] = {
 }
 
 
+def _create_notifier(settings) -> Notifier:
+    """Cria notificador baseado nas configurações do Telegram."""
+    if settings.telegram_token and settings.telegram_chat_id:
+        return TelegramNotifier(
+            token=settings.telegram_token,
+            chat_id=settings.telegram_chat_id,
+        )
+    return NullNotifier()
+
+
 class TradingMonitor:
     """Monitors one (symbol, timeframe) pair and acts on closed candles."""
 
@@ -55,6 +69,7 @@ class TradingMonitor:
         signal_engine: SignalEngine,
         risk_manager: RiskManager,
         order_manager: OrderManager,
+        notifier: Notifier,
         max_open_positions: int,
         warmup_candles: int,
     ) -> None:
@@ -65,6 +80,7 @@ class TradingMonitor:
         self._signal_engine = signal_engine
         self._risk_manager = risk_manager
         self._order_manager = order_manager
+        self._notifier = notifier
         self._max_positions = max_open_positions
         self._warmup_candles = warmup_candles
         self._interval = 300  # Fixed 5-minute interval
@@ -148,7 +164,22 @@ class TradingMonitor:
             {"trade_id": trade_id, **trade.to_dict()},
         )
 
-        if trade.status == TradeStatus.FAILED:
+        if trade.status == TradeStatus.OPEN:
+            # Send notification for successful trade
+            await self._notifier.send(
+                NotificationEvent.TRADE_OPENED,
+                TradeOpenedEvent(
+                    symbol=trade.symbol,
+                    direction=trade.direction,
+                    quantity=trade.quantity,
+                    entry_price=trade.entry_price,
+                    stop_loss=trade.stop_loss,
+                    take_profit=trade.take_profit,
+                    risk_amount=trade.risk_amount,
+                    timestamp=trade.opened_at,
+                ),
+            )
+        elif trade.status == TradeStatus.FAILED:
             logger.error("trade_saved_as_failed", symbol=self._symbol, trade_id=trade_id)
 
 
@@ -192,7 +223,8 @@ async def _main() -> None:
         leverage=settings.leverage,
         max_capital_allocation_pct=settings.max_capital_allocation_pct,
     )
-    order_manager = OrderManager(client, leverage=settings.leverage)
+    notifier = _create_notifier(settings)
+    order_manager = OrderManager(client, leverage=settings.leverage, notifier=notifier)
 
     monitors = [
         TradingMonitor(
@@ -203,6 +235,7 @@ async def _main() -> None:
             signal_engine=signal_engine,
             risk_manager=risk_manager,
             order_manager=order_manager,
+            notifier=notifier,
             max_open_positions=settings.max_open_positions,
             warmup_candles=settings.warmup_candles,
         )
@@ -210,14 +243,28 @@ async def _main() -> None:
         for timeframe in settings.timeframes
     ]
 
+    reporter = PerformanceReporter(
+        repository=repo,
+        notifier=notifier,
+        interval_hours=settings.performance_report_interval_hours,
+    )
+
+    order_monitor = OrderMonitor(
+        client=client,
+        repository=repo,
+        notifier=notifier,
+    )
+
     tasks = [asyncio.create_task(m.run()) for m in monitors]
+    tasks.append(asyncio.create_task(reporter.run()))
+    tasks.append(asyncio.create_task(order_monitor.run()))
 
     # Graceful shutdown on SIGINT / SIGTERM
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: _shutdown(tasks, client, repo))
 
-    logger.info("phicube_running", monitor_count=len(tasks))
+    logger.info("phicube_running", monitor_count=len(tasks) - 1)
 
     try:
         await asyncio.gather(*tasks)

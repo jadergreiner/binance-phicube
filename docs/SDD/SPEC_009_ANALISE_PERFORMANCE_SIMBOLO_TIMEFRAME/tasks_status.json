@@ -1,0 +1,67 @@
+{
+  "spec_id": "SPEC_009",
+  "spec_title": "Análise de Performance por Símbolo e Timeframe",
+  "last_updated": "2026-05-05T00:00:00Z",
+  "updated_by": "time-b-execucao",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "done": 4,
+    "blocked": 0
+  },
+  "tasks": {
+    "task_001": {
+      "id": "task_001",
+      "title": "Refactor e novos métodos no repositório",
+      "status": "done",
+      "priority": "P1",
+      "description": "Extraído _calc_metrics() de get_performance_metrics(). Implementados get_performance_by_symbol() e get_performance_by_timeframe(). Comportamento de get_performance_metrics() não alterado.",
+      "tests": ["TEST_009_01", "TEST_009_02", "TEST_009_03", "TEST_009_04"],
+      "files": [
+        "src/storage/repository.py",
+        "tests/storage/test_repository_performance.py"
+      ],
+      "progress": 100
+    },
+    "task_002": {
+      "id": "task_002",
+      "title": "Novos endpoints REST",
+      "status": "done",
+      "priority": "P1",
+      "description": "Adicionados GET /performance/by-symbol e GET /performance/by-timeframe em src/api/routes/performance.py. Ambos retornam 503 se repositório indisponível.",
+      "tests": ["TEST_009_05", "TEST_009_06", "TEST_009_07"],
+      "files": [
+        "src/api/routes/performance.py",
+        "tests/api/test_performance_by_group.py"
+      ],
+      "progress": 100
+    },
+    "task_003": {
+      "id": "task_003",
+      "title": "Testes",
+      "status": "done",
+      "priority": "P1",
+      "description": "7 testes criados e passando: TEST_009_01 a TEST_009_07.",
+      "tests": ["TEST_009_01", "TEST_009_02", "TEST_009_03", "TEST_009_04", "TEST_009_05", "TEST_009_06", "TEST_009_07"],
+      "files": [
+        "tests/storage/test_repository_performance.py",
+        "tests/api/test_performance_by_group.py"
+      ],
+      "progress": 100
+    },
+    "task_004": {
+      "id": "task_004",
+      "title": "QA gate e rastreabilidade final",
+      "status": "done",
+      "priority": "P2",
+      "description": "pytest tests/ — suite completa passando. ruff check e ruff format OK. Status files atualizados para Concluída. Rastreabilidade PRD §Fase 2 → SPEC_009 → testes → código comprovada.",
+      "tests": [],
+      "files": [
+        "docs/SDD/SPEC_009_ANALISE_PERFORMANCE_SIMBOLO_TIMEFRAME/tasks_status.json",
+        "docs/SDD/SPEC_009_ANALISE_PERFORMANCE_SIMBOLO_TIMEFRAME/spec_status_update.md",
+        "docs/SDD/README.md"
+      ],
+      "progress": 100
+    }
+  }
+}

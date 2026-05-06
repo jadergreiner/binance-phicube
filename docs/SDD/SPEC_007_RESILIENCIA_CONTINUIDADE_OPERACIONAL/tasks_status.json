@@ -1,0 +1,68 @@
+{
+  "spec_id": "SPEC_007",
+  "spec_title": "Resiliência e Continuidade Operacional",
+  "last_updated": "2026-05-05T00:00:00Z",
+  "updated_by": "time-b-execucao",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "done": 4,
+    "blocked": 0
+  },
+  "tasks": {
+    "task_001": {
+      "id": "task_001",
+      "title": "Retry formalizado com backoff exponencial",
+      "status": "done",
+      "priority": "P1",
+      "description": "Refatorado fetch_ohlcv_with_retry: backoff exponencial (1s, 2s, 4s), distinção fatal vs. recuperável, logs com type(exc).__name__. Corrigido set_leverage, set_margin_mode e cancel_all_orders para usar error_type em vez de str(exc).",
+      "tests": ["TEST_007_01", "TEST_007_02", "TEST_007_03", "TEST_007_04", "TEST_007_05_extra"],
+      "files": [
+        "src/exchange/binance_client.py",
+        "tests/exchange/test_binance_client_retry.py"
+      ],
+      "progress": 100
+    },
+    "task_002": {
+      "id": "task_002",
+      "title": "Deduplicação de ordens ao reiniciar",
+      "status": "done",
+      "priority": "P0",
+      "description": "Guard de trade ativo por símbolo já existia em main.py (symbol_already_in_trade). Adicionado handling de DuplicateKeyError em repository.save_trade retornando None sem crash. Importado DuplicateKeyError de pymongo.errors.",
+      "tests": ["TEST_007_06"],
+      "files": [
+        "src/storage/repository.py",
+        "tests/storage/test_repository_resilience.py"
+      ],
+      "progress": 100
+    },
+    "task_003": {
+      "id": "task_003",
+      "title": "Health check endpoint GET /health",
+      "status": "done",
+      "priority": "P1",
+      "description": "Criado src/api/routes/health.py com GET /health. Retorna 200 com mongodb:ok ou 503 com mongodb:error. MongoRepository instanciado no lifespan de main.py e exposto em app.state.repository. Router registrado em create_app().",
+      "tests": ["TEST_007_07", "TEST_007_08"],
+      "files": [
+        "src/api/routes/health.py",
+        "src/api/main.py",
+        "tests/api/test_health_endpoint.py"
+      ],
+      "progress": 100
+    },
+    "task_004": {
+      "id": "task_004",
+      "title": "QA gate e rastreabilidade final",
+      "status": "done",
+      "priority": "P2",
+      "description": "pytest tests/ — 150 passed, 3 skipped, 0 failed. ruff check e ruff format OK em todos os arquivos modificados. docs/SDD/README.md atualizado. Rastreabilidade PRD §MVP item 5 → SPEC_007 → testes → código comprovada.",
+      "tests": [],
+      "files": [
+        "docs/SDD/SPEC_007_RESILIENCIA_CONTINUIDADE_OPERACIONAL/tasks_status.json",
+        "docs/SDD/SPEC_007_RESILIENCIA_CONTINUIDADE_OPERACIONAL/spec_status_update.md",
+        "docs/SDD/README.md"
+      ],
+      "progress": 100
+    }
+  }
+}

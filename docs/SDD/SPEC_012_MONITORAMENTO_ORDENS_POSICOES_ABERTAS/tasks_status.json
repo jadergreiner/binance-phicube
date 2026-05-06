@@ -1,0 +1,69 @@
+{
+  "spec_id": "SPEC_012",
+  "spec_title": "Monitoramento Ativo de Ordens e Posicoes Abertas",
+  "updated_at": "2026-05-05T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "description": "BinanceClient: adicionar fetch_order",
+      "status": "done",
+      "target_files": ["src/exchange/binance_client.py"],
+      "evidence": "Metodo fetch_order implementado com structlog, nunca loga str(exc)"
+    },
+    {
+      "id": "task_002",
+      "description": "OrderMonitor: core + deteccao TP/SL executados",
+      "status": "done",
+      "target_files": [
+        "src/monitoring/__init__.py",
+        "src/monitoring/order_monitor.py"
+      ],
+      "evidence": "Classe OrderMonitor com run(), _check_trade(), _handle_tp_executed(), _handle_sl_executed()"
+    },
+    {
+      "id": "task_003",
+      "description": "OrderMonitor: deteccao de SL cancelado (RF-001, RF-005)",
+      "status": "done",
+      "target_files": [
+        "src/monitoring/order_monitor.py",
+        "src/notifications/events.py",
+        "src/notifications/__init__.py"
+      ],
+      "evidence": "SLMissingEvent, NotificationEvent.SL_MISSING, guard _notified_sl_missing implementados"
+    },
+    {
+      "id": "task_004",
+      "description": "OrderMonitor: fechamento manual (RF-004)",
+      "status": "done",
+      "target_files": ["src/monitoring/order_monitor.py"],
+      "evidence": "_handle_manual_close com cancel_all_orders, fetch_ticker, is_estimated=True"
+    },
+    {
+      "id": "task_005",
+      "description": "Resiliencia e integracao em src/main.py",
+      "status": "done",
+      "target_files": ["src/main.py", "src/monitoring/order_monitor.py"],
+      "evidence": "OrderMonitor adicionado como asyncio.Task em _main(); retry com backoff implementado em _fetch_order_with_retry"
+    },
+    {
+      "id": "task_006",
+      "description": "Testes — 13 cenarios SPEC_012",
+      "status": "done",
+      "target_files": [
+        "tests/monitoring/__init__.py",
+        "tests/monitoring/test_order_monitor.py"
+      ],
+      "evidence": "13/13 testes passando — pytest tests/monitoring/test_order_monitor.py -v"
+    },
+    {
+      "id": "task_007",
+      "description": "SPEC.md e documentacao",
+      "status": "done",
+      "target_files": [
+        "docs/SDD/SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS/SPEC.md",
+        "docs/SDD/README.md"
+      ],
+      "evidence": "SPEC_012 criada com todos os RFs, DDs, tabelas de testes e DoD. README.md atualizado."
+    }
+  ]
+}

@@ -19,6 +19,8 @@ from typing import Any
 
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import get_logger
+from src.notifications import Notifier
+from src.notifications.events import NotificationEvent, SLProtectionFailedEvent
 from src.strategy.signal_engine import Direction, Signal
 from src.trading.risk_manager import PositionSize
 
@@ -51,6 +53,9 @@ class Trade:
     opened_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     closed_at: datetime | None = None
     pnl: float | None = None
+    exit_price: float | None = None
+    pnl_usdt: float | None = None
+    close_reason: str | None = None
     signal: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -71,6 +76,9 @@ class Trade:
             "opened_at": self.opened_at,
             "closed_at": self.closed_at,
             "pnl": self.pnl,
+            "exit_price": self.exit_price,
+            "pnl_usdt": self.pnl_usdt,
+            "close_reason": self.close_reason,
             "signal": self.signal,
         }
 
@@ -78,9 +86,12 @@ class Trade:
 class OrderManager:
     """Executes trades on Binance Futures based on validated signals."""
 
-    def __init__(self, client: BinanceClient, leverage: int) -> None:
+    def __init__(
+        self, client: BinanceClient, leverage: int, notifier: Notifier | None = None
+    ) -> None:
         self._client = client
         self._leverage = leverage
+        self._notifier = notifier
 
     async def execute(self, signal: Signal, position: PositionSize) -> Trade | None:
         """Execute a full trade: market entry + SL + TP.
@@ -138,6 +149,20 @@ class OrderManager:
                 action="cancelling_all_orders",
             )
             await self._client.cancel_all_orders(symbol)
+
+            # Send notification for SL protection failure
+            if self._notifier:
+                await self._notifier.send(
+                    NotificationEvent.SL_PROTECTION_FAILED,
+                    SLProtectionFailedEvent(
+                        symbol=symbol,
+                        entry_order_id=entry_order_id,
+                        entry_price=actual_entry,
+                        quantity=position.quantity,
+                        timestamp=datetime.now(UTC),
+                    ),
+                )
+
             return _failed_trade(signal, position, entry_order_id)
 
         # ─── Step 4: Take Profit order ────────────────────────────────────────

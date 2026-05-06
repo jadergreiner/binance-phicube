@@ -61,6 +61,88 @@
         </article>
       </section>
 
+      <section class="performance-panel">
+        <div class="panel-header">
+          <h2>Performance de Trades</h2>
+          <span id="performance-status" class="snapshot-status">—</span>
+        </div>
+
+        <div class="performance-cards">
+          <article class="performance-card">
+            <p class="metric-label">Total de Trades</p>
+            <strong id="perf-total-trades" class="metric-value">—</strong>
+          </article>
+          <article class="performance-card">
+            <p class="metric-label">Win Rate</p>
+            <strong id="perf-win-rate" class="metric-value">—</strong>
+          </article>
+          <article class="performance-card">
+            <p class="metric-label">PnL Total</p>
+            <strong id="perf-total-pnl" class="metric-value">—</strong>
+          </article>
+          <article class="performance-card">
+            <p class="metric-label">RRR Médio</p>
+            <strong id="perf-avg-rrr" class="metric-value">—</strong>
+          </article>
+          <article class="performance-card">
+            <p class="metric-label">Max Drawdown</p>
+            <strong id="perf-max-drawdown" class="metric-value">—</strong>
+          </article>
+          <article class="performance-card">
+            <p class="metric-label">Profit Factor</p>
+            <strong id="perf-profit-factor" class="metric-value">—</strong>
+          </article>
+        </div>
+
+        <div class="performance-group">
+          <h3>Por Símbolo</h3>
+          <div class="table-wrap">
+            <table class="performance-table">
+              <thead>
+                <tr>
+                  <th>Símbolo</th>
+                  <th>Trades</th>
+                  <th>Win Rate</th>
+                  <th>PnL (USDT)</th>
+                  <th>RRR Médio</th>
+                  <th>Max Drawdown</th>
+                  <th>Profit Factor</th>
+                </tr>
+              </thead>
+              <tbody id="perf-by-symbol-body">
+                <tr class="empty-row">
+                  <td colspan="7">Sem dados.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="performance-group">
+          <h3>Por Timeframe</h3>
+          <div class="table-wrap">
+            <table class="performance-table">
+              <thead>
+                <tr>
+                  <th>Timeframe</th>
+                  <th>Trades</th>
+                  <th>Win Rate</th>
+                  <th>PnL (USDT)</th>
+                  <th>RRR Médio</th>
+                  <th>Max Drawdown</th>
+                  <th>Profit Factor</th>
+                </tr>
+              </thead>
+              <tbody id="perf-by-timeframe-body">
+                <tr class="empty-row">
+                  <td colspan="7">Sem dados.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
         <div class="panel-header">
           <h2>Posições abertas</h2>

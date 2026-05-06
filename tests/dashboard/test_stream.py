@@ -7,12 +7,12 @@ import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import WSMsgType
 
-from src.dashboard.client import DashboardClient
+from src.dashboard.client import DashboardAuthError, DashboardAuthIssue, DashboardClient
 from src.dashboard.models import PositionView
 from src.dashboard.stream import PositionStream
 
@@ -361,6 +361,120 @@ async def test_falha_de_stream_altera_status_para_degraded_sem_propagar_excecao(
     assert statuses == ["degraded"]
 
     await stream.stop()
+
+
+@pytest.mark.asyncio
+async def test_snapshot_infer_leverage_via_qty_mark_margin_when_notional_missing() -> None:
+    client = DashboardClient(_make_settings())
+    websocket = _FakeWebSocket()
+    session = _FakeSession(websocket)
+
+    payload = [
+        {
+            "symbol": "BTCUSDT",
+            "positionAmt": "0.5",
+            "entryPrice": "95000",
+            "markPrice": "96000",
+            "unRealizedProfit": "250",
+            "positionInitialMargin": "2400",
+            "notional": "",
+            "liquidationPrice": "87000",
+            "leverage": None,
+        }
+    ]
+
+    client.fetch_position_risk = AsyncMock(return_value=payload)
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
+
+    stream = PositionStream(
+        client,
+        session_factory=lambda: session,
+        keepalive_interval=3600,
+    )
+
+    await stream.start()
+    position = stream.get_positions()[0]
+    assert position.leverage == 20
+    assert position.position_size_usdt == pytest.approx(48000.0)
+    await stream.stop()
+
+
+@pytest.mark.asyncio
+async def test_snapshot_logs_unresolved_leverage_once_per_symbol() -> None:
+    client = DashboardClient(_make_settings())
+    websocket = _FakeWebSocket()
+    session = _FakeSession(websocket)
+
+    payload = [
+        {
+            "symbol": "BTCUSDT",
+            "positionAmt": "0.5",
+            "entryPrice": "95000",
+            "markPrice": "0",
+            "unRealizedProfit": "250",
+            "positionInitialMargin": "0",
+            "notional": "",
+            "liquidationPrice": "87000",
+            "leverage": None,
+        }
+    ]
+
+    client.fetch_position_risk = AsyncMock(return_value=payload)
+    client.create_listen_key = AsyncMock(return_value="listen-key")
+    client.renew_listen_key = AsyncMock(return_value=None)
+    client.delete_listen_key = AsyncMock(return_value=None)
+
+    stream = PositionStream(
+        client,
+        session_factory=lambda: session,
+        keepalive_interval=3600,
+    )
+
+    with patch("src.dashboard.stream.logger.warning") as warning_mock:
+        await stream.start()
+        assert stream.get_positions()[0].leverage == 0
+        assert stream.get_positions()[0].position_size_usdt is None
+        unresolved_logs = [
+            call for call in warning_mock.call_args_list
+            if call.args and call.args[0] == "dashboard_position_leverage_unresolved"
+        ]
+        assert len(unresolved_logs) == 1
+
+    await stream.stop()
+
+
+@pytest.mark.asyncio
+async def test_falha_auth_nao_recuperavel_marca_offline_e_propaga_erro() -> None:
+    client = DashboardClient(_make_settings())
+    statuses: list[str] = []
+
+    client.fetch_position_risk = AsyncMock(return_value=_make_snapshot_payload())
+    client.create_listen_key = AsyncMock(
+        side_effect=DashboardAuthError(
+            DashboardAuthIssue(
+                reason="invalid_key_or_secret",
+                detail="Credencial do dashboard rejeitada pela Binance Futures",
+            )
+        )
+    )
+    client.delete_listen_key = AsyncMock(return_value=None)
+
+    stream = PositionStream(
+        client,
+        on_status_change=statuses.append,
+        session_factory=_FailingSession,
+        keepalive_interval=3600,
+    )
+
+    with pytest.raises(DashboardAuthError):
+        await stream.start()
+
+    assert stream.get_status() == "offline"
+    assert stream.has_non_recoverable_auth_failure() is True
+    assert stream.get_non_recoverable_auth_reason() == "invalid_key_or_secret"
+    assert statuses == []
 
 
 @pytest.mark.asyncio
