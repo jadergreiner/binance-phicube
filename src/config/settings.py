@@ -39,6 +39,17 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     warmup_candles: Annotated[int, Field(ge=50, le=1000)] = 200
 
+    # Telegram notifications (optional)
+    telegram_token: str | None = Field(
+        default=None,
+        description="Telegram Bot Token para notificações (opcional)",
+    )
+    telegram_chat_id: str | None = Field(
+        default=None,
+        description="Telegram Chat ID para notificações (opcional)",
+    )
+    performance_report_interval_hours: Annotated[float, Field(ge=0)] = 24.0
+
     @field_validator("symbols", "timeframes", mode="before")
     @classmethod
     def parse_csv(cls, v: str | list) -> list[str]:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal, get_args
@@ -48,17 +47,9 @@ class PositionView:
     @property
     def position_size_usdt(self) -> float | None:
         """Calcula o tamanho da posição em USDT (margem usada * alavancagem)."""
-        try:
-            if self.margin_used_usdt < 0 or self.leverage <= 0:
-                logging.warning(
-                    "Dados inválidos para position_size_usdt: "
-                    f"margin_used_usdt={self.margin_used_usdt}, leverage={self.leverage}"
-                )
-                return None
-            return self.margin_used_usdt * self.leverage
-        except Exception as e:
-            logging.warning(f"Erro ao calcular position_size_usdt: {e}")
+        if self.margin_used_usdt < 0 or self.leverage <= 0:
             return None
+        return self.margin_used_usdt * self.leverage
 
     @property
     def roi_adjusted_pct(self) -> float | None:
@@ -66,11 +57,7 @@ class PositionView:
         size = self.position_size_usdt
         if size is None or size <= 0:
             return None
-        try:
-            return (self.unrealized_pnl_usdt / size) * 100
-        except Exception as e:
-            logging.warning(f"Erro ao calcular roi_adjusted_pct: {e}")
-            return None
+        return (self.unrealized_pnl_usdt / size) * 100
 
 
 @dataclass(slots=True, frozen=True)

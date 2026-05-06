@@ -14,7 +14,7 @@ import aiohttp
 from aiohttp import WSMsgType
 
 from src.dashboard.cache import DashboardCache
-from src.dashboard.client import DashboardClient
+from src.dashboard.client import DashboardAuthError, DashboardClient
 from src.dashboard.models import ConnectionStatus, PositionView
 from src.monitoring.logger import get_logger
 
@@ -24,6 +24,11 @@ _FUTURES_STREAM_MAINNET_URL = "wss://fstream.binance.com/ws"
 _FUTURES_STREAM_TESTNET_URL = "wss://stream.binancefuture.com/ws"
 _STREAM_HEARTBEAT_SECONDS = 30
 _DEFAULT_KEEPALIVE_INTERVAL_SECONDS = 30 * 60
+_HEALTH_CHECK_INTERVAL_SECONDS = 10
+_HEALTH_CHECK_TIMEOUT_SECONDS = 45
+_INITIAL_BACKOFF_SECONDS = 1.0
+_MAX_BACKOFF_SECONDS = 60.0
+_MAX_RECONNECT_ATTEMPTS = 10
 
 StatusChangeCallback = Callable[[ConnectionStatus], Awaitable[None] | None]
 UpdateCallback = Callable[["PositionStream"], Awaitable[None] | None]
@@ -62,13 +67,20 @@ class PositionStream:
         self._websocket: aiohttp.ClientWebSocketResponse | None = None
         self._stream_task: asyncio.Task[None] | None = None
         self._keepalive_task: asyncio.Task[None] | None = None
+        self._health_check_task: asyncio.Task[None] | None = None
 
         self.degraded_event = asyncio.Event()
+        self._last_update_at: datetime | None = None
+        self._reconnect_backoff_seconds = _INITIAL_BACKOFF_SECONDS
+        self._reconnect_attempts = 0
+        self._non_recoverable_auth_failure = False
+        self._non_recoverable_auth_reason: str | None = None
+        self._leverage_unresolved_symbols_logged: set[str] = set()
 
-    async def start(self) -> None:
+    async def start(self) -> bool:
         """Carrega o snapshot inicial e inicia o userData stream."""
         if self._stream_task is not None and not self._stream_task.done():
-            return
+            return True
 
         await self._load_initial_snapshot()
 
@@ -80,11 +92,25 @@ class PositionStream:
                 self._build_stream_url(self._listen_key),
                 heartbeat=_STREAM_HEARTBEAT_SECONDS,
             )
+            self._non_recoverable_auth_failure = False
+            self._non_recoverable_auth_reason = None
+        except DashboardAuthError as exc:
+            self._non_recoverable_auth_failure = True
+            self._non_recoverable_auth_reason = exc.issue.reason
+            logger.error(
+                "dashboard_position_stream_non_recoverable_auth_failure",
+                reason=exc.issue.reason,
+                action_required=exc.issue.detail,
+                testnet=self._is_testnet(),
+            )
+            await self._close_session()
+            await self._set_status("offline")
+            raise
         except Exception as exc:
             logger.exception("dashboard_position_stream_connect_failed", error=str(exc))
             await self._close_session()
             await self._set_status("degraded")
-            return
+            return False
 
         self._stream_task = asyncio.create_task(
             self._consume_stream(),
@@ -94,28 +120,36 @@ class PositionStream:
             self._keepalive_listen_key(),
             name="dashboard-position-stream-keepalive",
         )
+        self._health_check_task = asyncio.create_task(
+            self._health_check_loop(),
+            name="dashboard-position-stream-health-check",
+        )
         if self._status != "cached":
             await self._set_status("online")
+        self._reconnect_attempts = 0
         logger.info(
             "dashboard_position_stream_started",
             positions=len(self._positions),
             testnet=self._is_testnet(),
         )
+        return True
 
     async def stop(self, *, status: ConnectionStatus = "offline") -> None:
         """Encerra o stream e libera recursos associados."""
-        for task in (self._stream_task, self._keepalive_task):
+        for task in (self._stream_task, self._keepalive_task, self._health_check_task):
             if task is not None:
                 task.cancel()
 
         tasks_to_wait = [
-            task for task in (self._stream_task, self._keepalive_task) if task is not None
+            task for task in (self._stream_task, self._keepalive_task, self._health_check_task)
+            if task is not None
         ]
         if tasks_to_wait:
             await asyncio.gather(*tasks_to_wait, return_exceptions=True)
 
         self._stream_task = None
         self._keepalive_task = None
+        self._health_check_task = None
 
         if self._websocket is not None and not self._websocket.closed:
             await self._websocket.close()
@@ -135,6 +169,12 @@ class PositionStream:
     def get_status(self) -> ConnectionStatus:
         """Retorna o status atual do stream do painel."""
         return self._status
+
+    def has_non_recoverable_auth_failure(self) -> bool:
+        return self._non_recoverable_auth_failure
+
+    def get_non_recoverable_auth_reason(self) -> str | None:
+        return self._non_recoverable_auth_reason
 
     async def _load_initial_snapshot(self) -> None:
         try:
@@ -201,6 +241,7 @@ class PositionStream:
             return
 
         await self._apply_account_update(payload)
+        self._last_update_at = datetime.now(UTC)
         await self._notify_update()
         await self._set_status("online")
 
@@ -278,11 +319,26 @@ class PositionStream:
                 await asyncio.sleep(self._keepalive_interval)
                 if self._listen_key is None:
                     return
-                await self._client.renew_listen_key(self._listen_key)
+                try:
+                    await self._client.renew_listen_key(self._listen_key)
+                    logger.debug(
+                        "dashboard_position_stream_keepalive_success",
+                        listen_key=self._listen_key[:8] + "...",
+                    )
+                except Exception as renew_exc:
+                    logger.warning(
+                        "dashboard_position_stream_keepalive_renew_failed",
+                        error=str(renew_exc),
+                    )
+                    raise
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.exception("dashboard_position_stream_keepalive_failed", error=str(exc))
+            logger.exception(
+                "dashboard_position_stream_keepalive_failed",
+                error=str(exc),
+                reconnect_attempts=self._reconnect_attempts,
+            )
             if self._websocket is not None and not self._websocket.closed:
                 await self._websocket.close()
             await self._delete_listen_key()
@@ -348,6 +404,95 @@ class PositionStream:
 
         self._cache.save_snapshot(self.get_positions())
 
+    async def _health_check_loop(self) -> None:
+        """Monitora a saúde do stream e tenta recovery se degradado."""
+        try:
+            while True:
+                await asyncio.sleep(_HEALTH_CHECK_INTERVAL_SECONDS)
+
+                if self._status == "offline":
+                    continue
+
+                if self._status == "online":
+                    await self._check_stream_freshness()
+                    continue
+
+                if self._status == "degraded":
+                    await self._attempt_recovery()
+                    continue
+
+                if self._status == "cached":
+                    await self._check_stream_freshness()
+                    continue
+        except asyncio.CancelledError:
+            raise
+
+    async def _check_stream_freshness(self) -> None:
+        """Verifica se há updates recentes; marca degraded se muito antigo."""
+        if self._last_update_at is None:
+            return
+
+        time_since_update = (datetime.now(UTC) - self._last_update_at).total_seconds()
+        if time_since_update > _HEALTH_CHECK_TIMEOUT_SECONDS:
+            logger.warning(
+                "dashboard_position_stream_stale_data",
+                seconds_since_update=time_since_update,
+                threshold=_HEALTH_CHECK_TIMEOUT_SECONDS,
+            )
+            await self._set_status("degraded")
+
+    async def _attempt_recovery(self) -> None:
+        """Tenta reconectar após degradado."""
+        self._reconnect_attempts += 1
+
+        if self._reconnect_attempts > _MAX_RECONNECT_ATTEMPTS:
+            logger.error(
+                "dashboard_position_stream_max_reconnect_attempts_exceeded",
+                max_attempts=_MAX_RECONNECT_ATTEMPTS,
+            )
+            return
+        if self._non_recoverable_auth_failure:
+            logger.error(
+                "dashboard_position_stream_reconnect_blocked_non_recoverable_auth",
+                reason=self._non_recoverable_auth_reason,
+            )
+            await self._set_status("offline")
+            return
+
+        backoff = self._calculate_backoff()
+        logger.info(
+            "dashboard_position_stream_reconnect_attempt",
+            attempt=self._reconnect_attempts,
+            backoff_seconds=backoff,
+            max_attempts=_MAX_RECONNECT_ATTEMPTS,
+        )
+
+        await asyncio.sleep(backoff)
+
+        try:
+            started = await self.start()
+            if not started:
+                logger.warning(
+                    "dashboard_position_stream_reconnect_incomplete",
+                    attempt=self._reconnect_attempts,
+                    status=self.get_status(),
+                )
+        except Exception as exc:
+            logger.warning(
+                "dashboard_position_stream_reconnect_failed",
+                attempt=self._reconnect_attempts,
+                error=str(exc),
+            )
+
+    def _calculate_backoff(self) -> float:
+        """Calcula backoff exponencial com jitter."""
+        import random
+
+        backoff = self._reconnect_backoff_seconds * (2 ** (self._reconnect_attempts - 1))
+        backoff = min(backoff, _MAX_BACKOFF_SECONDS)
+        jitter = random.uniform(0, backoff * 0.1)
+        return backoff + jitter
+
     def _build_snapshot_position(
         self,
         raw_position: dict[str, Any],
@@ -357,27 +502,38 @@ class PositionStream:
         if quantity == 0:
             return None
 
+        symbol = str(raw_position.get("symbol", ""))
         leverage = int(self._to_float(raw_position.get("leverage")))
         margin_used_usdt = self._resolve_snapshot_margin(raw_position, leverage, quantity)
         if leverage <= 0:
-            # Log warning when leverage is missing or invalid from Binance
-            raw_leverage = raw_position.get("leverage")
-            position_initial_margin = raw_position.get("positionInitialMargin")
-            notional = raw_position.get("notional")
-            inferred_leverage = self._infer_leverage(raw_position)
-
-            logger.warning(
-                "dashboard_position_leverage_missing",
-                symbol=raw_position.get("symbol", ""),
-                raw_leverage=raw_leverage,
-                position_initial_margin=position_initial_margin,
-                notional=notional,
-                inferred_leverage=inferred_leverage,
-            )
-            leverage = inferred_leverage
+            inferred_leverage, source = self._infer_leverage(raw_position, quantity=quantity)
+            if inferred_leverage > 0:
+                logger.info(
+                    "dashboard_position_leverage_inferred",
+                    symbol=symbol,
+                    source=source,
+                    raw_leverage=raw_position.get("leverage"),
+                    inferred_leverage=inferred_leverage,
+                    notional=raw_position.get("notional"),
+                    position_initial_margin=raw_position.get("positionInitialMargin"),
+                )
+                leverage = inferred_leverage
+                self._leverage_unresolved_symbols_logged.discard(symbol)
+            elif symbol not in self._leverage_unresolved_symbols_logged:
+                logger.warning(
+                    "dashboard_position_leverage_unresolved",
+                    symbol=symbol,
+                    source="unresolved",
+                    raw_leverage=raw_position.get("leverage"),
+                    notional=raw_position.get("notional"),
+                    position_initial_margin=raw_position.get("positionInitialMargin"),
+                    mark_price=raw_position.get("markPrice"),
+                    quantity=quantity,
+                )
+                self._leverage_unresolved_symbols_logged.add(symbol)
 
         return PositionView(
-            symbol=str(raw_position.get("symbol", "")),
+            symbol=symbol,
             side=self._resolve_side(quantity),
             quantity=quantity,
             leverage=leverage,
@@ -408,24 +564,31 @@ class PositionStream:
 
         return abs(quantity) * self._to_float(raw_position.get("markPrice"))
 
-    def _infer_leverage(self, raw_position: dict[str, Any]) -> int:
+    def _infer_leverage(self, raw_position: dict[str, Any], *, quantity: float) -> tuple[int, str]:
         explicit_margin = self._first_non_empty(
             raw_position.get("positionInitialMargin"),
             raw_position.get("isolatedMargin"),
         )
         if explicit_margin is None:
-            return 0
+            return 0, "unresolved"
 
         explicit_margin_value = self._to_float(explicit_margin)
         if explicit_margin_value <= 0:
-            return 0
+            return 0, "unresolved"
 
         notional = abs(self._to_float(raw_position.get("notional")))
-        if notional <= 0:
-            return 0
+        if notional > 0:
+            leverage = int(round(notional / explicit_margin_value))
+            if leverage > 0:
+                return leverage, "inferred_notional_margin"
 
-        leverage = int(round(notional / explicit_margin_value))
-        return leverage if leverage > 0 else 0
+        mark_price = self._to_float(raw_position.get("markPrice"))
+        fallback_notional = abs(quantity) * mark_price
+        if fallback_notional > 0:
+            leverage = int(round(fallback_notional / explicit_margin_value))
+            if leverage > 0:
+                return leverage, "inferred_qty_mark_margin"
+        return 0, "unresolved"
 
     def _resolve_stream_margin(self, raw_update: dict[str, Any]) -> float:
         return self._to_float(self._first_non_empty(raw_update.get("iw"), raw_update.get("im")))

@@ -10,21 +10,21 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from pydantic_settings import SettingsError
-from fastapi.testclient import TestClient
 
 try:
     from binance.um_futures import UMFutures
 except ImportError:  # pragma: no cover - depende do ambiente de integração real
     UMFutures = None
 
+from src.api import main as api_main
 from src.config.settings import get_settings
 from src.dashboard.client import DashboardClient
 from src.dashboard.models import PositionView
 from src.dashboard.stream import PositionStream
 from src.dashboard.updater import AdaptiveUpdater
-from src.api import main as api_main
 
 
 @dataclass(slots=True)
@@ -176,7 +176,8 @@ def _patch_api_lifespan(monkeypatch) -> None:
     )
     monkeypatch.setattr(api_main.DashboardClient, "connect", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.DashboardClient, "close", AsyncMock(return_value=None))
-    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=None))
+    monkeypatch.setattr(api_main.PositionStream, "start", AsyncMock(return_value=True))
+    monkeypatch.setattr(api_main.PositionStream, "get_status", lambda self: "online")
     monkeypatch.setattr(api_main.PositionStream, "stop", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.AdaptiveUpdater, "start", AsyncMock(return_value=None))
     monkeypatch.setattr(api_main.AdaptiveUpdater, "stop", AsyncMock(return_value=None))

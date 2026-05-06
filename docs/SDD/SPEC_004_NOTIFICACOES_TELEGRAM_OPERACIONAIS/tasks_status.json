@@ -1,76 +1,76 @@
 {
   "spec_id": "SPEC_004",
-  "updated_at": "2026-05-02T00:00:00Z",
+  "updated_at": "2026-05-04T12:00:00Z",
   "summary": {
-    "todo": 5,
+    "todo": 0,
     "in_progress": 0,
     "blocked": 0,
-    "done": 0
+    "done": 5
   },
   "tasks": [
     {
       "id": "task_001",
-      "status": "todo",
-      "progress_pct": 0,
-      "notes": "Aguardando execucao do Time B.",
-      "updated_by": "time-a-refinamento",
-      "updated_at": "2026-05-02T00:00:00Z",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Configuração opcional de Telegram adicionada em Settings e .env.example, testes atualizados e validados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T00:00:00Z",
       "links": {
         "pr": "",
         "commit": "",
-        "tests": ""
+        "tests": "tests/config/test_settings.py"
       }
     },
     {
       "id": "task_002",
-      "status": "todo",
-      "progress_pct": 0,
-      "notes": "Aguardando execucao do Time B.",
-      "updated_by": "time-a-refinamento",
-      "updated_at": "2026-05-02T00:00:00Z",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Módulo notifications implementado com TelegramNotifier, NullNotifier, contratos de eventos e testes unitários validados.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T00:00:00Z",
       "links": {
         "pr": "",
         "commit": "",
-        "tests": ""
+        "tests": "tests/notifications/test_telegram_notifier.py; tests/notifications/test_integration.py"
       }
     },
     {
       "id": "task_003",
-      "status": "todo",
-      "progress_pct": 0,
-      "notes": "Aguardando execucao do Time B.",
-      "updated_by": "time-a-refinamento",
-      "updated_at": "2026-05-02T00:00:00Z",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Notificações integradas no TradingMonitor e OrderManager para trade aberto e falha de SL, com NullNotifier como fallback seguro.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T00:00:00Z",
       "links": {
         "pr": "",
         "commit": "",
-        "tests": ""
+        "tests": "src/main.py; src/trading/order_manager.py; tests/notifications/test_integration.py"
       }
     },
     {
       "id": "task_004",
-      "status": "todo",
-      "progress_pct": 0,
-      "notes": "Aguardando execucao do Time B.",
-      "updated_by": "time-a-refinamento",
-      "updated_at": "2026-05-02T00:00:00Z",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Segurança consolidada: (1) timeout reduzido de 10s para 5s conforme SPEC §6.2; (2) str(exc) substituído por type(exc).__name__ em dois pontos de log para evitar vazamento de token via ClientError e Exception; (3) TEST_004_05 adicionado com caplog validando que token/chat_id nunca aparecem nos logs. 20/20 testes passando.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T12:00:00Z",
       "links": {
         "pr": "",
         "commit": "",
-        "tests": ""
+        "tests": "tests/notifications/test_telegram_notifier.py::TestTelegramNotifier::test_token_nao_aparece_nos_logs"
       }
     },
     {
       "id": "task_005",
-      "status": "todo",
-      "progress_pct": 0,
-      "notes": "Aguardando execucao do Time B.",
-      "updated_by": "time-a-refinamento",
-      "updated_at": "2026-05-02T00:00:00Z",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "QA gate concluído: suite completa 20/20 passing (tests/notifications/ + tests/config/test_settings.py). DoD checklist atualizado no SPEC.md. spec_status_update.md marcado como concluído. Rastreabilidade PRD RF-10 -> SPEC_004 -> implementação comprovada.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T12:00:00Z",
       "links": {
         "pr": "",
         "commit": "",
-        "tests": ""
+        "tests": "tests/notifications/; tests/config/test_settings.py"
       }
     }
   ]

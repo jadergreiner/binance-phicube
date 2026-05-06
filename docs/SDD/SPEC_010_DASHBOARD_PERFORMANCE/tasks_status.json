@@ -1,0 +1,36 @@
+{
+  "spec_id": "SPEC_010",
+  "title": "Dashboard de Performance em Tempo Real",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "done": 4,
+    "blocked": 0
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Frontend HTML — seção .performance-panel",
+      "status": "done",
+      "files": ["src/frontend/static/index.html"]
+    },
+    {
+      "id": "task_002",
+      "title": "Frontend JS — fetchPerformance, renderPerformance, renderGroupTable, bootstrap",
+      "status": "done",
+      "files": ["src/frontend/static/app.js"]
+    },
+    {
+      "id": "task_003",
+      "title": "CSS — estilos .performance-*",
+      "status": "done",
+      "files": ["src/frontend/static/style.css"]
+    },
+    {
+      "id": "task_004",
+      "title": "Testes TEST_010_01, TEST_010_02 + QA Gate",
+      "status": "done",
+      "files": ["tests/api/test_performance_endpoints.py"]
+    }
+  ]
+}

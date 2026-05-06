@@ -123,16 +123,23 @@ class _FakeStream:
     def get_status(self) -> str:
         return self._status
 
+    def has_non_recoverable_auth_failure(self) -> bool:
+        return False
+
+    def get_non_recoverable_auth_reason(self) -> str | None:
+        return None
+
     async def _set_status(self, status: str) -> None:
         self._status = status
         self.status_events.append(status)
 
-    async def start(self) -> None:
+    async def start(self) -> bool:
         self.start_calls += 1
         if self.fail_start:
             await self._set_status("degraded")
-            return
+            return False
         await self._set_status("online")
+        return True
 
     async def stop(self, *, status: str = "offline") -> None:
         self.stop_calls += 1

@@ -1,0 +1,77 @@
+{
+  "spec_id": "SPEC_006",
+  "updated_at": "2026-05-04T13:00:00Z",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "done": 5
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "exit_price, pnl_usdt, close_reason adicionados ao dataclass Trade com default None. to_dict() atualizado. Retrocompatibilidade mantida (campo pnl preservado).",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T13:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/trading/test_trade_model.py"
+      }
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "update_trade_status ampliado com exit_price, pnl_usdt, close_reason (default None). Retrocompatível: chamadas sem novos campos funcionam sem alteração.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T13:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/storage/test_performance_metrics.py::TestUpdateTradeStatusAmplied"
+      }
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "get_performance_metrics() implementado: 6 métricas (total_trades, win_rate_pct, total_pnl_usdt, avg_rrr, max_drawdown_usdt, profit_factor). Trata coleção vazia e divisão por zero.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T13:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/storage/test_performance_metrics.py::TestGetPerformanceMetrics"
+      }
+    },
+    {
+      "id": "task_004",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "src/api/routes/performance.py criado com GET /performance. Registrado em src/api/main.py. Retorna 200 com métricas ou 503 quando MongoDB indisponível.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T13:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/api/test_performance_endpoint.py"
+      }
+    },
+    {
+      "id": "task_005",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "QA gate: 141/141 testes passando. Regressão zero. 15 novos testes SPEC_006 cobrindo model, repositório e endpoint. Evidências: pytest tests/ -v — 141 passed, 1 warning.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-04T13:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/trading/; tests/storage/; tests/api/"
+      }
+    }
+  ]
+}

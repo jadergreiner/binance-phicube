@@ -250,9 +250,24 @@ class AdaptiveUpdater:
         return self._stream
 
     async def _restore_stream(self, stream: PositionStream) -> None:
+        if stream.has_non_recoverable_auth_failure():
+            logger.error(
+                "dashboard_adaptive_updater_stream_restore_blocked_non_recoverable_auth",
+                reason=stream.get_non_recoverable_auth_reason(),
+            )
+            await stream._set_status("offline")
+            return
+
         try:
             await stream.stop(status="degraded")
-            await stream.start()
+            started = await stream.start()
+            if not started:
+                logger.warning(
+                    "dashboard_adaptive_updater_stream_restore_failed_to_start",
+                    status=stream.get_status(),
+                )
+                await stream._set_status("degraded")
+                return
         except Exception as exc:
             logger.warning(
                 "dashboard_adaptive_updater_stream_restore_failed",

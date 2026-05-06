@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from src.dashboard.analysis import MarketAnalysis, MarketBias, TradeOpportunity, build_market_analysis
+from src.dashboard.analysis import (
+    MarketAnalysis,
+    MarketBias,
+    TradeOpportunity,
+    build_market_analysis,
+)
 from src.dashboard.models import (
     AccountSummary,
     ConnectionStatus,
