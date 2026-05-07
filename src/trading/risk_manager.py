@@ -11,7 +11,7 @@ Fórmula do position size:
     notional = position_size * entry_price
     margin_required = notional / leverage
 
-Se margin_required > max_capital_allocation, reduz position_size proporcionalmente.
+Se margin_required > max_capital_allocation, a operação é bloqueada.
 """
 from __future__ import annotations
 
@@ -89,18 +89,14 @@ class RiskManager:
         max_allowed_margin = available_balance * (self._max_alloc_pct / 100.0)
 
         if margin_required > max_allowed_margin:
-            # Scale down to fit within max allocation
-            scale = max_allowed_margin / margin_required
-            raw_qty *= scale
-            notional *= scale
-            margin_required = max_allowed_margin
-            risk_amount *= scale
-            logger.info(
-                "position_scaled_down",
+            logger.warning(
+                "position_rejected",
                 symbol=signal.symbol,
-                reason="max_capital_allocation",
-                scale=round(scale, 4),
+                reason="max_capital_allocation_exceeded",
+                margin_required=round(margin_required, 4),
+                max_allowed_margin=round(max_allowed_margin, 4),
             )
+            return None
 
         # Round to exchange precision
         qty = round(raw_qty, quantity_precision)

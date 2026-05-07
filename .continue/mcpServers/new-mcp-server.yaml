@@ -38,9 +38,12 @@ mcpServers:
 
   # 🧠 Serena MCP (orquestração)
   - name: serena
-    command: npx
+    command: uvx
     args:
-      - -y
-      - @serena-ai/mcp-server
+      - --from
+      - git+https://github.com/oraios/serena
+      - serena
+      - start-mcp-server
+      - --project-from-cwd
     env:
       SERENA_WORKSPACE: C:\repo\binance-phicube

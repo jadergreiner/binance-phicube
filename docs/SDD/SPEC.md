@@ -1,7 +1,7 @@
 # SPEC — Especificação Técnica Completa — Binance Phicube
 
-**Versão:** 1.0
-**Data:** 2026-05-01
+**Versão:** 1.1
+**Data:** 2026-05-07
 **Tipo:** Especificação Executável
 **Audiência:** Backend Engineers, Quant Developers, QA Engineers
 
@@ -102,12 +102,13 @@ TradingMonitor._tick()
 
 #### 1.3 Agendamento de Execução
 
-O backend roda em loop assíncrono com agendamento fixo a cada 5 minutos, independente do fechamento de candles.
+O backend roda em loop assíncrono por monitor, com intervalo derivado do timeframe configurado para cada símbolo.
 
-- **Intervalo:** 300 segundos (5 minutos)
-- **Comportamento:** `asyncio.sleep(300)` entre ticks
-- **Razão:** Maior responsividade para capturar sinais em tempo real, sem aguardar timeframe específico
-- **Limitação:** Máximo 10 símbolos totais (autorizados + posições abertas) para evitar sobrecarga API
+- **Intervalo:** variável por timeframe (ex.: `1m=60s`, `5m=300s`, `15m=900s`, `1h=3600s`)
+- **Comportamento:** `asyncio.sleep(intervalo_do_timeframe)` entre ticks por monitor
+- **Razão:** manter alinhamento entre responsividade e granularidade de cada timeframe configurado
+- **Limitação operacional vigente:** máximo 10 símbolos totais (autorizados + posições abertas) para evitar sobrecarga API
+- **Meta evolutiva de produto (PRD):** escalar para >= 20 símbolos em fase posterior, sem relaxar controles de risco
 
 #### 1.4 Análise de Ativos com Posição Aberta
 
@@ -240,12 +241,12 @@ Cálculo de SL e TP (SHORT):
 - [ ] Sinal não retornado na candle "em progresso" (apenas fechada)
 - [ ] Teste: 10+ históricos reais validados manualmente
 
-#### Contratos e Testes para Agendamento Fixo
+#### Contratos e Testes para Agendamento por Timeframe
 
-- **Regra:** Backend executa tick a cada 300 segundos exatos
-- **Aceite:** Logs mostram timestamps com diferença de ~300s
-- **Erro:** Se atraso > 10s, log de warning
-- **Teste:** Mock asyncio.sleep, verificar chamadas
+- **Regra:** Backend executa tick com intervalo derivado do timeframe do monitor
+- **Aceite:** Logs mostram timestamps com diferença aproximada ao intervalo do timeframe configurado
+- **Erro:** Se atraso operacional exceder tolerância definida, registrar warning
+- **Teste:** Mock de `asyncio.sleep` e verificação dos intervalos por timeframe
 
 #### Contratos e Testes para Análise de Posições Abertas
 
@@ -323,10 +324,9 @@ class RiskManager:
    margin_required = (entry_price * qty_base) / leverage
    Ex: entry=50000, qty=0.2, leverage=5 → margin = 2000 USDT
 
-5. Scale down se excede limite:
+5. Bloqueio se excede limite:
    Se margin_required > (balance * max_capital_allocation_pct):
-      scale_factor = (balance * max_capital_allocation_pct) / margin_required
-      qty = qty_base * scale_factor
+      rejeitar operacao (retornar None) e emitir warning estruturado
 
 6. Redondear para precision:
    qty = round(qty, quantity_precision)
@@ -341,7 +341,7 @@ class RiskManager:
 #### Checklist de Implementação
 
 - [ ] Fórmula implementada exatamente como acima
-- [ ] Scale-down aplicado se margin > limite
+- [ ] Bloqueio aplicado se margin > limite, com warning estruturado
 - [ ] Validação de limites (max_open_positions, max_capital_allocation_pct)
 - [ ] RRR mínimo respeitado
 - [ ] Teste: 50 cenários (diferentes balanços, stops, leverages)
@@ -889,7 +889,7 @@ def test_position_sizing():
 ### Para Risk Manager
 
 - [ ] Fórmula de risco exata
-- [ ] Scale-down aplicado se necessário
+- [ ] Bloqueio aplicado quando alocação máxima for excedida
 - [ ] max_open_positions respeitado
 - [ ] max_capital_allocation_pct respeitado
 - [ ] Teste: 50 cenários diferentes
@@ -931,4 +931,4 @@ Refs: PRD.md § Risks (Whipsaw detection)
 
 *Mantido por: Backend Sênior + Quant Developer*
 *Governado por: Time A + Risk Manager*
-*Última atualização: 2026-05-01*
+*Última atualização: 2026-05-07*

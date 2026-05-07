@@ -1,0 +1,78 @@
+{
+  "spec_id": "SPEC_021",
+  "updated_at": "2026-05-07T19:20:00Z",
+  "summary": {
+    "overall_status": "Em Execucao",
+    "todo": 0,
+    "in_progress": 1,
+    "blocked": 0,
+    "done": 4
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Protocolo de soak 48h formalizado com criterios de interrupcao, eventos obrigatorios e regra binaria approved/reproved.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T19:20:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/soak_protocol.md,docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/soak_evidence.template.json"
+      }
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Matriz PRD->SPEC->teste criada para Signal/Risk/Order e atualizada com fechamento da lacuna REQ-ORD-002 (rollback de ordens) via teste dedicado.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T18:30:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/compliance_matrix.md"
+      }
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Baseline de cobertura e gate implementados com script executavel e contrato de saida para CI.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T18:30:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/quality_gate.md,scripts/spec_021/check_quality_gate.py"
+      }
+    },
+    {
+      "id": "task_004",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Checklist pass/fail de hardening criado com validacoes automatizadas para runtime/container e secret scanning basico.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T18:30:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/hardening_checklist.md,scripts/spec_021/check_hardening.py"
+      }
+    },
+    {
+      "id": "task_005",
+      "status": "in_progress",
+      "progress_pct": 90,
+      "notes": "Workflow CI, quality gate e hardening aprovados; rastreabilidade consolidada com traceability report, validador de soak e fechamento da lacuna REQ-ORD-002. Bloqueado para fechamento final apenas pela execucao real do soak de 48h e geracao de soak_evidence.json.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T19:20:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": ".github/workflows/spec021-validation.yml,scripts/spec_021/validate_spec021_artifacts.py,scripts/spec_021/check_quality_gate.py,scripts/spec_021/check_hardening.py,scripts/spec_021/validate_soak_evidence.py,docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/traceability_report.md,docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/evidence/soak_evidence_pending.json,tests/trading/test_order_manager.py"
+      }
+    }
+  ]
+}

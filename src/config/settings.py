@@ -27,9 +27,15 @@ class SymbolConfig:
                 f"Triplet inválido: {triplet!r} — formato esperado: SYMBOL:TIMEFRAME:LEVERAGE"
             )
         symbol, timeframe, leverage_str = parts
-        if not leverage_str.isdigit() or int(leverage_str) <= 0:
+        if not leverage_str.isdigit():
             raise ValueError(f"Leverage inválida em triplet: {triplet!r}")
-        return cls(symbol=symbol.upper(), timeframe=timeframe, leverage=int(leverage_str))
+        leverage = int(leverage_str)
+        if leverage <= 0 or leverage > 20:
+            raise ValueError(
+                f"Leverage inválida em triplet: {triplet!r}. "
+                "Valor permitido: inteiro entre 1 e 20."
+            )
+        return cls(symbol=symbol.upper(), timeframe=timeframe, leverage=leverage)
 
 
 class Settings(BaseSettings):

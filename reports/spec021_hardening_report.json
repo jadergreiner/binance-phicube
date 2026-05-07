@@ -1,0 +1,21 @@
+{
+  "status": "pass",
+  "checks": [
+    {
+      "id": "HARD-001",
+      "status": "pass",
+      "details": "all runtime dockerfiles use non-root user"
+    },
+    {
+      "id": "HARD-002",
+      "status": "pass",
+      "details": "all runtime dockerfiles define HEALTHCHECK"
+    },
+    {
+      "id": "HARD-003",
+      "status": "pass",
+      "details": "no obvious hardcoded secret assignments in tracked text files"
+    }
+  ],
+  "failures": []
+}

@@ -1,6 +1,6 @@
 # PRD — Product Requirement Document — Binance Phicube
 
-**Versão:** 1.0
+**Versão:** 1.1
 **Data de Criação:** 2026-05-01
 **Proprietário:** Equipe Phicube
 **Status:** Ativo — Refinamento Contínuo
@@ -251,7 +251,7 @@ TELEGRAM_CHAT_ID=         # Chat ID do operador
 | Critério | Métrica | Alvo |
 |---|---|---|
 | Latência | Tempo entre sinal e execução | ≤ 2 segundos |
-| Escalabilidade | Símbolos simultâneos | ≥ 20 |
+| Escalabilidade | Símbolos simultâneos | >= 10 no runtime atual; meta evolutiva >= 20 |
 | Segurança | Fuga de chave de API | 0 casos |
 | Documentação | Cobertura de código + operação | 100% |
 | Compliance | Auditabilidade de operações | 100% |
@@ -390,6 +390,7 @@ TELEGRAM_CHAT_ID=         # Chat ID do operador
 
 | Versão | Data | Autor | Mudanças |
 |---|---|---|---|
+| 1.1 | 2026-05-07 | Time B | Alinhamento de critério de escalabilidade para limite operacional vigente e meta evolutiva |
 | 1.0 | 2026-05-01 | Time A | Documento inicial baseado em Manifesto |
 
 ---

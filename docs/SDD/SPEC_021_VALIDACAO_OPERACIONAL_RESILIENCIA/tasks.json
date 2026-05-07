@@ -1,0 +1,139 @@
+{
+  "spec_id": "SPEC_021",
+  "generated_at": "2026-05-07T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Definir protocolo de soak 48h e evidencias minimas",
+      "description": "Especificar pre-condicoes, janela de execucao, criterios de interrupcao e artefatos minimos para aprovacao/reprovacao objetiva.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [],
+      "target_files": [
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/SPEC.md",
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/spec_status_update.md"
+      ],
+      "constraints": [
+        "Resultado binario aprovado/reprovado",
+        "Sem inferencia subjetiva de estabilidade"
+      ],
+      "acceptance_criteria": [
+        "Protocolo com criterio pass/fail definido",
+        "Evidencias minimas listadas explicitamente"
+      ],
+      "evidence_required": [
+        "soak_protocol",
+        "evidence_checklist"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Mapear matriz PRD->SPEC->teste para Signal/Risk/Order",
+      "description": "Relacionar requisitos criticos do PRD aos contratos do SDD e aos testes correspondentes, destacando lacunas sem mascaramento.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/SPEC.md",
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/spec_status_update.md"
+      ],
+      "constraints": [
+        "Cobrir Signal Engine, Risk Manager e Order Manager",
+        "Registrar pendencia quando nao houver evidencia"
+      ],
+      "acceptance_criteria": [
+        "Matriz preenchida com status pass/fail/pending",
+        "Lacunas com impacto e acao proposta"
+      ],
+      "evidence_required": [
+        "compliance_matrix"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Estabelecer baseline de cobertura e gate de qualidade",
+      "description": "Definir baseline de cobertura minima e criterio de gate para aceite tecnico da SPEC.",
+      "owner": "qa-engineer",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": [
+        "task_002"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/SPEC.md",
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/spec_status_update.md"
+      ],
+      "constraints": [
+        "Gate objetivo e auditavel",
+        "Sem reduzir cobertura ja existente"
+      ],
+      "acceptance_criteria": [
+        "Baseline de cobertura definido",
+        "Regra de aprovacao/reprovacao documentada"
+      ],
+      "evidence_required": [
+        "coverage_baseline",
+        "quality_gate"
+      ]
+    },
+    {
+      "id": "task_004",
+      "title": "Validar hardening operacional (container/runtime/logs sensiveis)",
+      "description": "Definir checklist pass/fail para seguranca operacional minima de runtime e container com foco em exposicao de segredos e postura de execucao.",
+      "owner": "backend-senior",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": [
+        "task_002"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/SPEC.md",
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/spec_status_update.md"
+      ],
+      "constraints": [
+        "Sem logar tokens/chaves",
+        "Checklist com evidencias verificaveis"
+      ],
+      "acceptance_criteria": [
+        "Checklist de hardening definido",
+        "Criterios pass/fail por item documentados"
+      ],
+      "evidence_required": [
+        "hardening_checklist"
+      ]
+    },
+    {
+      "id": "task_005",
+      "title": "Consolidar fechamento da SPEC_021 com evidencias",
+      "description": "Atualizar status consolidado da SPEC_021 com rastreabilidade PRD->SPEC->teste->evidencia.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "in_progress",
+      "depends_on": [
+        "task_003",
+        "task_004"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/tasks_status.json",
+        "docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/spec_status_update.md",
+        "docs/SDD/README.md"
+      ],
+      "constraints": [
+        "Nao concluir sem evidencia objetiva",
+        "Manter coerencia com semantica canonica de status"
+      ],
+      "acceptance_criteria": [
+        "Status final documentado com evidencias",
+        "Rastreabilidade completa consolidada"
+      ],
+      "evidence_required": [
+        "status_update",
+        "traceability_report"
+      ]
+    }
+  ]
+}

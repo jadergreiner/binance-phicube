@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.config.settings import Settings
+from src.config.settings import Settings, SymbolConfig
 
 
 def _build_settings() -> Settings:
@@ -131,3 +131,13 @@ def test_aceita_write_auth_ativo_com_token(monkeypatch) -> None:
 
     assert settings.dashboard_write_auth_required is True
     assert settings.dashboard_write_auth_token == "token123"
+
+
+def test_symbol_config_aceita_leverage_no_limite_maximo() -> None:
+    config = SymbolConfig.from_triplet("BTCUSDT:15m:20")
+    assert config.leverage == 20
+
+
+def test_symbol_config_rejeita_leverage_acima_do_limite() -> None:
+    with pytest.raises(ValueError, match="inteiro entre 1 e 20"):
+        SymbolConfig.from_triplet("BTCUSDT:15m:21")

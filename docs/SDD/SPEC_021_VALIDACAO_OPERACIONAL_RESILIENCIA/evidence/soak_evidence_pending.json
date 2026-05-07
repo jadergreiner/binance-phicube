@@ -1,0 +1,25 @@
+{
+  "run_id": "spec021-soak-pending-20260507",
+  "started_at": null,
+  "finished_at": null,
+  "duration_hours": 0.0,
+  "result": "reproved",
+  "failure_reason": "Soak operacional de 48h ainda nao executado nesta rodada.",
+  "environment": {
+    "bot_version": "local-worktree",
+    "api_version": "local-worktree",
+    "testnet": true
+  },
+  "mandatory_events": {
+    "startup_success": false,
+    "monitoring_loop_per_symbol": false,
+    "health_checks_recorded": false,
+    "error_recovery_events_recorded": false,
+    "shutdown_recorded": false
+  },
+  "artifacts": [
+    "reports/spec021_quality_gate.json",
+    "reports/spec021_hardening_report.json"
+  ],
+  "notes": "Arquivo de controle para indicar bloqueio objetivo da task_005 ate execucao real da janela de 48h."
+}

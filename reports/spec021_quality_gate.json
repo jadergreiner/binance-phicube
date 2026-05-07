@@ -1,0 +1,18 @@
+{
+  "status": "pass",
+  "thresholds": {
+    "src/strategy/indicators.py": 90.0,
+    "src/strategy/signal_engine.py": 85.0,
+    "src/trading/risk_manager.py": 80.0,
+    "src/trading/order_manager.py": 75.0,
+    "src/storage/repository.py": 75.0
+  },
+  "actual": {
+    "src/storage/repository.py": 79.88165680473372,
+    "src/strategy/indicators.py": 100.0,
+    "src/strategy/signal_engine.py": 96.42857142857143,
+    "src/trading/order_manager.py": 96.55172413793103,
+    "src/trading/risk_manager.py": 100.0
+  },
+  "failures": []
+}

@@ -1,0 +1,144 @@
+{
+  "spec_id": "SPEC_022",
+  "generated_at": "2026-05-07T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Definir contrato canonico de leverage maximo",
+      "description": "Formalizar e implementar a regra de validacao obrigatoria para leverage no intervalo [1, 20], com erro explicito e cobertura de testes.",
+      "owner": "backend-senior",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [],
+      "target_files": [
+        "src/config/settings.py",
+        "tests/config/test_settings.py",
+        "docs/SDD/SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/SPEC.md"
+      ],
+      "constraints": [
+        "Nao permitir bypass da validacao em runtime",
+        "Nao expor segredos na mensagem de erro"
+      ],
+      "acceptance_criteria": [
+        "Leverage acima de 20 gera erro de configuracao",
+        "Leverage 20 permanece valido"
+      ],
+      "evidence_required": [
+        "tests_config_leverage"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Convergir politica de violacao de max_capital_allocation_pct",
+      "description": "Substituir comportamento ambiguo por contrato unico de bloqueio de operacao quando margem exceder limite, com log de rejeicao auditavel.",
+      "owner": "risk-manager",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/trading/risk_manager.py",
+        "tests/trading/test_risk_manager.py",
+        "docs/SDD/SPEC.md",
+        "PRD.md"
+      ],
+      "constraints": [
+        "Sem scale-down implicito apos contrato canonico aprovado",
+        "Manter compatibilidade de interface publica"
+      ],
+      "acceptance_criteria": [
+        "Violacao de alocacao retorna None",
+        "Warning estruturado com motivo de rejeicao"
+      ],
+      "evidence_required": [
+        "tests_risk_allocation_policy",
+        "log_rejection_example"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Alinhar contrato de escalabilidade e limite operacional",
+      "description": "Remover contradicoes entre PRD, SDD e README quanto ao limite vigente de simbolos e meta de escalabilidade.",
+      "owner": "time-a-refinamento",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": [
+        "task_002"
+      ],
+      "target_files": [
+        "PRD.md",
+        "docs/SDD/SPEC.md",
+        "docs/SDD/README.md"
+      ],
+      "constraints": [
+        "Manter diferenca clara entre meta futura e limite tecnico atual",
+        "Nao degradar seguranca operacional para perseguir meta de throughput"
+      ],
+      "acceptance_criteria": [
+        "Documentos sem conflito textual de limite",
+        "Contrato tecnico vigente explicitado"
+      ],
+      "evidence_required": [
+        "doc_diff_alignment"
+      ]
+    },
+    {
+      "id": "task_004",
+      "title": "Validar conformidade por testes e checklist SDD",
+      "description": "Executar testes impactados e checklist de rastreabilidade regra->teste->codigo para os tres eixos da SPEC_022.",
+      "owner": "qa-engineer",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": [
+        "task_002",
+        "task_003"
+      ],
+      "target_files": [
+        "tests/config/test_settings.py",
+        "tests/trading/test_risk_manager.py",
+        "docs/SDD/SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/spec_status_update.md"
+      ],
+      "constraints": [
+        "Sem conclusao sem evidencia objetiva",
+        "Sem mascarar falha de teste como excecao operacional"
+      ],
+      "acceptance_criteria": [
+        "Suite impactada passando",
+        "Checklist de rastreabilidade preenchido"
+      ],
+      "evidence_required": [
+        "pytest_output",
+        "traceability_matrix"
+      ]
+    },
+    {
+      "id": "task_005",
+      "title": "Consolidar fechamento da SPEC_022",
+      "description": "Atualizar tasks_status/spec_status_update e indice SDD com evidencias finais e status coerente com semantica canonica.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "in_progress",
+      "depends_on": [
+        "task_004"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/tasks_status.json",
+        "docs/SDD/SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/spec_status_update.md",
+        "docs/SDD/README.md"
+      ],
+      "constraints": [
+        "Nao concluir sem evidencias de testes e diffs documentais",
+        "Manter coerencia entre status global e status das tasks"
+      ],
+      "acceptance_criteria": [
+        "Status final documentado com evidencias",
+        "Rastreabilidade completa consolidada"
+      ],
+      "evidence_required": [
+        "status_update",
+        "final_traceability"
+      ]
+    }
+  ]
+}

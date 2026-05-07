@@ -1,0 +1,78 @@
+{
+  "spec_id": "SPEC_022",
+  "updated_at": "2026-05-07T09:40:00Z",
+  "summary": {
+    "overall_status": "Em Execucao",
+    "todo": 0,
+    "in_progress": 1,
+    "blocked": 0,
+    "done": 4
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Guardrail de leverage [1,20] implementado em SymbolConfig.from_triplet com teste de limite e rejeicao.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T09:40:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/config/test_settings.py::test_symbol_config_aceita_leverage_no_limite_maximo,tests/config/test_settings.py::test_symbol_config_rejeita_leverage_acima_do_limite"
+      }
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "RiskManager alterado para bloquear operacao quando margin_required excede max_capital_allocation_pct, com warning estruturado.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T09:40:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/trading/test_risk_manager.py::TestRiskManager::test_calculate_scales_down_by_max_allocation,tests/trading/test_risk_manager.py::TestRiskManager::test_loga_warning_quando_excede_max_capital_allocation"
+      }
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "PRD e SDD atualizados para remover conflito entre limite operacional vigente e meta evolutiva de escalabilidade.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T09:40:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "PRD.md,docs/SDD/SPEC.md"
+      }
+    },
+    {
+      "id": "task_004",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Lint e testes impactados executados com sucesso (17 passed).",
+      "updated_by": "qa-engineer",
+      "updated_at": "2026-05-07T09:40:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "ruff check src/config/settings.py src/trading/risk_manager.py tests/config/test_settings.py tests/trading/test_risk_manager.py; pytest tests/config/test_settings.py tests/trading/test_risk_manager.py -q"
+      }
+    },
+    {
+      "id": "task_005",
+      "status": "in_progress",
+      "progress_pct": 80,
+      "notes": "Status consolidado em andamento; fechamento final depende de rodada completa de validacao integrada e decisao de conclusao formal da SPEC.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T09:40:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/spec_status_update.md"
+      }
+    }
+  ]
+}

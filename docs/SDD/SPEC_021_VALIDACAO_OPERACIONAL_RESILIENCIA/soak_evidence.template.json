@@ -1,0 +1,27 @@
+{
+  "run_id": "spec021-soak-YYYYMMDD-HHMM",
+  "started_at": "2026-05-07T00:00:00Z",
+  "finished_at": "2026-05-09T00:00:00Z",
+  "duration_hours": 48.0,
+  "result": "approved",
+  "failure_reason": null,
+  "environment": {
+    "bot_version": "git-sha-or-tag",
+    "api_version": "git-sha-or-tag",
+    "testnet": true
+  },
+  "mandatory_events": {
+    "startup_success": true,
+    "monitoring_loop_per_symbol": true,
+    "health_checks_recorded": true,
+    "error_recovery_events_recorded": true,
+    "shutdown_recorded": true
+  },
+  "artifacts": [
+    "logs/bot.log",
+    "logs/api.log",
+    "reports/spec021_quality_gate.json",
+    "reports/spec021_hardening_report.json"
+  ],
+  "notes": "Fill with objective observations only."
+}
