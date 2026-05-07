@@ -123,8 +123,7 @@ class TestTelegramNotifier:
         payload = "Network error test"
 
         with patch(
-            "aiohttp.ClientSession.post",
-            side_effect=aiohttp.ClientError("Connection failed")
+            "aiohttp.ClientSession.post", side_effect=aiohttp.ClientError("Connection failed")
         ):
             result = await notifier.send(event, payload)
 
@@ -165,14 +164,17 @@ class TestTelegramNotifier:
         self, notifier: TelegramNotifier, caplog: pytest.LogCaptureFixture
     ) -> None:
         """TEST_004_05: Nenhum log deve conter o token ou chat_id (INV-004-04)."""
-        import aiohttp
         import logging
+
+        import aiohttp
 
         with caplog.at_level(logging.DEBUG, logger="src.notifications.telegram_notifier"):
             # Simula falha de rede — exceção pode carregar URL com token
             with patch(
                 "aiohttp.ClientSession.post",
-                side_effect=aiohttp.ClientError("https://api.telegram.org/bot123456:test_token/sendMessage: err"),
+                side_effect=aiohttp.ClientError(
+                    "https://api.telegram.org/bot123456:test_token/sendMessage: err"
+                ),
             ):
                 await notifier.send(NotificationEvent.CRITICAL_ERROR, "test")
 

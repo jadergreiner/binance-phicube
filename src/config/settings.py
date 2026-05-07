@@ -1,10 +1,35 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Annotated, Any, cast
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+_COMMODITIES = frozenset({"XPTUSDT", "COPPERUSDT"})
+
+
+@dataclass(frozen=True)
+class SymbolConfig:
+    """Configuração de um par de trading: símbolo, timeframe e alavancagem."""
+
+    symbol: str
+    timeframe: str
+    leverage: int
+
+    @classmethod
+    def from_triplet(cls, triplet: str) -> SymbolConfig:
+        """Parse 'BTCUSDT:15m:5' → SymbolConfig."""
+        parts = triplet.strip().split(":")
+        if len(parts) != 3:
+            raise ValueError(
+                f"Triplet inválido: {triplet!r} — formato esperado: SYMBOL:TIMEFRAME:LEVERAGE"
+            )
+        symbol, timeframe, leverage_str = parts
+        if not leverage_str.isdigit() or int(leverage_str) <= 0:
+            raise ValueError(f"Leverage inválida em triplet: {triplet!r}")
+        return cls(symbol=symbol.upper(), timeframe=timeframe, leverage=int(leverage_str))
 
 
 class Settings(BaseSettings):
@@ -20,16 +45,24 @@ class Settings(BaseSettings):
     binance_api_secret: str = Field(..., description="Binance API Secret")
     binance_testnet: bool = Field(default=True)
 
-    # Symbols and timeframes
-    symbols: Annotated[list[str], NoDecode] = Field(default=["BTCUSDT"])
-    timeframes: Annotated[list[str], NoDecode] = Field(default=["15m"])
+    # Symbols, timeframes e leverage — triplets explícitos (SPEC_018)
+    # Substitui SYMBOLS × TIMEFRAMES × LEVERAGE (produto cartesiano)
+    # Formato: "SYMBOL:TIMEFRAME:LEVERAGE,..." ex: "BTCUSDT:15m:5,XPTUSDT:1h:3"
+    symbol_timeframes: Annotated[list[SymbolConfig], NoDecode] = Field(
+        default_factory=lambda: [
+            SymbolConfig.from_triplet("BTCUSDT:15m:5"),
+            SymbolConfig.from_triplet("ETHUSDT:15m:5"),
+        ]
+    )
 
     # Risk management
     risk_per_trade_pct: Annotated[float, Field(gt=0, le=5)] = 1.0
     risk_reward_ratio: Annotated[float, Field(ge=1.0)] = 2.0
-    leverage: Annotated[int, Field(ge=1, le=125)] = 5
-    max_capital_allocation_pct: Annotated[float, Field(gt=0, le=100)] = 30.0
+    max_capital_allocation_pct: Annotated[float, Field(gt=0, le=100)] = 20.0
     max_open_positions: Annotated[int, Field(ge=1)] = 3
+
+    # Commodities — gate de segurança: ativar apenas após backtest aprovado (INV-018-01)
+    commodities_backtest_validated: bool = False
 
     # MongoDB
     mongodb_uri: str = Field(default="mongodb://mongo:27017")
@@ -49,22 +82,7 @@ class Settings(BaseSettings):
         description="Telegram Chat ID para notificações (opcional)",
     )
     performance_report_interval_hours: Annotated[float, Field(ge=0)] = 24.0
-
-    @field_validator("symbols", "timeframes", mode="before")
-    @classmethod
-    def parse_csv(cls, v: str | list) -> list[str]:
-        if isinstance(v, str):
-            return [item.strip().upper() for item in v.split(",") if item.strip()]
-        return v
-
-    @field_validator("log_level")
-    @classmethod
-    def validate_log_level(cls, v: str) -> str:
-        valid = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        upper = v.upper()
-        if upper not in valid:
-            raise ValueError(f"log_level must be one of {valid}")
-        return upper
+    sl_missing_renotify_interval_minutes: Annotated[int, Field(ge=5)] = 15
 
     # Dashboard (API Key READ_ONLY — sem permissão de trade)
     dashboard_api_key: str = Field(..., description="Dashboard API Key (READ_ONLY)")
@@ -77,6 +95,22 @@ class Settings(BaseSettings):
         default=None,
         description="Dashboard API Secret da Binance Testnet (READ_ONLY)",
     )
+
+    @field_validator("symbol_timeframes", mode="before")
+    @classmethod
+    def parse_symbol_timeframes_csv(cls, v: str | list) -> list[SymbolConfig]:
+        if isinstance(v, str):
+            return [SymbolConfig.from_triplet(t.strip()) for t in v.split(",") if t.strip()]
+        return v
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        valid = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        upper = v.upper()
+        if upper not in valid:
+            raise ValueError(f"log_level must be one of {valid}")
+        return upper
 
     @model_validator(mode="before")
     @classmethod
@@ -104,6 +138,17 @@ class Settings(BaseSettings):
                 data["dashboard_api_secret"] = testnet_api_secret
 
         return data
+
+    @model_validator(mode="after")
+    def validate_commodities_gate(self) -> Settings:
+        """INV-018-01: commodities bloqueadas sem backtest validado."""
+        has_commodity = any(c.symbol in _COMMODITIES for c in self.symbol_timeframes)
+        if has_commodity and not self.commodities_backtest_validated:
+            raise ValueError(
+                "Commodities detectadas em SYMBOL_TIMEFRAMES mas backtest não validado. "
+                "Defina COMMODITIES_BACKTEST_VALIDATED=true após concluir backtest."
+            )
+        return self
 
 
 @lru_cache(maxsize=1)

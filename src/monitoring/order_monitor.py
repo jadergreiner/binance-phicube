@@ -18,6 +18,7 @@ Padrão de loop: igual ao PerformanceReporter (SPEC_008).
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -25,12 +26,29 @@ import ccxt.async_support as ccxt
 
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import get_logger
-from src.notifications.events import NotificationEvent, SLMissingEvent
+from src.notifications.events import (
+    NotificationEvent,
+    SLMissingEvent,
+    SLRestoredEvent,
+)
 from src.notifications.notifier import Notifier
 from src.storage.repository import MongoRepository
 from src.trading.order_manager import TradeStatus
 
 logger = get_logger(__name__)
+
+_DEFAULT_RENOTIFY_INTERVAL_SECONDS = 15 * 60  # 15 minutos
+
+
+@dataclass
+class SLMissingState:
+    """Estado em memória de uma posição com SL órfão ativo."""
+
+    trade_id: str
+    first_detected_at: datetime
+    last_notified_at: datetime
+    notification_count: int
+    renotify_interval_seconds: int
 
 # Erros fatais que não entram em retry (padrão SPEC_007)
 _FATAL_ERRORS = (
@@ -55,15 +73,17 @@ class OrderMonitor:
         repository: MongoRepository,
         notifier: Notifier,
         interval_seconds: int = 60,
+        renotify_interval_seconds: int = _DEFAULT_RENOTIFY_INTERVAL_SECONDS,
     ) -> None:
         self._client = client
         self._repository = repository
         self._notifier = notifier
         self._interval_seconds = interval_seconds
-        # Guard de notificação duplicada: evita spam de alertas de SL ausente.
-        # Persistido apenas em memória — em restart, pode gerar um segundo alerta
-        # (comportamento aceitável por DD-003).
-        self._notified_sl_missing: set[str] = set()
+        self._renotify_interval_seconds = renotify_interval_seconds
+        # Estado de re-notificação por entry_order_id. Persistido apenas em memória
+        # (DD-001): em restart, um segundo primeiro-alerta é enviado — comportamento
+        # aceitável e documentado (CE-003).
+        self._sl_missing_state: dict[str, SLMissingState] = {}
 
     async def run(self) -> None:
         """Loop infinito com intervalo configurável.
@@ -143,6 +163,13 @@ class OrderMonitor:
                     if current_price is not None:
                         position_open = await self._is_position_open(symbol)
                         if position_open:
+                            entry_order_id = trade.get("entry_order_id", "")
+                            # CE-001: SL pode ter sido restaurado manualmente
+                            if entry_order_id in self._sl_missing_state:
+                                has_sl = await self._has_active_stop_order(symbol)
+                                if has_sl:
+                                    await self._handle_sl_cleared(trade)
+                                    return
                             await self._handle_sl_missing(trade, current_price)
                     # Se posição não existe mais, não alerta — já encerrada
                     return
@@ -169,6 +196,8 @@ class OrderMonitor:
         """Registra encerramento por TP com exit_price real."""
         symbol = trade.get("symbol", "")
         entry_order_id = trade.get("entry_order_id", "")
+
+        await self._handle_sl_cleared(trade)
 
         # Campo `average` reflete o preço médio de execução real (DD-004)
         exit_price = float(order.get("average") or order.get("price") or 0.0)
@@ -205,6 +234,8 @@ class OrderMonitor:
         symbol = trade.get("symbol", "")
         entry_order_id = trade.get("entry_order_id", "")
 
+        await self._handle_sl_cleared(trade)
+
         # Campo `average` reflete slippage real — não usar stopPrice (DD-004)
         exit_price = float(order.get("average") or order.get("price") or 0.0)
         pnl_usdt = self._calc_pnl(trade, exit_price)
@@ -236,24 +267,89 @@ class OrderMonitor:
         )
 
     async def _handle_sl_missing(self, trade: dict, current_price: float) -> None:
-        """Notifica operador de SL cancelado ou ausente (RF-001, RF-005).
+        """Re-notificação periódica de SL ausente (RF-001, RF-002, RF-003).
 
-        Guard de duplicata: notifica apenas na primeira detecção por trade_id.
+        Primeiro alerta: cria estado e persiste first_detected_at no MongoDB.
+        Re-alertas: enviados a cada `_renotify_interval_seconds` enquanto órfão.
         """
         entry_order_id = trade.get("entry_order_id", "")
-
-        # RF-005: guard de notificação duplicada (set em memória)
-        if entry_order_id in self._notified_sl_missing:
-            logger.debug("sl_missing_already_notified", entry_order_id=entry_order_id)
-            return
-
+        now = datetime.now(UTC)
         symbol = trade.get("symbol", "")
         sl_price = float(trade.get("stop_loss") or 0.0)
-
-        # pct_distance = abs(current_price - sl_price) / sl_price * 100
         pct_distance = abs(current_price - sl_price) / sl_price * 100 if sl_price else 0.0
-
         trade_id = str(trade.get("_id", entry_order_id))
+
+        if entry_order_id not in self._sl_missing_state:
+            # ── Primeira detecção ────────────────────────────────────────────
+            state = SLMissingState(
+                trade_id=trade_id,
+                first_detected_at=now,
+                last_notified_at=now,
+                notification_count=1,
+                renotify_interval_seconds=self._renotify_interval_seconds,
+            )
+            self._sl_missing_state[entry_order_id] = state
+
+            try:
+                await self._repository.update_sl_orphan_first_detected(
+                    entry_order_id=entry_order_id,
+                    first_detected_at=now,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "sl_orphan_first_detected_persist_failed",
+                    error_type=type(exc).__name__,
+                )
+
+            event = SLMissingEvent(
+                symbol=symbol,
+                trade_id=trade_id,
+                sl_price=sl_price,
+                current_price=current_price,
+                pct_distance=pct_distance,
+                timestamp=now,
+                notification_count=1,
+                time_unprotected_seconds=0,
+            )
+            await self._notifier.send(NotificationEvent.SL_MISSING, event)
+
+            await self._repository.audit(
+                "sl_missing_detected",
+                {
+                    "entry_order_id": entry_order_id,
+                    "symbol": symbol,
+                    "sl_price": sl_price,
+                    "current_price": current_price,
+                    "pct_distance": pct_distance,
+                    "notification_count": 1,
+                },
+            )
+
+            logger.warning(
+                "sl_missing_first_alert",
+                symbol=symbol,
+                entry_order_id=entry_order_id,
+                sl_price=sl_price,
+            )
+            return
+
+        # ── Re-notificação: checar se intervalo passou ────────────────────────
+        state = self._sl_missing_state[entry_order_id]
+        elapsed = (now - state.last_notified_at).total_seconds()
+
+        if elapsed < state.renotify_interval_seconds:
+            logger.debug(
+                "sl_missing_renotify_wait",
+                entry_order_id=entry_order_id,
+                elapsed_s=int(elapsed),
+                wait_s=int(state.renotify_interval_seconds - elapsed),
+            )
+            return
+
+        new_count = state.notification_count + 1
+        time_unprotected = int((now - state.first_detected_at).total_seconds())
+        state.notification_count = new_count
+        state.last_notified_at = now
 
         event = SLMissingEvent(
             symbol=symbol,
@@ -261,33 +357,104 @@ class OrderMonitor:
             sl_price=sl_price,
             current_price=current_price,
             pct_distance=pct_distance,
-            timestamp=datetime.now(UTC),
+            timestamp=now,
+            notification_count=new_count,
+            time_unprotected_seconds=time_unprotected,
         )
-
         await self._notifier.send(NotificationEvent.SL_MISSING, event)
 
-        # Marcar como notificado para evitar spam
-        self._notified_sl_missing.add(entry_order_id)
-
         await self._repository.audit(
-            "sl_missing_detected",
+            "sl_missing_renotified",
             {
                 "entry_order_id": entry_order_id,
                 "symbol": symbol,
-                "sl_price": sl_price,
-                "current_price": current_price,
-                "pct_distance": pct_distance,
+                "notification_count": new_count,
+                "time_unprotected_seconds": time_unprotected,
             },
         )
 
         logger.warning(
-            "sl_missing_notified",
+            "sl_missing_renotified",
             symbol=symbol,
             entry_order_id=entry_order_id,
-            sl_price=sl_price,
-            current_price=current_price,
-            pct_distance=pct_distance,
+            notification_count=new_count,
+            time_unprotected_seconds=time_unprotected,
         )
+
+    async def _handle_sl_cleared(self, trade: dict) -> None:
+        """Registra resolução de SL órfão (RF-004, RF-005, RF-007).
+
+        Chamado quando a posição fecha (TP/SL/manual) ou SL é restaurado
+        manualmente enquanto a posição ainda está aberta (CE-001).
+        Noop se o trade não estava em estado de SL órfão.
+        """
+        entry_order_id = trade.get("entry_order_id", "")
+        if entry_order_id not in self._sl_missing_state:
+            return
+
+        state = self._sl_missing_state.pop(entry_order_id)
+        now = datetime.now(UTC)
+        response_time = int((now - state.first_detected_at).total_seconds())
+        symbol = trade.get("symbol", "")
+
+        try:
+            await self._repository.update_sl_orphan_metrics(
+                entry_order_id=entry_order_id,
+                sl_restored_at=now,
+                response_time_seconds=response_time,
+                notification_count=state.notification_count,
+            )
+        except Exception as exc:
+            logger.warning(
+                "sl_orphan_metrics_persist_failed",
+                error_type=type(exc).__name__,
+            )
+
+        event = SLRestoredEvent(
+            symbol=symbol,
+            trade_id=state.trade_id,
+            response_time_seconds=response_time,
+            notification_count=state.notification_count,
+            timestamp=now,
+        )
+        await self._notifier.send(NotificationEvent.SL_RESTORED, event)
+
+        await self._repository.audit(
+            "sl_missing_cleared",
+            {
+                "entry_order_id": entry_order_id,
+                "symbol": symbol,
+                "response_time_seconds": response_time,
+                "notification_count": state.notification_count,
+            },
+        )
+
+        logger.info(
+            "sl_missing_cleared",
+            symbol=symbol,
+            entry_order_id=entry_order_id,
+            response_time_seconds=response_time,
+            notification_count=state.notification_count,
+        )
+
+    async def _has_active_stop_order(self, symbol: str) -> bool:
+        """Verifica se há ordem stop ativa para o símbolo (CE-001).
+
+        Conservador: retorna False em caso de falha, nunca silencia um alerta.
+        """
+        try:
+            orders = await self._client.fetch_open_orders(symbol)
+            return any(
+                o.get("type", "").lower() in ("stop_market", "stop", "stop_loss")
+                for o in orders
+            )
+        except Exception as exc:
+            logger.warning(
+                "check_stop_order_failed",
+                symbol=symbol,
+                error_type=type(exc).__name__,
+            )
+            return False
 
     async def _handle_manual_close(self, trade: dict) -> None:
         """Trata fechamento manual: cancela ordens remanescentes e registra CLOSED_MANUAL.
@@ -296,6 +463,8 @@ class OrderMonitor:
         """
         symbol = trade.get("symbol", "")
         entry_order_id = trade.get("entry_order_id", "")
+
+        await self._handle_sl_cleared(trade)
 
         # Cancelar ordens remanescentes antes de atualizar status
         await self._client.cancel_all_orders(symbol)

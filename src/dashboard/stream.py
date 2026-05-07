@@ -107,7 +107,9 @@ class PositionStream:
             await self._set_status("offline")
             raise
         except Exception as exc:
-            logger.exception("dashboard_position_stream_connect_failed", error=str(exc))
+            logger.exception(
+                "dashboard_position_stream_connect_failed", error_type=type(exc).__name__
+            )
             await self._close_session()
             await self._set_status("degraded")
             return False
@@ -141,7 +143,8 @@ class PositionStream:
                 task.cancel()
 
         tasks_to_wait = [
-            task for task in (self._stream_task, self._keepalive_task, self._health_check_task)
+            task
+            for task in (self._stream_task, self._keepalive_task, self._health_check_task)
             if task is not None
         ]
         if tasks_to_wait:
@@ -180,7 +183,7 @@ class PositionStream:
         try:
             payload = await self._client.fetch_position_risk()
         except Exception as exc:
-            logger.warning("dashboard_position_snapshot_load_failed", error=str(exc))
+            logger.warning("dashboard_position_snapshot_load_failed", error_type=type(exc).__name__)
             if self._cache is None:
                 raise
 
@@ -233,7 +236,7 @@ class PositionStream:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.exception("dashboard_position_stream_loop_failed", error=str(exc))
+            logger.exception("dashboard_position_stream_loop_failed", error_type=type(exc).__name__)
             await self._set_status("degraded")
 
     async def _handle_stream_payload(self, payload: dict[str, Any]) -> None:
@@ -301,7 +304,7 @@ class PositionStream:
             logger.warning(
                 "dashboard_position_snapshot_refresh_failed",
                 symbol=symbol,
-                error=str(exc),
+                error_type=type(exc).__name__,
             )
             return None
 
@@ -328,7 +331,7 @@ class PositionStream:
                 except Exception as renew_exc:
                     logger.warning(
                         "dashboard_position_stream_keepalive_renew_failed",
-                        error=str(renew_exc),
+                        error_type=type(renew_exc).__name__,
                     )
                     raise
         except asyncio.CancelledError:
@@ -336,7 +339,7 @@ class PositionStream:
         except Exception as exc:
             logger.exception(
                 "dashboard_position_stream_keepalive_failed",
-                error=str(exc),
+                error_type=type(exc).__name__,
                 reconnect_attempts=self._reconnect_attempts,
             )
             if self._websocket is not None and not self._websocket.closed:
@@ -353,7 +356,9 @@ class PositionStream:
         try:
             await self._client.delete_listen_key(self._listen_key)
         except Exception as exc:
-            logger.warning("dashboard_position_stream_delete_listen_key_failed", error=str(exc))
+            logger.warning(
+                "dashboard_position_stream_delete_listen_key_failed", error_type=type(exc).__name__
+            )
 
     async def _close_session(self) -> None:
         if self._session is None:
@@ -384,7 +389,7 @@ class PositionStream:
             logger.warning(
                 "dashboard_position_stream_status_callback_failed",
                 status=status,
-                error=str(exc),
+                error_type=type(exc).__name__,
             )
 
     async def _notify_update(self) -> None:
@@ -396,7 +401,9 @@ class PositionStream:
             if inspect.isawaitable(callback_result):
                 await callback_result
         except Exception as exc:
-            logger.warning("dashboard_position_stream_update_callback_failed", error=str(exc))
+            logger.warning(
+                "dashboard_position_stream_update_callback_failed", error_type=type(exc).__name__
+            )
 
     def _save_current_snapshot(self) -> None:
         if self._cache is None or not self._positions:
@@ -481,7 +488,7 @@ class PositionStream:
             logger.warning(
                 "dashboard_position_stream_reconnect_failed",
                 attempt=self._reconnect_attempts,
-                error=str(exc),
+                error_type=type(exc).__name__,
             )
 
     def _calculate_backoff(self) -> float:

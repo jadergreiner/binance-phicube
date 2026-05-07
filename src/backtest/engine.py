@@ -1,9 +1,25 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
+
+# Duração de cada timeframe em milissegundos — usado para paginação por since
+_TF_MS: dict[str, int] = {
+    "1m": 60_000,
+    "3m": 180_000,
+    "5m": 300_000,
+    "15m": 900_000,
+    "30m": 1_800_000,
+    "1h": 3_600_000,
+    "2h": 7_200_000,
+    "4h": 14_400_000,
+    "6h": 21_600_000,
+    "8h": 28_800_000,
+    "12h": 43_200_000,
+    "1d": 86_400_000,
+}
 
 from src.backtest.models import BacktestResult, BacktestTrade
 from src.config.settings import Settings
@@ -18,17 +34,27 @@ class BacktestEngine:
         self._signal_engine = SignalEngine(risk_reward_ratio=settings.risk_reward_ratio)
 
     async def _fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+        candle_ms = _TF_MS.get(timeframe, 60_000)
+        now_ms = int(datetime.now(UTC).timestamp() * 1000)
+        since = now_ms - limit * candle_ms
+
         frames: list[pd.DataFrame] = []
-        remaining = limit
-        while remaining > 0:
-            batch = min(remaining, 200)
-            df = await self._client.fetch_ohlcv(symbol, timeframe, limit=batch)
+        while True:
+            fetched = sum(len(f) for f in frames)
+            remaining = limit - fetched
+            if remaining <= 0:
+                break
+            batch = min(1000, remaining)
+            df = await self._client.fetch_ohlcv(symbol, timeframe, limit=batch, since=since)
             if df.empty:
                 break
             frames.append(df)
-            remaining -= len(df)
+            # Avança since para depois da última vela recebida — evita re-buscar as mesmas velas
+            last_ts_ms = pd.Timestamp(df["open_time"].iloc[-1]).value // 1_000_000
+            since = last_ts_ms + candle_ms
             if len(df) < batch:
                 break
+
         if not frames:
             return pd.DataFrame()
         result = pd.concat(frames, ignore_index=True)

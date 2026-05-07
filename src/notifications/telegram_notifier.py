@@ -82,7 +82,9 @@ class TelegramNotifier(Notifier):
             except asyncio.TimeoutError:
                 logger.warning(f"telegram_timeout attempt={attempt + 1}")
             except aiohttp.ClientError as exc:
-                logger.warning(f"telegram_network_error attempt={attempt + 1}: {type(exc).__name__}")
+                logger.warning(
+                    f"telegram_network_error attempt={attempt + 1}: {type(exc).__name__}"
+                )
 
             # Backoff exponencial: 1s, 2s, 4s
             if attempt < 2:

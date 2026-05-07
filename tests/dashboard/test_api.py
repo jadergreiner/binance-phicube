@@ -140,6 +140,8 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
                 "quantity": 0.5,
                 "leverage": 10,
                 "entry_price": 95000.0,
+                "sl_price": None,
+                "tp_price": None,
                 "mark_price": 96000.0,
                 "unrealized_pnl_usdt": 250.0,
                 "margin_used_usdt": 2400.0,

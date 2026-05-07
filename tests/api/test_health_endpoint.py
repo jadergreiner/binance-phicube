@@ -1,4 +1,4 @@
-"""Testes do endpoint GET /health (SPEC_007 task_003)."""
+"""Testes do endpoint GET /health (SPEC_007 + SPEC_017)."""
 
 from __future__ import annotations
 
@@ -19,14 +19,26 @@ def _make_app(repo=None) -> FastAPI:
     return app
 
 
+def _make_repo(ping_ok: bool = True, heartbeat_result=None, heartbeat_raises: bool = False):
+    mock_repo = AsyncMock()
+    mock_repo.database = AsyncMock()
+    if ping_ok:
+        mock_repo.database.command = AsyncMock(return_value={"ok": 1})
+    else:
+        mock_repo.database.command = AsyncMock(side_effect=Exception("connection refused"))
+    if heartbeat_raises:
+        mock_repo.get_last_heartbeat_at = AsyncMock(side_effect=Exception("mongo down"))
+    else:
+        mock_repo.get_last_heartbeat_at = AsyncMock(return_value=heartbeat_result)
+    return mock_repo
+
+
 class TestHealthEndpoint:
-    """TEST_007_07 e TEST_007_08 — endpoint GET /health."""
+    """TEST_007_07, TEST_007_08 — endpoint GET /health."""
 
     def test_retorna_200_quando_mongodb_ok(self) -> None:
         """TEST_007_07: MongoDB acessível → 200 com status ok."""
-        mock_repo = AsyncMock()
-        mock_repo.database = AsyncMock()
-        mock_repo.database.command = AsyncMock(return_value={"ok": 1})
+        mock_repo = _make_repo(ping_ok=True, heartbeat_result=None)
 
         app = _make_app(repo=mock_repo)
         with TestClient(app) as client:
@@ -36,14 +48,12 @@ class TestHealthEndpoint:
         data = response.json()
         assert data["status"] == "ok"
         assert data["mongodb"] == "ok"
-        assert data["bot_process"] == "unknown"
+        assert "bot_process" in data
         assert "timestamp" in data
 
     def test_retorna_503_quando_mongodb_falha(self) -> None:
         """TEST_007_08: MongoDB inacessível → 503 com status error."""
-        mock_repo = AsyncMock()
-        mock_repo.database = AsyncMock()
-        mock_repo.database.command = AsyncMock(side_effect=Exception("connection refused"))
+        mock_repo = _make_repo(ping_ok=False)
 
         app = _make_app(repo=mock_repo)
         with TestClient(app) as client:
@@ -65,15 +75,3 @@ class TestHealthEndpoint:
         assert data["status"] == "error"
         assert data["mongodb"] == "error"
         assert data["bot_process"] == "unknown"
-
-    def test_bot_process_sempre_unknown(self) -> None:
-        """bot_process nunca expõe estado interno do bot — sempre 'unknown'."""
-        mock_repo = AsyncMock()
-        mock_repo.database = AsyncMock()
-        mock_repo.database.command = AsyncMock(return_value={"ok": 1})
-
-        app = _make_app(repo=mock_repo)
-        with TestClient(app) as client:
-            response = client.get("/health")
-
-        assert response.json()["bot_process"] == "unknown"

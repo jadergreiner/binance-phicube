@@ -13,6 +13,7 @@ def _make_repo():
     """Instancia MongoRepository com cliente motor completamente mockado."""
     with patch("motor.motor_asyncio.AsyncIOMotorClient"):
         from src.storage.repository import MongoRepository
+
         repo = MongoRepository("mongodb://localhost/test", "test_db")
         return repo
 
@@ -88,9 +89,9 @@ class TestGetPerformanceMetrics:
         """TEST_006_04: 3 TP + 2 SL → métricas calculadas corretamente."""
         repo = _make_repo()
         trades = [
-            self._make_trade_doc(20.0, risk_amount=10.0),   # TP win
-            self._make_trade_doc(15.0, risk_amount=10.0),   # TP win
-            self._make_trade_doc(10.0, risk_amount=10.0),   # TP win
+            self._make_trade_doc(20.0, risk_amount=10.0),  # TP win
+            self._make_trade_doc(15.0, risk_amount=10.0),  # TP win
+            self._make_trade_doc(10.0, risk_amount=10.0),  # TP win
             self._make_trade_doc(-8.0, risk_amount=10.0, status=TradeStatus.CLOSED_SL.value),
             self._make_trade_doc(-6.0, risk_amount=10.0, status=TradeStatus.CLOSED_SL.value),
         ]

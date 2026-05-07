@@ -71,7 +71,14 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_009_ANALISE_PERFORMANCE_SIMBOLO_TIMEFRAME/](SPEC_009_ANALISE_PERFORMANCE_SIMBOLO_TIMEFRAME/SPEC.md) | SPEC_009 | Análise de Performance por Símbolo e Timeframe | Concluída |
 | [SPEC_010_DASHBOARD_PERFORMANCE/](SPEC_010_DASHBOARD_PERFORMANCE/SPEC.md) | SPEC_010 | Dashboard de Performance em Tempo Real | Concluída |
 | [SPEC_011_MOTOR_BACKTESTING/](SPEC_011_MOTOR_BACKTESTING/SPEC.md) | SPEC_011 | Motor de Backtesting | Concluída |
-| [SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS/](SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS/SPEC.md) | SPEC_012 | Monitoramento Ativo de Ordens e Posições Abertas | Em Execução |
+| [SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS/](SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS/SPEC.md) | SPEC_012 | Monitoramento Ativo de Ordens e Posições Abertas | Concluída |
+| [SPEC_013_VALIDACAO_SIGNAL_ENGINE/](SPEC_013_VALIDACAO_SIGNAL_ENGINE/SPEC.md) | SPEC_013 | Validação do Signal Engine — Curadoria, Corpus e Conformidade com o Método Phicube | Concluída |
+| [SPEC_014_SECURITY_DESIGN/](SPEC_014_SECURITY_DESIGN/SPEC.md) | SPEC_014 | Security Design — Gestão de Segredos, Superfícies de Ataque e Hardening Operacional | Concluída |
+| [SPEC_015_SL_ORFAO_INTERVENCAO_ASSISTIDA/](SPEC_015_SL_ORFAO_INTERVENCAO_ASSISTIDA/SPEC.md) | SPEC_015 | Monitoramento de SL Órfão — Loop de Alertas, Auditabilidade e Guia de Intervenção | Concluída |
+| [SPEC_016_VISIBILIDADE_OPERACIONAL_DASHBOARD/](SPEC_016_VISIBILIDADE_OPERACIONAL_DASHBOARD/SPEC.md) | SPEC_016 | Visibilidade Operacional Completa no Dashboard | Concluída |
+| [SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/](SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/SPEC.md) | SPEC_017 | Saúde do Bot: Heartbeat no MongoDB e Healthcheck HTTP | Concluída |
+| [SPEC_018_EXPANSAO_PARES_COMMODITIES/](SPEC_018_EXPANSAO_PARES_COMMODITIES/SPEC.md) | SPEC_018 | Expansão de Pares: Commodities (XPTUSDT e COPPERUSDT) | Concluída |
+| [SPEC_019_ONBOARDING_SIMBOLO/](SPEC_019_ONBOARDING_SIMBOLO/SPEC.md) | SPEC_019 | Onboarding de Símbolo — Wizard de Inclusão, Backtest e Aprovação para Produção | Concluída |
 
 ---
 

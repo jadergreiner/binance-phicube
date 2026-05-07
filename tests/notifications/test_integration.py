@@ -88,9 +88,7 @@ class TestOrderManagerNotifications:
         mock_notifier.send.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_notificacao_sl_falha_enviada(
-        self, mock_client, sample_signal, sample_position
-    ):
+    async def test_notificacao_sl_falha_enviada(self, mock_client, sample_signal, sample_position):
         """Notificação deve ser enviada quando SL falha após entrada."""
         # Arrange
         mock_notifier = AsyncMock()

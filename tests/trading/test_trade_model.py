@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-import pytest
-
 from src.strategy.signal_engine import Direction
 from src.trading.order_manager import Trade, TradeStatus
 

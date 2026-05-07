@@ -437,7 +437,8 @@ async def test_snapshot_logs_unresolved_leverage_once_per_symbol() -> None:
         assert stream.get_positions()[0].leverage == 0
         assert stream.get_positions()[0].position_size_usdt is None
         unresolved_logs = [
-            call for call in warning_mock.call_args_list
+            call
+            for call in warning_mock.call_args_list
             if call.args and call.args[0] == "dashboard_position_leverage_unresolved"
         ]
         assert len(unresolved_logs) == 1

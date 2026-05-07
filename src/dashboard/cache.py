@@ -59,7 +59,7 @@ class DashboardCache:
         except Exception as exc:
             logger.warning(
                 "dashboard_snapshot_cache_save_failed",
-                error=str(exc),
+                error_type=type(exc).__name__,
                 positions=len(positions),
             )
 

@@ -15,8 +15,9 @@ from __future__ import annotations
 import asyncio
 import signal
 import sys
+from datetime import UTC, datetime
 
-from src.config.settings import get_settings
+from src.config.settings import SymbolConfig, get_settings
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import configure_logging, get_logger
 from src.monitoring.order_monitor import OrderMonitor
@@ -47,6 +48,67 @@ _TIMEFRAME_SECONDS: dict[str, int] = {
 }
 
 
+class HeartbeatTask:
+    """Grava sinal periódico de vida do processo na collection audit (SPEC_017)."""
+
+    INTERVAL_SECONDS: int = 300
+
+    def __init__(self, repo: MongoRepository, monitor_count: int) -> None:
+        self._repo = repo
+        self._monitor_count = monitor_count
+        self._started_at = datetime.now(UTC)
+
+    async def run(self) -> None:
+        while True:
+            try:
+                await asyncio.sleep(self.INTERVAL_SECONDS)
+                await self._beat()
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                logger.debug("heartbeat_failed", error_type=type(exc).__name__)
+
+    async def _beat(self) -> None:
+        uptime = int((datetime.now(UTC) - self._started_at).total_seconds())
+        await self._repo.audit(
+            "heartbeat",
+            {
+                "process_uptime_seconds": uptime,
+                "monitor_count": self._monitor_count,
+                "metadata": {"source": "HeartbeatTask", "version": "1.0"},
+            },
+        )
+        logger.debug("heartbeat_recorded", uptime_seconds=uptime)
+
+
+async def _health_server(host: str = "0.0.0.0", port: int = 8081) -> None:
+    """Servidor HTTP mínimo para Docker healthcheck. Responde 200 (SPEC_017)."""
+
+    async def _handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        try:
+            await reader.read(1024)
+            writer.write(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Content-Length: 16\r\n"
+                b"\r\n"
+                b'{"status": "ok"}'
+            )
+            await writer.drain()
+        finally:
+            writer.close()
+
+    try:
+        server = await asyncio.start_server(_handle, host, port)
+        logger.info("health_server_started", host=host, port=port)
+        async with server:
+            await server.serve_forever()
+    except asyncio.CancelledError:
+        return
+    except Exception as exc:
+        logger.error("health_server_failed", error_type=type(exc).__name__)
+
+
 def _create_notifier(settings) -> Notifier:
     """Cria notificador baseado nas configurações do Telegram."""
     if settings.telegram_token and settings.telegram_chat_id:
@@ -58,12 +120,11 @@ def _create_notifier(settings) -> Notifier:
 
 
 class TradingMonitor:
-    """Monitors one (symbol, timeframe) pair and acts on closed candles."""
+    """Monitors one SymbolConfig triplet and acts on closed candles."""
 
     def __init__(
         self,
-        symbol: str,
-        timeframe: str,
+        config: SymbolConfig,
         client: BinanceClient,
         repo: MongoRepository,
         signal_engine: SignalEngine,
@@ -73,8 +134,9 @@ class TradingMonitor:
         max_open_positions: int,
         warmup_candles: int,
     ) -> None:
-        self._symbol = symbol
-        self._timeframe = timeframe
+        self._config = config
+        self._symbol = config.symbol
+        self._timeframe = config.timeframe
         self._client = client
         self._repo = repo
         self._signal_engine = signal_engine
@@ -83,7 +145,8 @@ class TradingMonitor:
         self._notifier = notifier
         self._max_positions = max_open_positions
         self._warmup_candles = warmup_candles
-        self._interval = 300  # Fixed 5-minute interval
+        # Intervalo derivado do timeframe — corrige bug de 300 s fixo (SPEC_018)
+        self._interval = _TIMEFRAME_SECONDS.get(config.timeframe, 300)
 
     async def run(self) -> None:
         logger.info("monitor_started", symbol=self._symbol, timeframe=self._timeframe)
@@ -99,7 +162,7 @@ class TradingMonitor:
                     "monitor_tick_error",
                     symbol=self._symbol,
                     timeframe=self._timeframe,
-                    error=str(exc),
+                    error_type=type(exc).__name__,
                     exc_info=True,
                 )
 
@@ -187,61 +250,51 @@ async def _main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
 
+    configs = settings.symbol_timeframes
+
     logger.info(
         "phicube_starting",
-        symbols=settings.symbols,
-        timeframes=settings.timeframes,
+        pairs=[(c.symbol, c.timeframe, c.leverage) for c in configs],
         testnet=settings.binance_testnet,
-        leverage=settings.leverage,
         risk_pct=settings.risk_per_trade_pct,
     )
 
     client = BinanceClient(settings)
     await client.connect()
 
-    # Fetch open positions and extract symbols
-    open_positions = await client.fetch_open_positions()
-    open_symbols = {pos["symbol"] for pos in open_positions if pos.get("symbol")}
-
-    # Combine authorized symbols with open position symbols, limit to 10 total
-    all_symbols = set(settings.symbols) | open_symbols
-    all_symbols = list(all_symbols)[:10]  # Limit to 10 symbols
-
-    logger.info(
-        "symbols_to_monitor",
-        authorized=settings.symbols,
-        open_positions=list(open_symbols),
-        total=all_symbols,
-    )
+    # Validação de liquidez para todos os pares configurados
+    for cfg in configs:
+        await client.validate_market_liquidity(cfg.symbol)
 
     repo = MongoRepository(settings.mongodb_uri, settings.mongodb_database)
     await repo.setup_indexes()
 
     signal_engine = SignalEngine(risk_reward_ratio=settings.risk_reward_ratio)
-    risk_manager = RiskManager(
-        risk_per_trade_pct=settings.risk_per_trade_pct,
-        leverage=settings.leverage,
-        max_capital_allocation_pct=settings.max_capital_allocation_pct,
-    )
     notifier = _create_notifier(settings)
-    order_manager = OrderManager(client, leverage=settings.leverage, notifier=notifier)
 
-    monitors = [
-        TradingMonitor(
-            symbol=symbol,
-            timeframe=timeframe,
-            client=client,
-            repo=repo,
-            signal_engine=signal_engine,
-            risk_manager=risk_manager,
-            order_manager=order_manager,
-            notifier=notifier,
-            max_open_positions=settings.max_open_positions,
-            warmup_candles=settings.warmup_candles,
+    # Um TradingMonitor por triplet — cada um com seu próprio RiskManager e leverage
+    monitors = []
+    for cfg in configs:
+        risk_manager = RiskManager(
+            risk_per_trade_pct=settings.risk_per_trade_pct,
+            leverage=cfg.leverage,
+            max_capital_allocation_pct=settings.max_capital_allocation_pct,
         )
-        for symbol in all_symbols
-        for timeframe in settings.timeframes
-    ]
+        order_manager = OrderManager(client, leverage=cfg.leverage, notifier=notifier)
+        await client.set_leverage(cfg.symbol, cfg.leverage)
+        monitors.append(
+            TradingMonitor(
+                config=cfg,
+                client=client,
+                repo=repo,
+                signal_engine=signal_engine,
+                risk_manager=risk_manager,
+                order_manager=order_manager,
+                notifier=notifier,
+                max_open_positions=settings.max_open_positions,
+                warmup_candles=settings.warmup_candles,
+            )
+        )
 
     reporter = PerformanceReporter(
         repository=repo,
@@ -253,11 +306,14 @@ async def _main() -> None:
         client=client,
         repository=repo,
         notifier=notifier,
+        renotify_interval_seconds=settings.sl_missing_renotify_interval_minutes * 60,
     )
 
     tasks = [asyncio.create_task(m.run()) for m in monitors]
     tasks.append(asyncio.create_task(reporter.run()))
     tasks.append(asyncio.create_task(order_monitor.run()))
+    tasks.append(asyncio.create_task(HeartbeatTask(repo=repo, monitor_count=len(monitors)).run()))
+    tasks.append(asyncio.create_task(_health_server()))
 
     # Graceful shutdown on SIGINT / SIGTERM
     loop = asyncio.get_running_loop()

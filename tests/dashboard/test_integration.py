@@ -184,8 +184,12 @@ def _patch_api_lifespan(monkeypatch) -> None:
 
 
 def _load_compose_text() -> str:
-    return Path(__file__).resolve().parents[2].joinpath("docker-compose.yml").read_text(
-        encoding="utf-8"
+    return (
+        Path(__file__)
+        .resolve()
+        .parents[2]
+        .joinpath("docker-compose.yml")
+        .read_text(encoding="utf-8")
     )
 
 

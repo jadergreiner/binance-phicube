@@ -178,9 +178,11 @@ def test_classifica_erro_401_2015_como_auth_issue_mainnet() -> None:
     settings = _make_settings(binance_testnet=False)
     client = DashboardClient(settings)
 
-    issue = client._classify_auth_issue(
-        DashboardClientError("Falha ao executar 'new_listen_key': (401, -2015, 'Invalid API-key, IP, or permissions for action')")
+    msg = (
+        "Falha ao executar 'new_listen_key': "
+        "(401, -2015, 'Invalid API-key, IP, or permissions for action')"
     )
+    issue = client._classify_auth_issue(DashboardClientError(msg))
 
     assert issue is not None
     assert issue.reason in {
@@ -194,9 +196,11 @@ def test_classifica_erro_401_2015_como_env_mismatch_no_testnet() -> None:
     settings = _make_settings(binance_testnet=True)
     client = DashboardClient(settings)
 
-    issue = client._classify_auth_issue(
-        DashboardClientError("Falha ao executar 'new_listen_key': (401, -2015, 'Invalid API-key, IP, or permissions for action')")
+    msg = (
+        "Falha ao executar 'new_listen_key': "
+        "(401, -2015, 'Invalid API-key, IP, or permissions for action')"
     )
+    issue = client._classify_auth_issue(DashboardClientError(msg))
 
     assert issue is not None
     assert issue.reason in {

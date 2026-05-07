@@ -115,7 +115,7 @@ class OrderManager:
                 quantity=position.quantity,
             )
         except Exception as exc:
-            logger.error("entry_order_failed", symbol=symbol, error=str(exc))
+            logger.error("entry_order_failed", symbol=symbol, error_type=type(exc).__name__)
             return None
 
         entry_order_id = str(entry_order.get("id", "unknown"))
@@ -145,7 +145,7 @@ class OrderManager:
             logger.error(
                 "sl_order_failed",
                 symbol=symbol,
-                error=str(exc),
+                error_type=type(exc).__name__,
                 action="cancelling_all_orders",
             )
             await self._client.cancel_all_orders(symbol)
@@ -180,7 +180,7 @@ class OrderManager:
             logger.error(
                 "tp_order_failed",
                 symbol=symbol,
-                error=str(exc),
+                error_type=type(exc).__name__,
                 action="cancelling_all_orders",
             )
             await self._client.cancel_all_orders(symbol)

@@ -170,9 +170,7 @@ async def test_012_02_sem_notificacao_duplicada():
         fetch_positions=[{"symbol": "BTCUSDT", "contracts": 0.01}],
     )
 
-    mock_client.fetch_order = AsyncMock(
-        return_value=_make_order(status="canceled", average=0.0)
-    )
+    mock_client.fetch_order = AsyncMock(return_value=_make_order(status="canceled", average=0.0))
 
     # Primeiro ciclo — deve notificar
     await monitor._check_trade(trade)
@@ -236,9 +234,7 @@ async def test_012_04_sl_executado_pnl_correto():
         get_open_trades=[trade],
     )
 
-    mock_client.fetch_order = AsyncMock(
-        return_value=_make_order(status="closed", average=39100.0)
-    )
+    mock_client.fetch_order = AsyncMock(return_value=_make_order(status="closed", average=39100.0))
 
     await monitor._check_trade(trade)
 
@@ -266,9 +262,7 @@ async def test_012_05_fechamento_manual_cancel_all_closed_manual_is_estimated():
     )
 
     # SL e TP ainda abertos — posição zerada manualmente
-    mock_client.fetch_order = AsyncMock(
-        return_value=_make_order(status="open", average=0.0)
-    )
+    mock_client.fetch_order = AsyncMock(return_value=_make_order(status="open", average=0.0))
 
     await monitor._check_trade(trade)
 
@@ -377,9 +371,7 @@ async def test_012_09_startup_reconciliation_trade_open_sl_preenchido():
     )
 
     # SL e TP abertos (estado normal)
-    mock_client.fetch_order = AsyncMock(
-        return_value=_make_order(status="open", average=0.0)
-    )
+    mock_client.fetch_order = AsyncMock(return_value=_make_order(status="open", average=0.0))
 
     await monitor._check_trade(trade)
 

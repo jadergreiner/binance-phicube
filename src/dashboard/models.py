@@ -99,9 +99,7 @@ def build_account_summary(
         except Exception:
             return None
 
-    total_exposure_usdt = sum(
-        _extract_position_size(position) or 0.0 for position in positions
-    )
+    total_exposure_usdt = sum(_extract_position_size(position) or 0.0 for position in positions)
     total_margin_used_usdt = sum(position.margin_used_usdt for position in positions)
     total_unrealized_pnl_usdt = sum(position.unrealized_pnl_usdt for position in positions)
     last_update_at = max(

@@ -185,7 +185,7 @@ class AdaptiveUpdater:
         except Exception as exc:
             logger.warning(
                 "dashboard_adaptive_updater_poll_failed",
-                error=str(exc),
+                error_type=type(exc).__name__,
             )
             return
 
@@ -271,7 +271,7 @@ class AdaptiveUpdater:
         except Exception as exc:
             logger.warning(
                 "dashboard_adaptive_updater_stream_restore_failed",
-                error=str(exc),
+                error_type=type(exc).__name__,
             )
             await stream._set_status("degraded")
             return

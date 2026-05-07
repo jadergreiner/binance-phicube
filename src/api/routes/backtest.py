@@ -37,7 +37,7 @@ async def get_backtest(
     request: Request,
     symbol: Annotated[str, Query(min_length=3, max_length=20)],
     timeframe: Annotated[str, Query()],
-    limit: Annotated[int, Query(ge=50, le=5000)] = 500,
+    limit: Annotated[int, Query(ge=50, le=60000)] = 500,
     balance: Annotated[float, Query(gt=0)] = 1000.0,
 ) -> JSONResponse:
     """Executa backtest da estratégia Phicube sobre dados históricos.
@@ -45,7 +45,7 @@ async def get_backtest(
     Parâmetros:
     - symbol: par negociado (ex: BTCUSDT)
     - timeframe: intervalo de candle (ex: 4h)
-    - limit: número de candles a buscar (50–5000, default 500)
+    - limit: número de candles a buscar (50–60000, default 500)
     - balance: saldo simulado em USDT (default 1000)
     """
     if timeframe not in _VALID_TIMEFRAMES:

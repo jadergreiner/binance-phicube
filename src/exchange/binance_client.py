@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import Any
 
 import ccxt.async_support as ccxt
@@ -10,6 +11,14 @@ from src.config.settings import Settings
 from src.monitoring.logger import get_logger
 
 logger = get_logger(__name__)
+
+LIQUIDITY_MIN_VOLUME_24H: float = 500_000.0
+LIQUIDITY_MIN_OPEN_INTEREST: float = 200_000.0
+
+
+class InsufficientLiquidityError(Exception):
+    """Levantada quando um par não atinge os mínimos de liquidez exigidos."""
+
 
 # Mapping from simple notation (15m) to ccxt timeframe string
 _TIMEFRAME_MAP: dict[str, str] = {
@@ -56,6 +65,13 @@ class BinanceClient:
     # ─── Lifecycle ────────────────────────────────────────────────────────────
 
     async def connect(self) -> None:
+        # ccxt chama fetch_currencies() → api.binance.com/sapi/v1/margin/allPairs
+        # (endpoint spot/margin desnecessário para USDT-M futures). Ignorar para evitar
+        # falha quando api.binance.com não está acessível (testnet, VPN, firewall).
+        async def _no_currencies(*_args, **_kwargs):
+            return {}
+
+        self._exchange.fetch_currencies = _no_currencies  # type: ignore[method-assign]
         await self._exchange.load_markets()
         logger.info("binance_client_connected", testnet=self._settings.binance_testnet)
 
@@ -70,15 +86,18 @@ class BinanceClient:
         symbol: str,
         timeframe: str,
         limit: int = 200,
+        since: int | None = None,
     ) -> pd.DataFrame:
         """Fetch OHLCV candles and return as DataFrame.
 
         Returns columns: [open_time, open, high, low, close, volume]
         The last (most recent) candle may be incomplete — callers should
         discard it when computing indicators.
+
+        since: Unix timestamp em ms. None → candles mais recentes.
         """
         tf = _TIMEFRAME_MAP.get(timeframe, timeframe)
-        raw: list[list] = await self._exchange.fetch_ohlcv(symbol, tf, limit=limit)
+        raw: list[list] = await self._exchange.fetch_ohlcv(symbol, tf, since=since, limit=limit)
 
         df = pd.DataFrame(raw, columns=["open_time", "open", "high", "low", "close", "volume"])
         df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
@@ -103,6 +122,47 @@ class BinanceClient:
 
     async def fetch_ticker(self, symbol: str) -> dict[str, Any]:
         return await self._exchange.fetch_ticker(symbol)
+
+    async def validate_market_liquidity(
+        self,
+        symbol: str,
+        min_volume: float = LIQUIDITY_MIN_VOLUME_24H,
+        min_oi: float = LIQUIDITY_MIN_OPEN_INTEREST,
+    ) -> None:
+        """Levanta InsufficientLiquidityError se o par não atende mínimos (INV-018-03)."""
+        ticker = await self._exchange.fetch_ticker(symbol)
+        volume_24h = float(ticker.get("quoteVolume") or 0.0)
+        if volume_24h < min_volume:
+            raise InsufficientLiquidityError(
+                f"{symbol}: volume_24h={volume_24h:.0f} USDT < mínimo {min_volume:.0f}"
+            )
+        try:
+            oi_data = await self._exchange.fetch_open_interest(symbol)
+            oi = float(oi_data.get("openInterestValue") or 0.0)
+        except Exception as exc:
+            logger.warning(
+                "fetch_open_interest_failed",
+                symbol=symbol,
+                error_type=type(exc).__name__,
+            )
+            oi = 0.0
+        if oi < min_oi:
+            raise InsufficientLiquidityError(
+                f"{symbol}: open_interest={oi:.0f} USDT < mínimo {min_oi:.0f}"
+            )
+        logger.info("market_liquidity_ok", symbol=symbol, volume_24h=volume_24h, oi=oi)
+
+    async def fetch_quantity_precision_map(
+        self, symbols: list[str]
+    ) -> dict[str, int]:
+        """Retorna {symbol: casas_decimais} para cada símbolo solicitado."""
+        markets = await self._exchange.load_markets()
+        result: dict[str, int] = {}
+        for s in symbols:
+            if s in markets:
+                precision = markets[s].get("precision", {}).get("amount", 0)
+                result[s] = int(precision or 0)
+        return result
 
     # ─── Order Management ─────────────────────────────────────────────────────
 
@@ -210,6 +270,12 @@ class BinanceClient:
         except Exception as exc:
             logger.warning("cancel_all_orders_failed", symbol=symbol, error_type=type(exc).__name__)
 
+    async def fetch_open_orders(self, symbol: str) -> list[dict[str, Any]]:
+        """Retorna ordens abertas (não preenchidas) para o símbolo."""
+        orders = await self._exchange.fetch_open_orders(symbol)
+        logger.debug("fetch_open_orders_ok", symbol=symbol, count=len(orders))
+        return orders
+
     async def fetch_order(self, order_id: str, symbol: str) -> dict:
         """Busca detalhes de uma ordem pelo ID.
 
@@ -229,24 +295,27 @@ class BinanceClient:
     # ─── Symbol Info ──────────────────────────────────────────────────────────
 
     def get_quantity_precision(self, symbol: str) -> int:
-        """Return the quantity decimal precision for a symbol."""
+        """Retorna casas decimais para quantidade, compatível com TICK_SIZE e DECIMAL_PLACES."""
         market = self._exchange.markets.get(symbol, {})
-        precision = market.get("precision", {}).get("amount", 3)
-        return int(precision)
-
-    def get_price_precision(self, symbol: str) -> int:
-        """Return the price decimal precision for a symbol."""
-        market = self._exchange.markets.get(symbol, {})
-        precision = market.get("precision", {}).get("price", 2)
-        return int(precision)
+        amount = market.get("precision", {}).get("amount", 3)
+        if amount is None:
+            return 3
+        famt = float(amount)
+        if self._exchange.precisionMode == ccxt.TICK_SIZE:
+            if famt <= 0:
+                return 0
+            if famt >= 1:
+                return 0
+            return max(0, -int(math.floor(math.log10(famt))))
+        return int(famt)
 
     def round_quantity(self, symbol: str, qty: float) -> float:
-        decimals = self.get_quantity_precision(symbol)
-        return round(qty, decimals)
+        """Arredonda quantidade ao step size do símbolo via CCXT."""
+        return float(self._exchange.amount_to_precision(symbol, qty))
 
     def round_price(self, symbol: str, price: float) -> float:
-        decimals = self.get_price_precision(symbol)
-        return round(price, decimals)
+        """Arredonda preço ao tick size do símbolo via CCXT."""
+        return float(self._exchange.price_to_precision(symbol, price))
 
     # ─── Retry helper ─────────────────────────────────────────────────────────
 

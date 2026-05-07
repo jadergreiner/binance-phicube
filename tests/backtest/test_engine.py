@@ -87,11 +87,27 @@ class TestBacktestEngineTradeTP:
         # candles: 10 de base, depois 1 com high >= tp para fechar TP
         rows = []
         for i in range(10):
-            rows.append({"open_time": i, "open": base, "high": base + 0.1, "low": base - 0.1,
-                         "close": base, "volume": 1000.0})
+            rows.append(
+                {
+                    "open_time": i,
+                    "open": base,
+                    "high": base + 0.1,
+                    "low": base - 0.1,
+                    "close": base,
+                    "volume": 1000.0,
+                }
+            )
         # candle de fechamento: high >= tp
-        rows.append({"open_time": 10, "open": base, "high": tp + 1,
-                     "low": base - 0.1, "close": tp, "volume": 1000.0})
+        rows.append(
+            {
+                "open_time": 10,
+                "open": base,
+                "high": tp + 1,
+                "low": base - 0.1,
+                "close": tp,
+                "volume": 1000.0,
+            }
+        )
         df = pd.DataFrame(rows)
 
         client = AsyncMock()
@@ -131,11 +147,27 @@ class TestBacktestEngineTradeSL:
 
         rows = []
         for i in range(10):
-            rows.append({"open_time": i, "open": base, "high": base + 0.1, "low": base - 0.1,
-                         "close": base, "volume": 1000.0})
+            rows.append(
+                {
+                    "open_time": i,
+                    "open": base,
+                    "high": base + 0.1,
+                    "low": base - 0.1,
+                    "close": base,
+                    "volume": 1000.0,
+                }
+            )
         # candle de fechamento: low <= sl
-        rows.append({"open_time": 10, "open": base, "high": base + 0.1,
-                     "low": sl - 1, "close": sl, "volume": 1000.0})
+        rows.append(
+            {
+                "open_time": 10,
+                "open": base,
+                "high": base + 0.1,
+                "low": sl - 1,
+                "close": sl,
+                "volume": 1000.0,
+            }
+        )
         df = pd.DataFrame(rows)
 
         client = AsyncMock()
@@ -226,3 +258,80 @@ class TestBacktestEngineMaxDrawdown:
         assert metrics["max_drawdown_usdt"] == pytest.approx(-30.0, abs=0.01)
         assert metrics["total_trades"] == 4
         assert metrics["win_rate_pct"] == pytest.approx(75.0, abs=0.01)
+
+
+class TestBacktestEnginePaginacao:
+    """Regressão: _fetch_ohlcv deve paginar com since crescente, não repetir velas."""
+
+    @pytest.mark.asyncio
+    async def test_since_cresce_entre_batches(self) -> None:
+        """limit=1500 força 2 calls (1000 + 500); since do 2º > since do 1º."""
+        candle_ms = 900_000  # 15m
+        sinces_received: list[int | None] = []
+
+        async def _mock(sym, tf, limit=200, since=None):
+            # Mock retorna timestamps iniciando a partir do since recebido
+            assert since is not None
+            sinces_received.append(since)
+            times = [
+                pd.Timestamp((since + i * candle_ms) * 1_000_000)
+                for i in range(limit)
+            ]
+            return pd.DataFrame(
+                {
+                    "open_time": times,
+                    "open": [100.0] * limit,
+                    "high": [101.0] * limit,
+                    "low": [99.0] * limit,
+                    "close": [100.5] * limit,
+                    "volume": [1000.0] * limit,
+                }
+            )
+
+        settings = _make_settings(warmup=5)
+        client = MagicMock()
+        client.fetch_ohlcv = _mock
+
+        engine = BacktestEngine(settings, client)
+        result = await engine._fetch_ohlcv("ATOMUSDT", "15m", limit=1500)
+
+        assert len(result) == 1500
+        assert len(sinces_received) == 2  # 1000 + 500
+        # since do segundo batch deve ser maior que o do primeiro
+        assert sinces_received[1] > sinces_received[0]  # type: ignore[operator]
+
+    @pytest.mark.asyncio
+    async def test_sem_duplicatas_entre_batches(self) -> None:
+        """drop_duplicates remove sobreposição de open_time entre batches."""
+        candle_ms = 900_000
+        calls = 0
+
+        async def _mock_overlap(sym, tf, limit=200, since=None):
+            nonlocal calls
+            calls += 1
+            assert since is not None
+            # Batch 2 começa 1 candle antes do fim do batch 1 — cria sobreposição
+            offset = (calls - 1) * limit - (calls - 1)
+            times = [
+                pd.Timestamp((since + i * candle_ms) * 1_000_000)
+                for i in range(limit)
+            ]
+            return pd.DataFrame(
+                {
+                    "open_time": times,
+                    "open": [100.0] * limit,
+                    "high": [101.0] * limit,
+                    "low": [99.0] * limit,
+                    "close": [100.5] * limit,
+                    "volume": [1000.0] * limit,
+                }
+            )
+
+        settings = _make_settings(warmup=2)
+        client = MagicMock()
+        client.fetch_ohlcv = _mock_overlap
+
+        engine = BacktestEngine(settings, client)
+        result = await engine._fetch_ohlcv("ATOMUSDT", "15m", limit=1500)
+
+        assert result["open_time"].is_unique

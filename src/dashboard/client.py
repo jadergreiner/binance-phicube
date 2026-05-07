@@ -9,8 +9,8 @@ trade, lançando `DashboardClientError` caso contrário.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import ccxt.async_support as ccxt
@@ -80,7 +80,7 @@ class DashboardClient:
         try:
             await self._exchange.load_markets()
         except Exception as exc:
-            logger.warning("dashboard_client_load_markets_failed", error=str(exc))
+            logger.warning("dashboard_client_load_markets_failed", error_type=type(exc).__name__)
         await self._validate_readonly_permissions()
         await self._validate_futures_access()
         logger.info("dashboard_client_connected", testnet=self._settings.binance_testnet)
@@ -145,27 +145,28 @@ class DashboardClient:
         try:
             await self._exchange.load_time_difference()
         except Exception as exc:
-            logger.warning("dashboard_client_load_time_difference_failed", error=str(exc))
+            logger.warning(
+                "dashboard_client_load_time_difference_failed", error_type=type(exc).__name__
+            )
 
     async def _sync_sdk_clock(self) -> None:
         try:
             response = await self._call_um_futures("time")
         except Exception as exc:
-            logger.warning("dashboard_client_sdk_clock_sync_failed", error=str(exc))
+            logger.warning("dashboard_client_sdk_clock_sync_failed", error_type=type(exc).__name__)
             return
 
         if not isinstance(response, dict):
             logger.warning(
                 "dashboard_client_sdk_clock_sync_failed",
-                error="Resposta inválida do endpoint de tempo"
+                error="Resposta inválida do endpoint de tempo",
             )
             return
 
         server_time = response.get("serverTime")
         if server_time is None:
             logger.warning(
-                "dashboard_client_sdk_clock_sync_failed",
-                error="Servidor não retornou serverTime"
+                "dashboard_client_sdk_clock_sync_failed", error="Servidor não retornou serverTime"
             )
             return
 
@@ -235,8 +236,10 @@ class DashboardClient:
             raise
 
     def _classify_auth_issue(self, exc: DashboardClientError) -> DashboardAuthIssue | None:
-        raw_error = str(exc)
-        lower_error = raw_error.lower()
+        # str(exc) usado apenas para análise de código de erro interno (não logado).
+        # DashboardClientError contém mensagem sanitizada — não expõe credenciais.
+        error_message = str(exc)
+        lower_error = error_message.lower()
         has_401 = "401" in lower_error
         has_2015 = "-2015" in lower_error
         has_invalid_key_msg = "invalid api-key, ip, or permissions for action" in lower_error
@@ -284,12 +287,16 @@ class DashboardClient:
             if positions:
                 return positions
         except Exception as exc:
-            logger.warning("dashboard_client_fetch_position_risk_sdk_failed", error=str(exc))
+            logger.warning(
+                "dashboard_client_fetch_position_risk_sdk_failed", error_type=type(exc).__name__
+            )
 
         try:
             positions = await self._exchange.fetch_positions()
         except Exception as exc:
-            logger.warning("dashboard_client_fetch_position_risk_ccxt_failed", error=str(exc))
+            logger.warning(
+                "dashboard_client_fetch_position_risk_ccxt_failed", error_type=type(exc).__name__
+            )
             return []
 
         payload = positions if isinstance(positions, list) else [positions]
@@ -365,7 +372,9 @@ class DashboardClient:
             positions: list[dict[str, Any]] = await self._exchange.fetch_positions()
             return [p for p in positions if float(p.get("contracts", 0)) != 0]
         except Exception as exc:
-            logger.warning("dashboard_client_fetch_positions_ccxt_failed", error=str(exc))
+            logger.warning(
+                "dashboard_client_fetch_positions_ccxt_failed", error_type=type(exc).__name__
+            )
 
         raw_positions = await self._call_um_futures("get_position_risk")
         payload = raw_positions if isinstance(raw_positions, list) else [raw_positions]

@@ -19,6 +19,7 @@ class NotificationEvent(str, Enum):
     SL_PROTECTION_FAILED = "sl_protection_failed"
     PERFORMANCE_REPORT = "performance_report"
     SL_MISSING = "sl_missing"
+    SL_RESTORED = "sl_restored"
 
 
 @dataclass(frozen=True)
@@ -108,20 +109,53 @@ class SLMissingEvent:
     current_price: float
     pct_distance: float
     timestamp: datetime
+    notification_count: int = 1
+    time_unprotected_seconds: int = 0
 
     def to_message(self) -> str:
         """Converte o evento em mensagem formatada para Telegram."""
-        return f"""🚨 **SL AUSENTE — AÇÃO NECESSÁRIA**
+        if self.notification_count > 1:
+            mins = self.time_unprotected_seconds // 60
+            header = f"🚨 **SL AUSENTE — Re-alerta #{self.notification_count}**"
+            extra = f"\n⏳ **Desprotegido há:** {mins} minuto(s)"
+        else:
+            header = "🚨 **SL AUSENTE — AÇÃO NECESSÁRIA**"
+            extra = ""
 
-📊 **Símbolo:** {self.symbol}
-🛡️ **SL esperado:** ${self.sl_price:.4f}
-📈 **Preço atual:** ${self.current_price:.4f}
-📏 **Distância:** {self.pct_distance:.2f}%
-🆔 **Trade ID:** {self.trade_id}
+        return (
+            f"{header}\n\n"
+            f"📊 **Símbolo:** {self.symbol}\n"
+            f"🛡️ **SL esperado:** ${self.sl_price:.4f}\n"
+            f"📈 **Preço atual:** ${self.current_price:.4f}\n"
+            f"📏 **Distância:** {self.pct_distance:.2f}%\n"
+            f"🆔 **Trade ID:** {self.trade_id}"
+            f"{extra}\n\n"
+            f"**AÇÃO NECESSÁRIA:** Recoloque o Stop Loss manualmente!\n\n"
+            f"⏰ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+        )
 
-**AÇÃO NECESSÁRIA:** Recoloque o Stop Loss manualmente!
 
-⏰ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"""
+@dataclass(frozen=True)
+class SLRestoredEvent:
+    """Evento informativo de SL restaurado ou posição encerrada após período órfão."""
+
+    symbol: str
+    trade_id: str
+    response_time_seconds: int
+    notification_count: int
+    timestamp: datetime
+
+    def to_message(self) -> str:
+        """Converte o evento em mensagem formatada para Telegram."""
+        mins = self.response_time_seconds // 60
+        return (
+            f"✅ **SL RESTAURADO**\n\n"
+            f"📊 **Símbolo:** {self.symbol}\n"
+            f"🆔 **Trade ID:** {self.trade_id}\n"
+            f"⏱️ **Tempo de resposta:** {mins} minuto(s)\n"
+            f"🔔 **Alertas enviados:** {self.notification_count}\n\n"
+            f"⏰ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+        )
 
 
 @dataclass(frozen=True)
