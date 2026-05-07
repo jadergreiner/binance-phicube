@@ -1,0 +1,1442 @@
+[
+  {
+    "case_id": "CASE_001",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -3
+    },
+    "alligator_state": {
+      "jaw": 81561.12517225,
+      "teeth": 81832.96815436,
+      "lips": 82152.04553809,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 774.37705882,
+      "prev": 776.61382353,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82150.0,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_002",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:15:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -4
+    },
+    "alligator_state": {
+      "jaw": 81602.11554362,
+      "teeth": 81894.99088507,
+      "lips": 82241.17643047,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 744.64823529,
+      "prev": 774.37705882,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82351.3,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_003",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:30:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -5
+    },
+    "alligator_state": {
+      "jaw": 81647.12204026,
+      "teeth": 81983.19827443,
+      "lips": 82291.65114438,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 666.50205882,
+      "prev": 744.64823529,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82308.7,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_004",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:45:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -6
+    },
+    "alligator_state": {
+      "jaw": 81691.83188332,
+      "teeth": 82060.01099013,
+      "lips": 82299.1909155,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 574.43558824,
+      "prev": 666.50205882,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82188.0,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_005",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -7
+    },
+    "alligator_state": {
+      "jaw": 81740.85635383,
+      "teeth": 82114.20336636,
+      "lips": 82298.3127324,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 454.77117647,
+      "prev": 574.43558824,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82070.2,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_006",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:15:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -8
+    },
+    "alligator_state": {
+      "jaw": 81806.99432661,
+      "teeth": 82141.09669557,
+      "lips": 82303.95018592,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 366.995,
+      "prev": 454.77117647,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81910.1,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_007",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:30:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -9
+    },
+    "alligator_state": {
+      "jaw": 81867.81783995,
+      "teeth": 82160.30960862,
+      "lips": 82293.71014874,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 264.63882353,
+      "prev": 366.995,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81875.4,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_008",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:45:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -10
+    },
+    "alligator_state": {
+      "jaw": 81915.95108303,
+      "teeth": 82181.08340754,
+      "lips": 82232.96811899,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 127.82558824,
+      "prev": 264.63882353,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81621.1,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_009",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T14:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 81269.5,
+      "bar_index": -25
+    },
+    "alligator_state": {
+      "jaw": 81947.75099972,
+      "teeth": 82190.0417316,
+      "lips": 82183.38449519,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": -57.54294118,
+      "prev": 127.82558824,
+      "crossing_zero": true,
+      "histogram_color": "red"
+    },
+    "close": 81407.9,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_010",
+    "symbol": "BTCUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T14:15:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 81269.5,
+      "bar_index": -26
+    },
+    "alligator_state": {
+      "jaw": 81974.44707667,
+      "teeth": 82165.03651515,
+      "lips": 82121.42759615,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": -164.11147059,
+      "prev": -57.54294118,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 81567.1,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_011",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T04:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81745.4,
+      "bar_index": -7
+    },
+    "alligator_state": {
+      "jaw": 80846.28120349,
+      "teeth": 81148.72358474,
+      "lips": 81188.0181656,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 369.06647059,
+      "prev": 311.84852941,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81285.1,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_012",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T05:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -2
+    },
+    "alligator_state": {
+      "jaw": 80897.02495707,
+      "teeth": 81122.60813665,
+      "lips": 81190.41453248,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 377.74352941,
+      "prev": 369.06647059,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81277.8,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_013",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T06:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -3
+    },
+    "alligator_state": {
+      "jaw": 80917.14611421,
+      "teeth": 81134.32586957,
+      "lips": 81254.83162598,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 358.33088235,
+      "prev": 377.74352941,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81431.7,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_014",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T07:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -4
+    },
+    "alligator_state": {
+      "jaw": 80919.43102851,
+      "teeth": 81142.53513587,
+      "lips": 81286.12530079,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 364.26058824,
+      "prev": 358.33088235,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81333.3,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_015",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T08:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -5
+    },
+    "alligator_state": {
+      "jaw": 80920.99787247,
+      "teeth": 81188.78074389,
+      "lips": 81260.19024063,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 342.22823529,
+      "prev": 364.26058824,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81903.6,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_016",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T09:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -6
+    },
+    "alligator_state": {
+      "jaw": 80943.71726689,
+      "teeth": 81216.5956509,
+      "lips": 81271.1021925,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 366.55235294,
+      "prev": 342.22823529,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81959.3,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_017",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T10:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -7
+    },
+    "alligator_state": {
+      "jaw": 80963.43132328,
+      "teeth": 81209.07744454,
+      "lips": 81300.971754,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 499.93647059,
+      "prev": 366.55235294,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82242.1,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_018",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T11:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -8
+    },
+    "alligator_state": {
+      "jaw": 81005.66737534,
+      "teeth": 81222.28651397,
+      "lips": 81363.2774032,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 672.37617647,
+      "prev": 499.93647059,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82485.4,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_019",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T12:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 81716.3,
+      "bar_index": -9
+    },
+    "alligator_state": {
+      "jaw": 81036.86988493,
+      "teeth": 81247.05694973,
+      "lips": 81454.41192256,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 799.65911765,
+      "prev": 672.37617647,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 82188.0,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_020",
+    "symbol": "BTCUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T13:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 82828.7,
+      "bar_index": -2
+    },
+    "alligator_state": {
+      "jaw": 81046.06835532,
+      "teeth": 81292.73733101,
+      "lips": 81592.60953805,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 816.56264706,
+      "prev": 799.65911765,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 81621.1,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_021",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2406.16,
+      "bar_index": -5
+    },
+    "alligator_state": {
+      "jaw": 2381.04401677,
+      "teeth": 2394.56596914,
+      "lips": 2406.12066128,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 27.12535294,
+      "prev": 28.67667647,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2401.67,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": false
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_022",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:15:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2422.52,
+      "bar_index": -4
+    },
+    "alligator_state": {
+      "jaw": 2383.27063086,
+      "teeth": 2396.482723,
+      "lips": 2407.37152902,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 25.23264706,
+      "prev": 27.12535294,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2408.55,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_023",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:30:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2422.52,
+      "bar_index": -5
+    },
+    "alligator_state": {
+      "jaw": 2385.31712079,
+      "teeth": 2399.07863262,
+      "lips": 2407.71922322,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish â€” lips > teeth > jaw, preco acima"
+    },
+    "ao_value": {
+      "current": 22.50552941,
+      "prev": 25.23264706,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2407.85,
+    "conditions_met": {
+      "alligator_bullish": true,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_024",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T12:45:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2422.52,
+      "bar_index": -6
+    },
+    "alligator_state": {
+      "jaw": 2387.17964996,
+      "teeth": 2400.74067855,
+      "lips": 2407.42137857,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 20.01679412,
+      "prev": 22.50552941,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2404.01,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_025",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2397.22,
+      "bar_index": -3
+    },
+    "alligator_state": {
+      "jaw": 2388.9273692,
+      "teeth": 2401.78684373,
+      "lips": 2406.91410286,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 16.14970588,
+      "prev": 20.01679412,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2388.85,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": false
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_026",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:15:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2397.22,
+      "bar_index": -4
+    },
+    "alligator_state": {
+      "jaw": 2391.10603311,
+      "teeth": 2402.34223826,
+      "lips": 2407.21828229,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 11.50182353,
+      "prev": 16.14970588,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2382.23,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": false
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_027",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:30:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2397.22,
+      "bar_index": -5
+    },
+    "alligator_state": {
+      "jaw": 2392.74210748,
+      "teeth": 2402.66008348,
+      "lips": 2406.65662583,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 6.04214706,
+      "prev": 11.50182353,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2376.42,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": false
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_028",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T13:45:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2397.22,
+      "bar_index": -6
+    },
+    "alligator_state": {
+      "jaw": 2394.00117614,
+      "teeth": 2403.38194804,
+      "lips": 2403.97830066,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "down",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": -1.85347059,
+      "prev": 6.04214706,
+      "crossing_zero": true,
+      "histogram_color": "red"
+    },
+    "close": 2367.36,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": false
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_029",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T14:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2397.22,
+      "bar_index": -7
+    },
+    "alligator_state": {
+      "jaw": 2394.9418549,
+      "teeth": 2403.51045454,
+      "lips": 2400.37664053,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": -11.50938235,
+      "prev": -1.85347059,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 2357.03,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": false
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_030",
+    "symbol": "ETHUSDT",
+    "timeframe": "15m",
+    "date": "2026-05-06T14:15:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2397.22,
+      "bar_index": -8
+    },
+    "alligator_state": {
+      "jaw": 2395.70671221,
+      "teeth": 2402.22977272,
+      "lips": 2396.31231242,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": -18.15638235,
+      "prev": -11.50938235,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 2361.73,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": false
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_031",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T04:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2352.42,
+      "bar_index": -4
+    },
+    "alligator_state": {
+      "jaw": 2369.90687133,
+      "teeth": 2371.36151378,
+      "lips": 2368.42910562,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": -2.51708824,
+      "prev": -3.97094118,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 2364.56,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_032",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T05:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2352.42,
+      "bar_index": -5
+    },
+    "alligator_state": {
+      "jaw": 2370.50557353,
+      "teeth": 2369.90444956,
+      "lips": 2367.78728449,
+      "jaw_above_teeth": true,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator bearish â€” lips < teeth < jaw, preco abaixo"
+    },
+    "ao_value": {
+      "current": -2.67752941,
+      "prev": -2.51708824,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 2363.69,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_033",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T06:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2352.42,
+      "bar_index": -6
+    },
+    "alligator_state": {
+      "jaw": 2370.23476019,
+      "teeth": 2369.71451836,
+      "lips": 2368.8488276,
+      "jaw_above_teeth": true,
+      "teeth_above_lips": true,
+      "lips_direction": "up",
+      "description": "alligator bearish (estrutura ok, preco acima das linhas)"
+    },
+    "ao_value": {
+      "current": -3.75385294,
+      "prev": -2.67752941,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 2369.31,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_034",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T07:00:00Z",
+    "direction": "short",
+    "fractal_ref": {
+      "type": "low",
+      "price": 2352.5,
+      "bar_index": -2
+    },
+    "alligator_state": {
+      "jaw": 2369.51131709,
+      "teeth": 2369.15270357,
+      "lips": 2368.80906208,
+      "jaw_above_teeth": true,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator bearish (estrutura ok, preco acima das linhas)"
+    },
+    "ao_value": {
+      "current": -3.09405882,
+      "prev": -3.75385294,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 2370.54,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_035",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T08:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2379.88,
+      "bar_index": -5
+    },
+    "alligator_state": {
+      "jaw": 2368.75698501,
+      "teeth": 2369.64549062,
+      "lips": 2366.86324966,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": -1.99041176,
+      "prev": -3.09405882,
+      "crossing_zero": false,
+      "histogram_color": "red"
+    },
+    "close": 2393.55,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": false,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_036",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T09:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2379.88,
+      "bar_index": -6
+    },
+    "alligator_state": {
+      "jaw": 2368.72837078,
+      "teeth": 2369.52105429,
+      "lips": 2366.45759973,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": true,
+      "lips_direction": "down",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": 2.86479412,
+      "prev": -1.99041176,
+      "crossing_zero": true,
+      "histogram_color": "green"
+    },
+    "close": 2411.55,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_037",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T10:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2379.88,
+      "bar_index": -7
+    },
+    "alligator_state": {
+      "jaw": 2368.4584961,
+      "teeth": 2368.21592251,
+      "lips": 2367.29707978,
+      "jaw_above_teeth": true,
+      "teeth_above_lips": true,
+      "lips_direction": "up",
+      "description": "alligator bearish (estrutura ok, preco acima das linhas)"
+    },
+    "ao_value": {
+      "current": 11.096,
+      "prev": 2.86479412,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2408.55,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_038",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T11:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2379.88,
+      "bar_index": -8
+    },
+    "alligator_state": {
+      "jaw": 2368.81515025,
+      "teeth": 2367.79330719,
+      "lips": 2370.24266383,
+      "jaw_above_teeth": true,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": 19.27638235,
+      "prev": 11.096,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2408.99,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_039",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T12:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2379.88,
+      "bar_index": -9
+    },
+    "alligator_state": {
+      "jaw": 2368.80244638,
+      "teeth": 2368.15101879,
+      "lips": 2376.31213106,
+      "jaw_above_teeth": true,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator em consolidacao"
+    },
+    "ao_value": {
+      "current": 25.01385294,
+      "prev": 19.27638235,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2404.01,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": true,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  },
+  {
+    "case_id": "CASE_040",
+    "symbol": "ETHUSDT",
+    "timeframe": "1h",
+    "date": "2026-05-06T13:00:00Z",
+    "direction": "long",
+    "fractal_ref": {
+      "type": "high",
+      "price": 2422.52,
+      "bar_index": -2
+    },
+    "alligator_state": {
+      "jaw": 2368.05456589,
+      "teeth": 2369.88526645,
+      "lips": 2382.79470485,
+      "jaw_above_teeth": false,
+      "teeth_above_lips": false,
+      "lips_direction": "up",
+      "description": "alligator bullish (estrutura ok, preco abaixo das linhas)"
+    },
+    "ao_value": {
+      "current": 25.13335294,
+      "prev": 25.01385294,
+      "crossing_zero": false,
+      "histogram_color": "green"
+    },
+    "close": 2367.36,
+    "conditions_met": {
+      "alligator_bullish": false,
+      "ao_positive": true,
+      "close_above_fractal_high": false,
+      "valid_sl_fractal_low": true
+    },
+    "expected_signal": null,
+    "notes": ""
+  }
+]

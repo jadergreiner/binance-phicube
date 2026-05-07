@@ -1,0 +1,13 @@
+{
+  "symbol": "ATOMUSDT",
+  "timeframe": "15m",
+  "candles_used": 0,
+  "trades": [],
+  "total_trades": 0,
+  "win_rate_pct": 0.0,
+  "total_pnl_usdt": 0.0,
+  "avg_rrr": 0.0,
+  "max_drawdown_usdt": 0.0,
+  "profit_factor": 0.0,
+  "generated_at": "2026-05-06T22:04:51.326303"
+}
