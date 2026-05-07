@@ -16,7 +16,7 @@
       "description": "Adicionar position_size_usdt e roi_adjusted_pct ao PositionView, implementar cálculos baseados em margin_used_usdt e leverage.",
       "owner": "time-b-execucao",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "depends_on": [],
       "target_files": [
         "src/dashboard/models.py"
@@ -43,7 +43,7 @@
       "description": "Incluir position_size_usdt e roi_adjusted_pct no JSON de resposta da API.",
       "owner": "time-b-execucao",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "depends_on": ["task_001"],
       "target_files": [
         "src/api/routes/positions.py"
@@ -70,7 +70,7 @@
       "description": "Adicionar colunas na tabela de posições para position_size_usdt e roi_adjusted_pct.",
       "owner": "time-b-execucao",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "depends_on": ["task_002"],
       "target_files": [
         "src/frontend/static/index.html",
@@ -97,7 +97,7 @@
       "description": "Criar testes para cálculos, API e frontend.",
       "owner": "time-b-execucao",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "depends_on": ["task_001", "task_002", "task_003"],
       "target_files": [
         "tests/dashboard/test_models.py",
@@ -124,7 +124,7 @@
       "description": "Revisar conformidade, evidências para PR.",
       "owner": "time-b-execucao",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "depends_on": ["task_004"],
       "target_files": [],
       "constraints": [
@@ -141,5 +141,4 @@
       "validation": "qa-review"
     }
   ]
-}</content>
-<parameter name="filePath">c:\repo\binance-phicube\docs\SDD\SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES\tasks.json
+}

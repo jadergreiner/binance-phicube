@@ -1,7 +1,7 @@
 # SPEC 004 — Notificações Operacionais via Telegram
 
 **ID:** SPEC_004
-**Status:** Em Execução
+**Status:** Concluída
 **Data:** 2026-05-02
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execução)

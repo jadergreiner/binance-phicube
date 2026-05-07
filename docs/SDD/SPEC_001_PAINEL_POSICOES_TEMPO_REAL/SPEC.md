@@ -1,7 +1,7 @@
 # SPEC 001 — Painel de Posições em Tempo Real
 
 **ID:** SPEC_001
-**Status:** Aprovada
+**Status:** Concluída
 **Data:** 2026-05-01
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execução)

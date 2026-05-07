@@ -60,7 +60,7 @@ Cada SPEC incremental vive em seu próprio diretório:
 
 | Diretório | ID | Título | Status |
 |---|---|---|---|
-| [SPEC_001_PAINEL_POSICOES_TEMPO_REAL/](SPEC_001_PAINEL_POSICOES_TEMPO_REAL/SPEC.md) | SPEC_001 | Painel de Posições em Tempo Real (Somente Leitura) | Aprovada |
+| [SPEC_001_PAINEL_POSICOES_TEMPO_REAL/](SPEC_001_PAINEL_POSICOES_TEMPO_REAL/SPEC.md) | SPEC_001 | Painel de Posições em Tempo Real (Somente Leitura) | Concluída |
 | [SPEC_002_FRONTEND_CONSULTA_POSICOES/](SPEC_002_FRONTEND_CONSULTA_POSICOES/SPEC.md) | SPEC_002 | Frontend de Consulta de Posições | Concluída |
 | [SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/](SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES/SPEC.md) | SPEC_003 | Inclusão de Cálculos de Margem e ROI Ajustado | Concluída |
 | [SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/](SPEC_004_NOTIFICACOES_TELEGRAM_OPERACIONAIS/SPEC.md) | SPEC_004 | Notificações Operacionais via Telegram | Concluída |

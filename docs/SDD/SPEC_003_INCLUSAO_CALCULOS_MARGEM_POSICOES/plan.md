@@ -110,5 +110,4 @@ SPEC_003 → Extensão com cálculos de margem e ROI ajustado (esta SPEC)
 - Se cálculos complexos demais: Simplificar para margem × leverage apenas.
 - Se frontend quebra: Rollback para versão sem novos campos.
 
----</content>
-<parameter name="filePath">c:\repo\binance-phicube\docs\SDD\SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES\plan.md
+---

@@ -1,7 +1,7 @@
 # SPEC 002 — Frontend de Consulta de Posições
 
 **ID:** SPEC_002
-**Status:** Aprovada
+**Status:** Concluída
 **Data:** 2026-05-01
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execução)

@@ -27,5 +27,4 @@ Todas as tasks da SPEC_003 foram concluídas com sucesso pelo Time B. Implementa
 - Status funcional da SPEC_003: concluído.
 - Validação executada: pytest completo passando, qa-review aprovado.
 - Itens prontos para revisão: src/dashboard/models.py, src/api/routes/positions.py, src/frontend/static/, testes atualizados.
-- Próxima ação: commit e PR.</content>
-<parameter name="filePath">c:\repo\binance-phicube\docs\SDD\SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES\spec_status_update.md
+- Próxima ação: commit e PR.

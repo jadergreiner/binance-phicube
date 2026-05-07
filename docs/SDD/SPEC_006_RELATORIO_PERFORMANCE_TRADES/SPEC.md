@@ -1,7 +1,7 @@
 # SPEC_006 — Relatório de Performance de Trades (RF-11)
 
 **ID:** SPEC_006  
-**Status:** Em Refinamento  
+**Status:** Concluída
 **Data:** 2026-05-04  
 **Autor:** Time A (Refinamento)  
 **Executores:** Time B (Execução)  

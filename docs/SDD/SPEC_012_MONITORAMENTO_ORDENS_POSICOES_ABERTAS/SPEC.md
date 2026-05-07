@@ -1,7 +1,7 @@
 # SPEC_012 — Monitoramento Ativo de Ordens e Posições Abertas
 
 **ID:** SPEC_012
-**Status:** Em Execução
+**Status:** Concluída
 **Data:** 2026-05-05
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execução)

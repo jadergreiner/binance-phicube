@@ -1,7 +1,7 @@
 # SPEC 003 — Inclusão de Cálculos de Margem e ROI Ajustado na Consulta de Posições
 
 **ID:** SPEC_003
-**Status:** Rascunho
+**Status:** Concluída
 **Data:** 2026-05-02
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execução)
@@ -287,5 +287,4 @@ sequenceDiagram
 
 ## Histórico
 
-- **2026-05-02:** Criação da SPEC_003.</content>
-<parameter name="filePath">c:\repo\binance-phicube\docs\SDD\SPEC_003_INCLUSAO_CALCULOS_MARGEM_POSICOES\SPEC.md
+- **2026-05-02:** Criação da SPEC_003.
