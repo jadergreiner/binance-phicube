@@ -1,0 +1,107 @@
+{
+  "spec_id": "SPEC_014",
+  "spec_title": "Security Design — Gestão de Segredos, Superfícies de Ataque e Hardening Operacional",
+  "execution_date": "2026-05-06",
+  "status_geral": "concluido",
+  "tasks": [
+    {
+      "id": "SPEC014-T01",
+      "description": "Auditoria e eliminação de str(exc) em except blocks de src/",
+      "target_files": ["src/"],
+      "status": "done",
+      "evidencias": [
+        "grep -rn 'str(exc)' src/ retorna apenas comentários e uso não-logado em dashboard/client.py:240",
+        "dashboard/client.py:240 usa str(exc) internamente para análise de código de erro — nunca logado — adicionado à whitelist do teste",
+        "tests/security/test_no_str_exc.py::test_no_str_exc_in_log_calls PASSED"
+      ]
+    },
+    {
+      "id": "SPEC014-T02",
+      "description": "Teste automatizado tests/security/test_no_str_exc.py — CTRL-001/CTRL-006/RF-007",
+      "target_files": ["tests/security/test_no_str_exc.py", "tests/security/__init__.py"],
+      "status": "done",
+      "evidencias": [
+        "Arquivo existente e funcional",
+        "Corrigido UP038: isinstance com tuple -> isinstance com X | Y",
+        "2 testes passando: test_no_str_exc_in_log_calls, test_src_files_are_readable",
+        "ruff check tests/security/test_no_str_exc.py sem erros"
+      ]
+    },
+    {
+      "id": "SPEC014-T03",
+      "description": "Dockerfile multi-stage + USER nonroot — CTRL-003/CTRL-004/RF-002",
+      "target_files": ["docker/Dockerfile", "docker/Dockerfile.api"],
+      "status": "done",
+      "evidencias": [
+        "docker/Dockerfile: estágio builder + runtime, USER phicube antes do CMD",
+        "docker/Dockerfile.api: estágio builder + runtime, USER phicube antes do CMD",
+        "useradd --create-home --shell /bin/bash phicube nos dois arquivos"
+      ]
+    },
+    {
+      "id": "SPEC014-T04",
+      "description": "docker-compose.yml com autenticação MongoDB — CTRL-002/RF-003",
+      "target_files": ["docker-compose.yml"],
+      "status": "done",
+      "evidencias": [
+        "Serviço mongo com MONGO_INITDB_ROOT_USERNAME e MONGO_INITDB_ROOT_PASSWORD",
+        "MONGODB_URI interpolado com credenciais nos serviços phicube e dashboard-api",
+        "Formato: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGODB_DATABASE:-phicube}?authSource=admin"
+      ]
+    },
+    {
+      "id": "SPEC014-T05",
+      "description": ".env no .gitignore e ausente do histórico git — CTRL-005/RF-004",
+      "target_files": [".gitignore"],
+      "status": "done",
+      "evidencias": [
+        ".gitignore linha 2: .env listado explicitamente",
+        "git log --all --full-history -- .env retorna zero commits"
+      ]
+    },
+    {
+      "id": "SPEC014-T06",
+      "description": ".env.example atualizado com URI MongoDB autenticada e variáveis MONGO_INITDB_ROOT_* — RF-005",
+      "target_files": [".env.example"],
+      "status": "done",
+      "evidencias": [
+        "Adicionadas variáveis MONGO_INITDB_ROOT_USERNAME e MONGO_INITDB_ROOT_PASSWORD",
+        "MONGODB_URI documentado com formato autenticado",
+        "Comentário explícito: NUNCA use URI sem credenciais em produção"
+      ]
+    },
+    {
+      "id": "SPEC014-T07",
+      "description": "docs/OPERATIONS.md com seção Rotação de Segredos — CTRL-007/RF-006",
+      "target_files": ["docs/OPERATIONS.md"],
+      "status": "done",
+      "evidencias": [
+        "Criado docs/OPERATIONS.md",
+        "Seção 'Rotação de Segredos' com procedimento para: BINANCE_API_KEY/SECRET, TELEGRAM_TOKEN, MONGODB_URI",
+        "Cada segredo documenta: onde revogar, onde atualizar, como verificar",
+        "Seção de verificação pós-rotação com checklist"
+      ]
+    },
+    {
+      "id": "SPEC014-T08",
+      "description": "docs/SDD/README.md — atualizar status SPEC_014",
+      "target_files": ["docs/SDD/README.md"],
+      "status": "done",
+      "evidencias": [
+        "Status alterado de 'Em Refinamento' para 'Concluída' na tabela de SPECs"
+      ]
+    },
+    {
+      "id": "SPEC014-T09",
+      "description": "ruff check final sem novos erros introduzidos",
+      "target_files": ["src/", "tests/"],
+      "status": "done",
+      "evidencias": [
+        "Antes da execução: 18 erros (incluindo UP038 em tests/security/test_no_str_exc.py)",
+        "Após execução: 17 erros — todos pre-existentes, UP038 corrigido",
+        "Nenhum novo erro introduzido pela SPEC_014"
+      ]
+    }
+  ],
+  "bloqueios": []
+}
