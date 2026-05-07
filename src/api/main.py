@@ -17,6 +17,8 @@ positions_router = import_module("src.api.routes.positions").router
 performance_router = import_module("src.api.routes.performance").router
 health_router = import_module("src.api.routes.health").router
 backtest_router = import_module("src.api.routes.backtest").router
+trades_router = import_module("src.api.routes.trades").router
+onboarding_router = import_module("src.api.routes.onboarding").router
 StaticFiles = import_module("fastapi.staticfiles").StaticFiles
 AdaptiveUpdater = DashboardModule.AdaptiveUpdater
 DashboardClient = DashboardModule.DashboardClient
@@ -47,7 +49,7 @@ async def _safe_call(coro: Any, *, warning_message: str) -> bool:
         await coro
         return True
     except Exception as exc:
-        logger.warning(warning_message, error=str(exc))
+        logger.warning(warning_message, error_type=type(exc).__name__)
         return False
 
 
@@ -138,6 +140,8 @@ def create_app() -> Any:
     app.include_router(performance_router)
     app.include_router(health_router)
     app.include_router(backtest_router)
+    app.include_router(trades_router)
+    app.include_router(onboarding_router)
 
     @app.get("/")
     async def read_index() -> FileResponse:

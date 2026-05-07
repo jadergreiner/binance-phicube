@@ -11,15 +11,19 @@ from fastapi.responses import JSONResponse
 
 from src.dashboard.analysis import build_market_analysis
 from src.dashboard.models import AccountSummary, PositionView, build_account_summary
+from src.monitoring.logger import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 def _to_iso8601(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _serialize_position(position: PositionView) -> dict[str, Any]:
+def _serialize_position(
+    position: PositionView, sl_tp_map: dict[str, dict[str, float | None]]
+) -> dict[str, Any]:
     position_size_usdt = getattr(position, "position_size_usdt", None)
     if position_size_usdt is None and hasattr(position, "margin_used_usdt"):
         try:
@@ -33,20 +37,21 @@ def _serialize_position(position: PositionView) -> dict[str, Any]:
         try:
             roi_adjusted_pct = Decimal(str(position.unrealized_pnl_usdt))
             roi_adjusted_pct = (
-                roi_adjusted_pct
-                / Decimal(str(position_size_usdt))
-                * Decimal("100")
+                roi_adjusted_pct / Decimal(str(position_size_usdt)) * Decimal("100")
             ).quantize(Decimal("0.0000000000000001"))
             roi_adjusted_pct = float(roi_adjusted_pct)
         except (Exception, InvalidOperation):
             roi_adjusted_pct = None
 
+    sl_tp_data = sl_tp_map.get(position.symbol, {})
     return {
         "symbol": position.symbol,
         "side": position.side,
         "quantity": position.quantity,
         "leverage": position.leverage,
         "entry_price": position.entry_price,
+        "sl_price": sl_tp_data.get("sl_price"),
+        "tp_price": sl_tp_data.get("tp_price"),
         "mark_price": position.mark_price,
         "unrealized_pnl_usdt": position.unrealized_pnl_usdt,
         "margin_used_usdt": position.margin_used_usdt,
@@ -98,13 +103,32 @@ def _get_position_stream(request: Request) -> Any:
     return stream
 
 
-def _build_snapshot(stream: Any) -> dict[str, Any]:
+def _get_repository(app: Any) -> Any:
+    return getattr(app.state, "repository", None)
+
+
+async def _load_open_trade_sl_tp(app: Any) -> dict[str, dict[str, float | None]]:
+    repo = _get_repository(app)
+    if repo is None:
+        return {}
+    try:
+        return await repo.get_open_trade_sl_tp()
+    except Exception as exc:
+        logger.warning(
+            "dashboard_positions_sl_tp_enrichment_failed",
+            error_type=type(exc).__name__,
+        )
+        return {}
+
+
+async def _build_snapshot(app: Any, stream: Any) -> dict[str, Any]:
     positions = list(stream.get_positions())
     connection_status = stream.get_status()
     summary = build_account_summary(positions, connection_status)
     market_analysis = build_market_analysis(positions)
+    sl_tp_map = await _load_open_trade_sl_tp(app)
     return {
-        "positions": [_serialize_position(position) for position in positions],
+        "positions": [_serialize_position(position, sl_tp_map) for position in positions],
         "summary": _serialize_summary(summary),
         "status": connection_status,
         "analysis": _serialize_market_analysis(market_analysis),
@@ -128,7 +152,7 @@ async def _broadcast_snapshot(app: Any, stream: Any) -> None:
     if not clients:
         return
 
-    snapshot = _build_snapshot(stream)
+    snapshot = await _build_snapshot(app, stream)
     for websocket in list(clients):
         try:
             await websocket.send_json(snapshot)
@@ -173,7 +197,7 @@ async def get_positions(request: Request) -> JSONResponse:
             content={"status": stream.get_status()},
         )
 
-    return JSONResponse(content=_build_snapshot(stream))
+    return JSONResponse(content=await _build_snapshot(request.app, stream))
 
 
 @router.websocket("/ws/positions")
@@ -187,7 +211,7 @@ async def websocket_positions(websocket: WebSocket) -> None:
     clients.append(websocket)
 
     try:
-        await websocket.send_json(_build_snapshot(stream))
+        await websocket.send_json(await _build_snapshot(app, stream))
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:

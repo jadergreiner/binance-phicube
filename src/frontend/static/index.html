@@ -23,6 +23,11 @@
         <div class="status-card">
           <span id="connection-status" class="status-pill status-pill--offline">offline</span>
           <p id="last-update" class="status-meta">Aguardando snapshot inicial</p>
+          <div id="bot-status-indicator" class="bot-status-badge bot-status-badge--inactive">
+            <span id="bot-status-dot" class="bot-status-dot"></span>
+            <span id="bot-status-text">INATIVO</span>
+            <span id="bot-status-time">Último ciclo: —</span>
+          </div>
         </div>
       </section>
 
@@ -148,6 +153,16 @@
           <h2>Posições abertas</h2>
           <span id="snapshot-status" class="snapshot-status">online</span>
         </div>
+        <section class="positions-filters">
+          <select id="filter-symbol">
+            <option value="">Todos os símbolos</option>
+          </select>
+          <div class="direction-toggle">
+            <button class="dir-btn active" data-dir="">Todos</button>
+            <button class="dir-btn" data-dir="long">LONG</button>
+            <button class="dir-btn" data-dir="short">SHORT</button>
+          </div>
+        </section>
 
         <div class="table-wrap">
           <table class="positions-table">
@@ -158,6 +173,8 @@
                 <th>Qty</th>
                 <th>Lev</th>
                 <th>Entry</th>
+                <th>SL</th>
+                <th>TP</th>
                 <th>Mark</th>
                 <th>PnL</th>
                 <th>Margin</th>
@@ -169,10 +186,113 @@
             </thead>
             <tbody id="positions-body">
               <tr class="empty-row">
-                <td colspan="12">Nenhuma posição aberta no momento.</td>
+                <td colspan="14">Nenhuma posição aberta no momento.</td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section class="trade-history-panel">
+        <div class="panel-header">
+          <h2>Histórico de Trades</h2>
+          <span class="snapshot-status">últimos 50</span>
+        </div>
+        <div class="table-wrap">
+          <table class="trade-history-table">
+            <thead>
+              <tr>
+                <th>Símbolo</th>
+                <th>TF</th>
+                <th>Direção</th>
+                <th>Entrada</th>
+                <th>Saída</th>
+                <th>SL</th>
+                <th>TP</th>
+                <th>PnL (USDT)</th>
+                <th>Status</th>
+                <th>Fechado em</th>
+              </tr>
+            </thead>
+            <tbody id="trade-history-body">
+              <tr class="empty-row">
+                <td colspan="10">Nenhum trade fechado encontrado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="onboarding-panel">
+        <div class="panel-header">
+          <h2>Onboarding de Símbolo</h2>
+          <span class="snapshot-status">gestão de pares</span>
+        </div>
+
+        <details class="onboarding-form-toggle" id="onboarding-form-toggle">
+          <summary>Adicionar novo símbolo</summary>
+          <form id="onboarding-form" class="onboarding-form">
+            <div class="onboarding-form-fields">
+              <div class="form-field">
+                <label for="ob-symbol">Símbolo</label>
+                <input id="ob-symbol" type="text" placeholder="ATOMUSDT" maxlength="20" required />
+              </div>
+              <div class="form-field">
+                <label for="ob-timeframe">Timeframe</label>
+                <select id="ob-timeframe">
+                  <option value="1m">1m</option>
+                  <option value="5m">5m</option>
+                  <option value="15m" selected>15m</option>
+                  <option value="30m">30m</option>
+                  <option value="1h">1h</option>
+                  <option value="2h">2h</option>
+                  <option value="4h">4h</option>
+                  <option value="6h">6h</option>
+                  <option value="12h">12h</option>
+                  <option value="1d">1d</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="ob-leverage">Alavancagem</label>
+                <input id="ob-leverage" type="number" min="1" max="20" value="3" required />
+              </div>
+            </div>
+            <div class="onboarding-form-actions">
+              <button type="submit" class="btn btn-primary">Iniciar Jornada</button>
+            </div>
+            <p id="onboarding-form-error" class="form-error" hidden></p>
+          </form>
+        </details>
+
+        <div class="table-wrap">
+          <table class="onboarding-table">
+            <thead>
+              <tr>
+                <th>Símbolo</th>
+                <th>TF</th>
+                <th>Lev</th>
+                <th>Status</th>
+                <th>Trades</th>
+                <th>Win Rate</th>
+                <th>PF</th>
+                <th>Drawdown</th>
+                <th>Criado em</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="onboarding-body">
+              <tr class="empty-row">
+                <td colspan="10">Nenhuma sessão de onboarding.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="onboarding-config-box" class="onboarding-config-box" hidden>
+          <h3>Símbolo Aprovado</h3>
+          <p>Adicione a linha abaixo ao seu <code>.env</code> e reinicie o bot:</p>
+          <pre id="onboarding-config-string"></pre>
+          <button class="btn btn-copy" id="onboarding-copy-btn">Copiar</button>
         </div>
       </section>
     </main>

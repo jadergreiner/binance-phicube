@@ -90,6 +90,42 @@ h1 {
   border-radius: 18px;
 }
 
+.bot-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.bot-status-badge--active {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.bot-status-badge--inactive {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.bot-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.bot-status-time {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
 .status-pill,
 .snapshot-status {
   display: inline-flex;
@@ -257,6 +293,11 @@ h1 {
   background: rgba(148, 163, 184, 0.06);
 }
 
+.sl-missing {
+  color: #fca5a5;
+  font-weight: 700;
+}
+
 .empty-row td {
   text-align: center;
   padding: 32px 12px;
@@ -302,6 +343,80 @@ h1 {
   box-shadow: var(--shadow);
   border-radius: 22px;
   padding: 20px;
+}
+
+.positions-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.positions-filters select {
+  min-width: 200px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.direction-toggle {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.dir-btn {
+  border: 1px solid var(--panel-border);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.dir-btn.active {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.trade-history-panel {
+  margin-bottom: 20px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow);
+  border-radius: 22px;
+  padding: 20px;
+}
+
+.trade-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+}
+
+.trade-history-table th,
+.trade-history-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.trade-history-table th {
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.trade-history-table tbody tr:hover {
+  background: rgba(148, 163, 184, 0.06);
 }
 
 .performance-cards {
@@ -381,6 +496,15 @@ h1 {
   .performance-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .positions-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .direction-toggle {
+    justify-content: space-between;
+  }
 }
 
 @media (max-width: 480px) {
@@ -388,3 +512,200 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Onboarding Panel (SPEC_019) ────────────────────────────────────────── */
+
+.onboarding-panel {
+  margin-top: 2rem;
+  background: #1e2130;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.onboarding-form-toggle {
+  margin-bottom: 1.25rem;
+}
+
+.onboarding-form-toggle summary {
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  user-select: none;
+  padding: 0.4rem 0;
+}
+
+.onboarding-form-toggle summary:hover {
+  color: #e2e8f0;
+}
+
+.onboarding-form {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.onboarding-form-fields {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 140px;
+}
+
+.form-field label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-field input,
+.form-field select {
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.875rem;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+
+.onboarding-form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.form-error {
+  color: #fca5a5;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.btn {
+  padding: 0.45rem 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: opacity 0.15s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #6366f1;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn-backtest { background: #1d4ed8; color: #fff; }
+.btn-backtest:hover { background: #1e40af; }
+.btn-approve  { background: #15803d; color: #fff; }
+.btn-approve:hover  { background: #166534; }
+.btn-show-config { background: #6366f1; color: #fff; }
+.btn-show-config:hover { background: #4f46e5; }
+.btn-delete-ob { background: #7f1d1d; color: #fca5a5; }
+.btn-delete-ob:hover { background: #991b1b; }
+
+.onboarding-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.onboarding-table th,
+.onboarding-table td {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #2d3748;
+}
+
+.onboarding-table th {
+  color: #94a3b8;
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.ob-actions {
+  white-space: nowrap;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ob-status {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ob-status--candidate  { background: #334155; color: #94a3b8; }
+.ob-status--backtested { background: #1e3a5f; color: #93c5fd; }
+.ob-status--approved   { background: #14532d; color: #86efac; }
+
+.onboarding-config-box {
+  margin-top: 1.5rem;
+  background: #0f1117;
+  border: 1px solid #22c55e;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.onboarding-config-box h3 {
+  margin: 0 0 0.5rem;
+  color: #86efac;
+  font-size: 0.95rem;
+}
+
+.onboarding-config-box p {
+  margin: 0 0 0.75rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.onboarding-config-box pre {
+  background: #1e2130;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.btn-copy {
+  background: #374151;
+  color: #e2e8f0;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.btn-copy:hover { background: #4b5563; }

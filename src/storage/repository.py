@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 _TRADES_COLLECTION = "trades"
 _SIGNALS_COLLECTION = "signals"
 _AUDIT_COLLECTION = "audit"
+_ONBOARDING_COLLECTION = "symbol_onboarding"
 
 
 def _calc_metrics(trades: list[dict]) -> dict[str, float | int]:
@@ -96,6 +97,7 @@ class MongoRepository:
         await trades.create_indexes(
             [
                 IndexModel([("symbol", ASCENDING), ("status", ASCENDING)]),
+                IndexModel([("status", ASCENDING), ("closed_at", DESCENDING)]),
                 IndexModel([("opened_at", DESCENDING)]),
                 IndexModel([("entry_order_id", ASCENDING)], unique=True),
             ]
@@ -114,6 +116,21 @@ class MongoRepository:
             [
                 IndexModel([("ts", DESCENDING)]),
                 IndexModel([("event", ASCENDING)]),
+                # TTL parcial: expira heartbeats após 24 h sem afetar outros documentos (INV-017-04)
+                IndexModel(
+                    [("ts", ASCENDING)],
+                    expireAfterSeconds=86400,
+                    partialFilterExpression={"event": "heartbeat"},
+                    name="heartbeat_ttl",
+                ),
+            ]
+        )
+
+        onboarding = self._db[_ONBOARDING_COLLECTION]
+        await onboarding.create_indexes(
+            [
+                IndexModel([("symbol", ASCENDING)], unique=True),
+                IndexModel([("status", ASCENDING), ("created_at", DESCENDING)]),
             ]
         )
 
@@ -164,6 +181,43 @@ class MongoRepository:
         )
         logger.info("trade_status_updated", entry_order_id=entry_order_id, status=status.value)
 
+    async def update_sl_orphan_first_detected(
+        self,
+        entry_order_id: str,
+        first_detected_at: datetime,
+    ) -> None:
+        """Persiste sl_missing_first_detected_at no primeiro alerta de SL órfão (RF-003)."""
+        await self._db[_TRADES_COLLECTION].update_one(
+            {"entry_order_id": entry_order_id},
+            {"$set": {"sl_missing_first_detected_at": first_detected_at}},
+        )
+        logger.info("sl_orphan_first_detected_saved", entry_order_id=entry_order_id)
+
+    async def update_sl_orphan_metrics(
+        self,
+        entry_order_id: str,
+        sl_restored_at: datetime,
+        response_time_seconds: int,
+        notification_count: int,
+    ) -> None:
+        """Persiste métricas de resolução de SL órfão (RF-004, RF-005)."""
+        await self._db[_TRADES_COLLECTION].update_one(
+            {"entry_order_id": entry_order_id},
+            {
+                "$set": {
+                    "sl_restored_at": sl_restored_at,
+                    "sl_missing_response_time_seconds": response_time_seconds,
+                    "sl_missing_notification_count": notification_count,
+                }
+            },
+        )
+        logger.info(
+            "sl_orphan_metrics_saved",
+            entry_order_id=entry_order_id,
+            response_time_seconds=response_time_seconds,
+            notification_count=notification_count,
+        )
+
     async def get_open_trades(self) -> list[dict]:
         cursor = self._db[_TRADES_COLLECTION].find({"status": TradeStatus.OPEN.value})
         return await cursor.to_list(length=None)
@@ -200,6 +254,101 @@ class MongoRepository:
             groups.setdefault(t.get("timeframe", "unknown"), []).append(t)
         return {tf: _calc_metrics(ts) for tf, ts in groups.items()}
 
+    async def get_trade_history(self, limit: int = 50) -> list[dict]:
+        """Retorna os últimos trades fechados ordenados por closed_at DESC."""
+        pipeline = [
+            {
+                "$match": {
+                    "status": {
+                        "$in": [
+                            TradeStatus.CLOSED_TP.value,
+                            TradeStatus.CLOSED_SL.value,
+                            TradeStatus.CLOSED_MANUAL.value,
+                        ]
+                    }
+                }
+            },
+            {"$sort": {"closed_at": -1}},
+            {"$limit": limit},
+            {
+                "$project": {
+                    "_id": 0,
+                    "symbol": 1,
+                    "timeframe": 1,
+                    "direction": 1,
+                    "entry_price": 1,
+                    "exit_price": 1,
+                    "stop_loss": 1,
+                    "take_profit": 1,
+                    "pnl_usdt": 1,
+                    "status": 1,
+                    "opened_at": 1,
+                    "closed_at": 1,
+                }
+            },
+        ]
+        cursor = self._db[_TRADES_COLLECTION].aggregate(pipeline)
+        return await cursor.to_list(length=limit)
+
+    async def get_open_trade_sl_tp(self) -> dict[str, dict[str, float | None]]:
+        """Retorna {symbol: {sl_price, tp_price}} para trades OPEN."""
+        cursor = self._db[_TRADES_COLLECTION].find(
+            {"status": TradeStatus.OPEN.value},
+            {"_id": 0, "symbol": 1, "stop_loss": 1, "take_profit": 1},
+        )
+        trades = await cursor.to_list(length=None)
+        return {
+            trade["symbol"]: {
+                "sl_price": trade.get("stop_loss"),
+                "tp_price": trade.get("take_profit"),
+            }
+            for trade in trades
+            if trade.get("symbol")
+        }
+
+    async def get_last_heartbeat_at(self) -> datetime | None:
+        """Retorna o timestamp do último heartbeat gravado pelo processo bot.
+
+        Consulta collection audit filtrando event == "heartbeat", ordenando por ts DESC.
+        Retorna None se nenhum heartbeat encontrado.
+        """
+        doc = await self._db[_AUDIT_COLLECTION].find_one(
+            {"event": "heartbeat"},
+            sort=[("ts", DESCENDING)],
+        )
+        if doc is None:
+            return None
+        ts = doc.get("ts")
+        if ts is None:
+            return None
+        return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
+    async def get_last_bot_activity_at(self) -> datetime | None:
+        """Retorna o timestamp da atividade mais recente entre signals e audit."""
+        signal_doc = await self._db[_SIGNALS_COLLECTION].find_one(
+            {},
+            projection={"_id": 1},
+            sort=[("_id", DESCENDING)],
+        )
+        audit_doc = await self._db[_AUDIT_COLLECTION].find_one(
+            {},
+            projection={"_id": 1},
+            sort=[("_id", DESCENDING)],
+        )
+        candidates: list[datetime] = []
+        for doc in (signal_doc, audit_doc):
+            if doc is None:
+                continue
+            object_id = doc.get("_id")
+            generation_time = getattr(object_id, "generation_time", None)
+            if generation_time is not None:
+                candidates.append(generation_time.astimezone(UTC))
+
+        if not candidates:
+            return None
+
+        return max(candidates)
+
     async def _fetch_closed_trades(self, *, include_group_fields: bool = False) -> list[dict]:
         closed_statuses = [
             TradeStatus.CLOSED_TP.value,
@@ -215,6 +364,32 @@ class MongoRepository:
             projection,
         )
         return await cursor.to_list(length=None)
+
+    # ─── Onboarding ───────────────────────────────────────────────────────────
+
+    async def create_onboarding_session(self, doc: dict[str, Any]) -> None:
+        await self._db[_ONBOARDING_COLLECTION].insert_one(doc)
+
+    async def get_onboarding_session(self, symbol: str) -> dict[str, Any] | None:
+        return await self._db[_ONBOARDING_COLLECTION].find_one(
+            {"symbol": symbol}, {"_id": 0}
+        )
+
+    async def list_onboarding_sessions(self) -> list[dict[str, Any]]:
+        cursor = self._db[_ONBOARDING_COLLECTION].find({}, {"_id": 0}).sort(
+            "created_at", DESCENDING
+        )
+        return await cursor.to_list(length=None)
+
+    async def update_onboarding_session(self, symbol: str, update: dict[str, Any]) -> None:
+        update["updated_at"] = datetime.now(UTC)
+        await self._db[_ONBOARDING_COLLECTION].update_one(
+            {"symbol": symbol}, {"$set": update}
+        )
+
+    async def delete_onboarding_session(self, symbol: str) -> bool:
+        result = await self._db[_ONBOARDING_COLLECTION].delete_one({"symbol": symbol})
+        return result.deleted_count > 0
 
     # ─── Signals ──────────────────────────────────────────────────────────────
 
