@@ -118,7 +118,7 @@
       "description": "Atualizar tasks_status/spec_status_update e indice SDD com evidencias finais e status coerente com semantica canonica.",
       "owner": "time-b-execucao",
       "priority": "P1",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "task_004"
       ],

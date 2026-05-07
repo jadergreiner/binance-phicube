@@ -1,12 +1,12 @@
 {
   "spec_id": "SPEC_022",
-  "updated_at": "2026-05-07T09:40:00Z",
+  "updated_at": "2026-05-07T22:30:00Z",
   "summary": {
-    "overall_status": "Em Execucao",
+    "overall_status": "Concluida",
     "todo": 0,
-    "in_progress": 1,
+    "in_progress": 0,
     "blocked": 0,
-    "done": 4
+    "done": 5
   },
   "tasks": [
     {
@@ -63,15 +63,15 @@
     },
     {
       "id": "task_005",
-      "status": "in_progress",
-      "progress_pct": 80,
-      "notes": "Status consolidado em andamento; fechamento final depende de rodada completa de validacao integrada e decisao de conclusao formal da SPEC.",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Fechamento consolidado com validacao integrada ampliada concluida e sem desvios de contrato da SPEC_022.",
       "updated_by": "time-b-execucao",
-      "updated_at": "2026-05-07T09:40:00Z",
+      "updated_at": "2026-05-07T22:30:00Z",
       "links": {
         "pr": "",
         "commit": "",
-        "tests": "docs/SDD/SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/spec_status_update.md"
+        "tests": "pytest tests/config/test_settings.py tests/config/test_symbol_config.py tests/trading/test_risk_manager.py tests/trading/test_order_manager.py tests/api/test_onboarding.py -q; ruff check src/config/settings.py src/trading/risk_manager.py tests/config/test_settings.py tests/trading/test_risk_manager.py; docs/SDD/SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/spec_status_update.md"
       }
     }
   ]

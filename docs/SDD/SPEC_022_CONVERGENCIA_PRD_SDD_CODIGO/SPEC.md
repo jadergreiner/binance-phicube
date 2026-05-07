@@ -1,7 +1,7 @@
 # SPEC_022 — Convergencia PRD-SDD-Codigo para Regras Criticas de Risco e Escalabilidade
 
 **ID:** SPEC_022
-**Status:** Em Execucao
+**Status:** Concluida
 **Data:** 2026-05-07
 **Autor:** Time A (Refinamento)
 **Executores:** Time B (Execucao)
@@ -31,10 +31,10 @@ Convergencia PRD-SDD-Codigo para Regras Criticas de Risco e Escalabilidade
 
 ### 2.1 Objetivos (o que sera entregue)
 
-- [ ] Definir e implementar validacao obrigatoria de `LEVERAGE <= 20x` na inicializacao/configuracao, com erro explicito.
-- [ ] Definir contrato canonico para violacao de `max_capital_allocation_pct` e alinhar PRD, SDD, codigo e testes para comportamento unico.
-- [ ] Alinhar contrato de escalabilidade (meta e limite operacional) entre PRD, SDD e runtime, removendo inconsistencias documentais.
-- [ ] Entregar rastreabilidade formal requisito -> SPEC -> teste -> codigo para os 3 eixos desta SPEC.
+- [x] Definir e implementar validacao obrigatoria de `LEVERAGE <= 20x` na inicializacao/configuracao, com erro explicito.
+- [x] Definir contrato canonico para violacao de `max_capital_allocation_pct` e alinhar PRD, SDD, codigo e testes para comportamento unico.
+- [x] Alinhar contrato de escalabilidade (meta e limite operacional) entre PRD, SDD e runtime, removendo inconsistencias documentais.
+- [x] Entregar rastreabilidade formal requisito -> SPEC -> teste -> codigo para os 3 eixos desta SPEC.
 
 ### 2.2 Fora do Escopo (Non-Goals)
 
@@ -70,9 +70,9 @@ QUANDO o sistema carregar as configuracoes
 ENTAO a inicializacao e bloqueada com erro explicito e orientacao de correcao
 ```
 
-- [ ] AC-01: qualquer leverage > 20 falha na validacao de config.
-- [ ] AC-02: mensagem de erro indica limite maximo de 20x e campo invalido.
-- [ ] AC-03: testes de configuracao cobrem cenarios valido/limite/invalido.
+- [x] AC-01: qualquer leverage > 20 falha na validacao de config.
+- [x] AC-02: mensagem de erro indica limite maximo de 20x e campo invalido.
+- [x] AC-03: testes de configuracao cobrem cenarios valido/limite/invalido.
 
 ---
 
@@ -88,9 +88,9 @@ QUANDO o RiskManager calcular a posicao
 ENTAO a operacao e rejeitada (retorno None) e um warning estruturado e emitido
 ```
 
-- [ ] AC-01: regra canonica definida como "bloquear operacao" (sem scale-down implicito).
-- [ ] AC-02: PRD/SDD/codigo/testes descrevem o mesmo comportamento.
-- [ ] AC-03: teste unitario cobre explicitamente o bloqueio e a emissao de warning.
+- [x] AC-01: regra canonica definida como "bloquear operacao" (sem scale-down implicito).
+- [x] AC-02: PRD/SDD/codigo/testes descrevem o mesmo comportamento.
+- [x] AC-03: teste unitario cobre explicitamente o bloqueio e a emissao de warning.
 
 ---
 
@@ -106,9 +106,9 @@ QUANDO a revisao de contratos for aplicada
 ENTAO nao ha conflito textual de limites de simbolos e a regra vigente esta testada
 ```
 
-- [ ] AC-01: limite operacional vigente documentado em um unico contrato tecnico.
-- [ ] AC-02: texto obsoleto de limite fixo removido ou atualizado com justificativa.
-- [ ] AC-03: testes e/ou validacoes de configuracao cobrem o limite vigente.
+- [x] AC-01: limite operacional vigente documentado em um unico contrato tecnico.
+- [x] AC-02: texto obsoleto de limite fixo removido ou atualizado com justificativa.
+- [x] AC-03: testes e/ou validacoes de configuracao cobrem o limite vigente.
 
 ---
 
@@ -216,9 +216,9 @@ sequenceDiagram
 
 ### 7.3 Evidencias Requeridas na PR
 
-- [ ] `pytest` dos modulos impactados com testes SPEC_022 passando.
-- [ ] Evidencia de logs de rejeicao por alocacao acima do limite.
-- [ ] Atualizacao de PRD/SDD/README SDD com referencias consistentes da regra vigente.
+- [x] `pytest` dos modulos impactados com testes SPEC_022 passando.
+- [x] Evidencia de logs de rejeicao por alocacao acima do limite.
+- [x] Atualizacao de PRD/SDD/README SDD com referencias consistentes da regra vigente.
 
 ---
 
@@ -244,11 +244,11 @@ sequenceDiagram
 
 ## 10. Definicao de Pronto (DoD Global)
 
-- [ ] SPEC_022 aprovada pelo Time A.
-- [ ] `LEVERAGE <= 20` validado em configuracao com testes.
-- [ ] Politica de alocacao canonica implementada e coberta por testes.
-- [ ] PRD, SDD e codigo sem divergencia para limites operacionais.
-- [ ] Rastreabilidade requisito -> spec -> teste -> codigo consolidada em `spec_status_update.md`.
+- [x] SPEC_022 aprovada pelo Time A.
+- [x] `LEVERAGE <= 20` validado em configuracao com testes.
+- [x] Politica de alocacao canonica implementada e coberta por testes.
+- [x] PRD, SDD e codigo sem divergencia para limites operacionais.
+- [x] Rastreabilidade requisito -> spec -> teste -> codigo consolidada em `spec_status_update.md`.
 
 ---
 
@@ -265,3 +265,4 @@ sequenceDiagram
 
 - **2026-05-07:** Criacao da SPEC_022.
 - **2026-05-07:** Implementacao iniciada com alinhamento de leverage, politica de alocacao e contratos documentais.
+- **2026-05-07:** Fechamento formal da SPEC_022 com validacao integrada adicional (52 passed) e consolidacao de rastreabilidade.

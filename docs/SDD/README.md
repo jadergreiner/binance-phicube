@@ -81,7 +81,7 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_019_ONBOARDING_SIMBOLO/](SPEC_019_ONBOARDING_SIMBOLO/SPEC.md) | SPEC_019 | Onboarding de Símbolo — Wizard de Inclusão, Backtest e Aprovação para Produção | Concluída |
 | [SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/](SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/SPEC.md) | SPEC_020 | Hardening de Governança SDD, Segurança de Endpoints Sensíveis e Fechamento Operacional de Onboarding | Concluída |
 | [SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/](SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/SPEC.md) | SPEC_021 | Validação Operacional e Resiliência de Produção | Em Execução |
-| [SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/](SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/SPEC.md) | SPEC_022 | Convergencia PRD-SDD-Codigo para Regras Criticas de Risco e Escalabilidade | Em Execução |
+| [SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/](SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/SPEC.md) | SPEC_022 | Convergencia PRD-SDD-Codigo para Regras Criticas de Risco e Escalabilidade | Concluída |
 
 ---
 
