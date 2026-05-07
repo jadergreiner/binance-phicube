@@ -1,0 +1,48 @@
+{
+  "spec_id": "SPEC_023",
+  "updated_at": "2026-05-07T20:35:00Z",
+  "summary": {
+    "overall_status": "Em Execucao",
+    "todo": 0,
+    "in_progress": 1,
+    "blocked": 0,
+    "done": 4
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Estrutura documental da SPEC_023 criada e index SDD atualizado.",
+      "updated_by": "time-a-refinamento"
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Config + TTL de trades/audit com minimo de 90 dias implementados e testados.",
+      "updated_by": "backend-senior"
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Matriz parametrizada com 60 cenarios entregue para RiskManager.",
+      "updated_by": "qa-engineer"
+    },
+    {
+      "id": "task_004",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Scripts de gate/cobertura/auditoria/soak e workflow CI/manual implementados.",
+      "updated_by": "devops-qa"
+    },
+    {
+      "id": "task_005",
+      "status": "in_progress",
+      "progress_pct": 60,
+      "notes": "Consolidacao parcial concluida; pendente fechar gate operacional real (50 execucoes + soak aprovado).",
+      "updated_by": "time-b-execucao"
+    }
+  ]
+}

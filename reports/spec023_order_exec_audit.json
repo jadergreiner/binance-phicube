@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-05-07T20:29:26.661242+00:00",
+  "batch_size_requested": 50,
+  "total_records": 0,
+  "success_count": 0,
+  "failure_count": 0,
+  "success_rate": 0.0,
+  "failure_causes": {
+    "mongo_query_failed": 1
+  },
+  "status": "fail",
+  "error": "ServerSelectionTimeoutError"
+}

@@ -1,0 +1,74 @@
+{
+  "spec_id": "SPEC_023",
+  "generated_at": "2026-05-07T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Criar pacote SPEC_023 e rastreabilidade de gaps",
+      "owner": "time-a-refinamento",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [],
+      "target_files": [
+        "docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/SPEC.md",
+        "docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/plan.md",
+        "docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/tasks.json",
+        "docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/tasks_status.json",
+        "docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/spec_status_update.md",
+        "docs/SDD/README.md"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Implementar retencao minima de 90 dias em storage/config",
+      "owner": "backend-senior",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": ["task_001"],
+      "target_files": [
+        "src/config/settings.py",
+        "src/storage/repository.py",
+        "tests/config/test_settings.py",
+        "tests/storage/test_repository_indexes_retention.py"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Entregar matriz de risco com 50+ cenarios",
+      "owner": "qa-engineer",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": ["task_001"],
+      "target_files": [
+        "tests/trading/test_risk_manager_matrix.py"
+      ]
+    },
+    {
+      "id": "task_004",
+      "title": "Criar scripts de evidencia operacional e gates",
+      "owner": "devops-qa",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": ["task_001"],
+      "target_files": [
+        "scripts/spec_023/check_coverage_gate.py",
+        "scripts/spec_023/run_order_exec_audit.py",
+        "scripts/spec_023/run_soak_orchestrator.py",
+        "scripts/spec_023/validate_spec023_artifacts.py",
+        ".github/workflows/spec023-validation.yml"
+      ]
+    },
+    {
+      "id": "task_005",
+      "title": "Consolidar validacao e status final da SPEC_023",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "in_progress",
+      "depends_on": ["task_002", "task_003", "task_004"],
+      "target_files": [
+        "docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/tasks_status.json",
+        "docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/spec_status_update.md"
+      ]
+    }
+  ]
+}

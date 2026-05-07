@@ -266,7 +266,11 @@ async def _main() -> None:
     for cfg in configs:
         await client.validate_market_liquidity(cfg.symbol)
 
-    repo = MongoRepository(settings.mongodb_uri, settings.mongodb_database)
+    repo = MongoRepository(
+        settings.mongodb_uri,
+        settings.mongodb_database,
+        trade_history_retention_days=settings.trade_history_retention_days,
+    )
     await repo.setup_indexes()
 
     signal_engine = SignalEngine(risk_reward_ratio=settings.risk_reward_ratio)

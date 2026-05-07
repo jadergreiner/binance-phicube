@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     # MongoDB
     mongodb_uri: str = Field(default="mongodb://mongo:27017")
     mongodb_database: str = Field(default="phicube")
+    trade_history_retention_days: Annotated[int, Field(ge=90)] = 90
 
     # App
     log_level: str = Field(default="INFO")

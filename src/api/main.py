@@ -61,7 +61,11 @@ async def lifespan(app: Any) -> AsyncIterator[None]:
     position_stream = PositionStream(dashboard_client)
     adaptive_updater = AdaptiveUpdater()
     try:
-        repository = MongoRepository(settings.mongodb_uri, settings.mongodb_database)
+        repository = MongoRepository(
+            settings.mongodb_uri,
+            settings.mongodb_database,
+            trade_history_retention_days=settings.trade_history_retention_days,
+        )
     except AttributeError:
         repository = None
 

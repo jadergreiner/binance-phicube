@@ -141,3 +141,25 @@ def test_symbol_config_aceita_leverage_no_limite_maximo() -> None:
 def test_symbol_config_rejeita_leverage_acima_do_limite() -> None:
     with pytest.raises(ValueError, match="inteiro entre 1 e 20"):
         SymbolConfig.from_triplet("BTCUSDT:15m:21")
+
+
+def test_trade_history_retention_days_default_90(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+
+    settings = _build_settings()
+
+    assert settings.trade_history_retention_days == 90
+
+
+def test_trade_history_retention_days_rejeita_valor_abaixo_de_90(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv("TRADE_HISTORY_RETENTION_DAYS", "30")
+
+    with pytest.raises(ValueError, match="greater than or equal to 90"):
+        _build_settings()

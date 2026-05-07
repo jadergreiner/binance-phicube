@@ -1,0 +1,102 @@
+name: spec023-validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  coverage-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" pytest-cov
+
+      - name: Run tests with coverage json
+        run: |
+          python -m pytest --cov=src --cov-report=json:reports/coverage.json --cov-report=term-missing
+
+      - name: Validate strict coverage gate
+        run: |
+          python scripts/spec_023/check_coverage_gate.py --coverage reports/coverage.json --output reports/spec023_coverage_gate.json --threshold 80.0
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec023-coverage-artifacts
+          path: reports/spec023_coverage_gate.json
+
+  validate-spec-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate SPEC_023 structure
+        run: python scripts/spec_023/validate_spec023_artifacts.py --mode structure --output reports/spec023_validation_report.json
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec023-validation-artifacts
+          path: reports/spec023_validation_report.json
+
+  operational-gates:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Audit latest 50 testnet executions
+        run: python scripts/spec_023/run_order_exec_audit.py --batch-size 50 --output reports/spec023_order_exec_audit.json
+
+      - name: Build soak evidence from collected artifacts
+        run: |
+          python scripts/spec_023/run_soak_orchestrator.py \
+            --skip-collection \
+            --started-at "${{ vars.SPEC023_SOAK_STARTED_AT }}" \
+            --finished-at "${{ vars.SPEC023_SOAK_FINISHED_AT }}" \
+            --duration-hours 48 \
+            --output-stability reports/spec023_runtime_stability.json \
+            --output-evidence docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/evidence/soak_evidence.json
+
+      - name: Validate SPEC_023 objective gates
+        run: python scripts/spec_023/validate_spec023_artifacts.py --mode full --output reports/spec023_validation_report.json
+
+      - name: Upload operational artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec023-operational-artifacts
+          path: |
+            reports/spec023_order_exec_audit.json
+            reports/spec023_runtime_stability.json
+            reports/spec023_validation_report.json
+            docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/evidence/soak_evidence.json

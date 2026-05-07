@@ -1,0 +1,24 @@
+{
+  "status": "pass",
+  "generated_at": "2026-05-07T20:29:36.382008+00:00",
+  "window": {
+    "started_at": "2026-05-05T00:00:00+00:00",
+    "finished_at": "2026-05-07T00:00:00+00:00",
+    "duration_hours": 48.0
+  },
+  "thresholds": {
+    "memory_growth_threshold_mb": 256.0,
+    "allowed_restart_count": 0,
+    "allowed_health_failures": 0
+  },
+  "summary": {
+    "sample_count": 0,
+    "restart_count": 0,
+    "healthcheck_total": 0,
+    "healthcheck_failures": 0,
+    "healthcheck_failure_rate": 0.0,
+    "memory_leak_suspected": false
+  },
+  "per_pid": {},
+  "fail_reasons": []
+}

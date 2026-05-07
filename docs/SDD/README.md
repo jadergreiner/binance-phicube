@@ -82,6 +82,7 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/](SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/SPEC.md) | SPEC_020 | Hardening de Governança SDD, Segurança de Endpoints Sensíveis e Fechamento Operacional de Onboarding | Concluída |
 | [SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/](SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/SPEC.md) | SPEC_021 | Validação Operacional e Resiliência de Produção | Em Execução |
 | [SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/](SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/SPEC.md) | SPEC_022 | Convergencia PRD-SDD-Codigo para Regras Criticas de Risco e Escalabilidade | Concluída |
+| [SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/](SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/SPEC.md) | SPEC_023 | Fechamento de Gaps do PRD (MVP + OKR Atuais) | Em Execução |
 
 ---
 

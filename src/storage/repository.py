@@ -82,9 +82,15 @@ def _calc_metrics(trades: list[dict]) -> dict[str, float | int]:
 class MongoRepository:
     """Async MongoDB repository using motor."""
 
-    def __init__(self, uri: str, database: str) -> None:
+    def __init__(
+        self,
+        uri: str,
+        database: str,
+        trade_history_retention_days: int = 90,
+    ) -> None:
         self._client: AsyncIOMotorClient = AsyncIOMotorClient(uri)
         self._db: AsyncIOMotorDatabase = self._client[database]
+        self._trade_history_retention_days = trade_history_retention_days
 
     @property
     def database(self) -> AsyncIOMotorDatabase:
@@ -93,6 +99,14 @@ class MongoRepository:
 
     async def setup_indexes(self) -> None:
         """Create indexes on first startup. Safe to call on every start."""
+        retention_seconds = self._trade_history_retention_days * 86400
+        closed_statuses = [
+            TradeStatus.CLOSED_TP.value,
+            TradeStatus.CLOSED_SL.value,
+            TradeStatus.CLOSED_MANUAL.value,
+            TradeStatus.FAILED.value,
+        ]
+
         trades = self._db[_TRADES_COLLECTION]
         await trades.create_indexes(
             [
@@ -100,6 +114,13 @@ class MongoRepository:
                 IndexModel([("status", ASCENDING), ("closed_at", DESCENDING)]),
                 IndexModel([("opened_at", DESCENDING)]),
                 IndexModel([("entry_order_id", ASCENDING)], unique=True),
+                # Retenção operacional mínima de histórico de trade (PRD): 90 dias.
+                IndexModel(
+                    [("closed_at", ASCENDING)],
+                    expireAfterSeconds=retention_seconds,
+                    partialFilterExpression={"status": {"$in": closed_statuses}},
+                    name="trades_closed_retention_ttl",
+                ),
             ]
         )
 
@@ -122,6 +143,13 @@ class MongoRepository:
                     expireAfterSeconds=86400,
                     partialFilterExpression={"event": "heartbeat"},
                     name="heartbeat_ttl",
+                ),
+                # Retenção operacional mínima para trilha de auditoria não-heartbeat.
+                IndexModel(
+                    [("ts", ASCENDING)],
+                    expireAfterSeconds=retention_seconds,
+                    partialFilterExpression={"event": {"$ne": "heartbeat"}},
+                    name="audit_retention_ttl",
                 ),
             ]
         )
@@ -371,21 +399,17 @@ class MongoRepository:
         await self._db[_ONBOARDING_COLLECTION].insert_one(doc)
 
     async def get_onboarding_session(self, symbol: str) -> dict[str, Any] | None:
-        return await self._db[_ONBOARDING_COLLECTION].find_one(
-            {"symbol": symbol}, {"_id": 0}
-        )
+        return await self._db[_ONBOARDING_COLLECTION].find_one({"symbol": symbol}, {"_id": 0})
 
     async def list_onboarding_sessions(self) -> list[dict[str, Any]]:
-        cursor = self._db[_ONBOARDING_COLLECTION].find({}, {"_id": 0}).sort(
-            "created_at", DESCENDING
+        cursor = (
+            self._db[_ONBOARDING_COLLECTION].find({}, {"_id": 0}).sort("created_at", DESCENDING)
         )
         return await cursor.to_list(length=None)
 
     async def update_onboarding_session(self, symbol: str, update: dict[str, Any]) -> None:
         update["updated_at"] = datetime.now(UTC)
-        await self._db[_ONBOARDING_COLLECTION].update_one(
-            {"symbol": symbol}, {"$set": update}
-        )
+        await self._db[_ONBOARDING_COLLECTION].update_one({"symbol": symbol}, {"$set": update})
 
     async def delete_onboarding_session(self, symbol: str) -> bool:
         result = await self._db[_ONBOARDING_COLLECTION].delete_one({"symbol": symbol})

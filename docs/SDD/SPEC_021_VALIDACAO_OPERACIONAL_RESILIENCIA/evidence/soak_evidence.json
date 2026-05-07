@@ -1,0 +1,59 @@
+{
+  "run_id": "spec023-soak-20260505-000000",
+  "started_at": "2026-05-05T00:00:00+00:00",
+  "finished_at": "2026-05-07T00:00:00+00:00",
+  "duration_hours": 48.0,
+  "result": "reproved",
+  "failure_reason": "mandatory_event_missing:startup_success; mandatory_event_missing:monitoring_loop_per_symbol; mandatory_event_missing:health_checks_recorded; mandatory_event_missing:shutdown_recorded",
+  "environment": {
+    "bot_version": "local-worktree",
+    "api_version": "local-worktree",
+    "testnet": true
+  },
+  "mandatory_events": {
+    "startup_success": false,
+    "monitoring_loop_per_symbol": false,
+    "health_checks_recorded": false,
+    "error_recovery_events_recorded": true,
+    "shutdown_recorded": false
+  },
+  "artifacts": [
+    "reports/spec023_coverage_gate.json",
+    "reports/spec023_order_exec_audit.json"
+  ],
+  "notes": "Gerado automaticamente por scripts/spec_023/run_soak_orchestrator.py.",
+  "stability_metrics": {
+    "status": "pass",
+    "generated_at": "2026-05-07T20:29:36.382008+00:00",
+    "window": {
+      "started_at": "2026-05-05T00:00:00+00:00",
+      "finished_at": "2026-05-07T00:00:00+00:00",
+      "duration_hours": 48.0
+    },
+    "thresholds": {
+      "memory_growth_threshold_mb": 256.0,
+      "allowed_restart_count": 0,
+      "allowed_health_failures": 0
+    },
+    "summary": {
+      "sample_count": 0,
+      "restart_count": 0,
+      "healthcheck_total": 0,
+      "healthcheck_failures": 0,
+      "healthcheck_failure_rate": 0.0,
+      "memory_leak_suspected": false
+    },
+    "per_pid": {},
+    "fail_reasons": []
+  },
+  "log_evidence": {
+    "startup_success": false,
+    "monitoring_loop_per_symbol": false,
+    "health_event_recorded_in_logs": false,
+    "error_recovery_events_recorded": true,
+    "shutdown_recorded": false,
+    "symbols_monitored_count": 0,
+    "symbols_expected_count": 0
+  },
+  "heartbeat_count": 0
+}
