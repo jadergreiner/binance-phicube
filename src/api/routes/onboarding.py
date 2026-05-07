@@ -10,12 +10,39 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
+from src.monitoring.logger import get_logger
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
+logger = get_logger(__name__)
 
 _VALID_TIMEFRAMES = {"1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
 _SYMBOL_RE = re.compile(r"^[A-Z]{2,15}USDT$")
 _COMMODITIES = frozenset({"XPTUSDT", "COPPERUSDT"})
+
+
+def _is_write_authorized(request: Request) -> bool:
+    settings = request.app.state.settings
+    if not getattr(settings, "dashboard_write_auth_required", False):
+        logger.info("dashboard_write_auth_granted", reason="bypass_disabled")
+        return True
+
+    expected_token = getattr(settings, "dashboard_write_auth_token", None)
+    auth_header = request.headers.get("Authorization", "")
+    expected_header = f"Bearer {expected_token}" if expected_token else ""
+    authorized = bool(expected_header) and auth_header == expected_header
+    if authorized:
+        logger.info("dashboard_write_auth_granted", reason="valid_bearer")
+        return True
+
+    logger.warning("dashboard_write_auth_denied", reason="invalid_or_missing_bearer")
+    return False
+
+
+def _unauthorized_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={"error": "unauthorized", "detalhe": "Bearer token invalido ou ausente"},
+    )
 
 
 def _serialize_session(doc: dict[str, Any]) -> dict[str, Any]:
@@ -71,6 +98,9 @@ async def create_session(
     request: Request,
     body: Annotated[dict, Body()],
 ) -> JSONResponse:
+    if not _is_write_authorized(request):
+        return _unauthorized_response()
+
     repo = request.app.state.repository
     if repo is None:
         return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
@@ -146,6 +176,9 @@ async def get_session(request: Request, symbol: str) -> JSONResponse:
 
 @router.delete("/{symbol}")
 async def delete_session(request: Request, symbol: str) -> JSONResponse:
+    if not _is_write_authorized(request):
+        return _unauthorized_response()
+
     repo = request.app.state.repository
     if repo is None:
         return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
@@ -161,6 +194,9 @@ async def run_backtest(
     symbol: str,
     body: Annotated[dict, Body()] = {},  # noqa: B006
 ) -> JSONResponse:
+    if not _is_write_authorized(request):
+        return _unauthorized_response()
+
     repo = request.app.state.repository
     if repo is None:
         return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
@@ -228,6 +264,9 @@ async def approve_session(
     symbol: str,
     body: Annotated[dict, Body()] = {},  # noqa: B006
 ) -> JSONResponse:
+    if not _is_write_authorized(request):
+        return _unauthorized_response()
+
     repo = request.app.state.repository
     if repo is None:
         return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
@@ -254,4 +293,10 @@ async def approve_session(
         },
     )
     updated = await repo.get_onboarding_session(sym)
-    return JSONResponse(status_code=200, content=_serialize_session(updated or {}))
+    payload = _serialize_session(updated or {})
+    payload["operational_checklist"] = [
+        "Adicionar config_string no SYMBOL_TIMEFRAMES do .env",
+        "Reiniciar o bot para aplicar o novo simbolo",
+        "Validar sessao via GET /onboarding e monitorar status/health no dashboard",
+    ]
+    return JSONResponse(status_code=200, content=payload)

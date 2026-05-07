@@ -1,0 +1,77 @@
+{
+  "spec_id": "SPEC_020",
+  "updated_at": "2026-05-07T00:00:00Z",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "done": 5
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Auditoria executada e lacunas de artefatos normalizadas para SPEC_013/015/016/017/018/019.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_013_VALIDACAO_SIGNAL_ENGINE/tasks_status.json,docs/SDD/SPEC_015_SL_ORFAO_INTERVENCAO_ASSISTIDA/tasks_status.json,docs/SDD/SPEC_016_VISIBILIDADE_OPERACIONAL_DASHBOARD/tasks_status.json,docs/SDD/SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/tasks_status.json,docs/SDD/SPEC_018_EXPANSAO_PARES_COMMODITIES/tasks_status.json,docs/SDD/SPEC_019_ONBOARDING_SIMBOLO/tasks_status.json"
+      }
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Arquivos tasks_status/spec_status_update criados para todas as SPECs alvo com semantica padronizada.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_013_VALIDACAO_SIGNAL_ENGINE/spec_status_update.md,docs/SDD/SPEC_015_SL_ORFAO_INTERVENCAO_ASSISTIDA/spec_status_update.md,docs/SDD/SPEC_016_VISIBILIDADE_OPERACIONAL_DASHBOARD/spec_status_update.md,docs/SDD/SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/spec_status_update.md,docs/SDD/SPEC_018_EXPANSAO_PARES_COMMODITIES/spec_status_update.md,docs/SDD/SPEC_019_ONBOARDING_SIMBOLO/spec_status_update.md"
+      }
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Autenticacao minima implementada via Bearer com DASHBOARD_WRITE_AUTH_REQUIRED e DASHBOARD_WRITE_AUTH_TOKEN.",
+      "updated_by": "backend-senior",
+      "updated_at": "2026-05-07T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/api/test_onboarding.py"
+      }
+    },
+    {
+      "id": "task_004",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Cobertura de auth onboarding adicionada e sem regressao na suite onboarding/settings.",
+      "updated_by": "qa-engineer",
+      "updated_at": "2026-05-07T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "pytest tests/api/test_onboarding.py tests/config/test_settings.py -q"
+      }
+    },
+    {
+      "id": "task_005",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Rastreabilidade e status final consolidados na SPEC_020 com evidencias de codigo, testes e docs.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "docs/SDD/SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/spec_status_update.md"
+      }
+    }
+  ]
+}

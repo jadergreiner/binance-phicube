@@ -24,7 +24,13 @@ from src.api.routes.onboarding import router
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _make_app(sessions: list[dict] | None = None, active_symbols: set[str] | None = None):
+def _make_app(
+    sessions: list[dict] | None = None,
+    active_symbols: set[str] | None = None,
+    *,
+    auth_required: bool = False,
+    auth_token: str | None = None,
+):
     app = FastAPI()
     app.include_router(router)
 
@@ -69,6 +75,8 @@ def _make_app(sessions: list[dict] | None = None, active_symbols: set[str] | Non
         c.symbol = sym
         cfg_list.append(c)
     settings.symbol_timeframes = cfg_list
+    settings.dashboard_write_auth_required = auth_required
+    settings.dashboard_write_auth_token = auth_token
     app.state.settings = settings
 
     return app, _sessions
@@ -229,6 +237,8 @@ class TestAprovacaoGeraConfig:
         assert data["status"] == "APPROVED"
         assert data["config_string"] is not None
         assert "ATOMUSDT" in data["config_string"]
+        assert "operational_checklist" in data
+        assert len(data["operational_checklist"]) == 3
 
 
 # ─── TEST_019_06: config_string formato correto ───────────────────────────────
@@ -357,3 +367,51 @@ class TestValidacoesEntrada:
             "/onboarding", json={"symbol": "ATOMUSDT", "timeframe": "15m", "leverage": 50}
         )
         assert resp.status_code == 422
+
+
+class TestAutenticacaoEscritaOnboarding:
+    """SPEC_020 — auth minima para escrita onboarding."""
+
+    def test_escrita_bypass_quando_auth_nao_requerida(self) -> None:
+        app, _ = _make_app(auth_required=False)
+        client = TestClient(app)
+        resp = client.post(
+            "/onboarding", json={"symbol": "ATOMUSDT", "timeframe": "15m", "leverage": 3}
+        )
+        assert resp.status_code == 201
+
+    def test_escrita_rejeita_sem_bearer_quando_requerida(self) -> None:
+        app, _ = _make_app(auth_required=True, auth_token="token123")
+        client = TestClient(app)
+        resp = client.post(
+            "/onboarding", json={"symbol": "ATOMUSDT", "timeframe": "15m", "leverage": 3}
+        )
+        assert resp.status_code == 401
+        assert resp.json()["error"] == "unauthorized"
+
+    def test_escrita_rejeita_bearer_invalido_quando_requerida(self) -> None:
+        app, _ = _make_app(auth_required=True, auth_token="token123")
+        client = TestClient(app)
+        resp = client.post(
+            "/onboarding",
+            headers={"Authorization": "Bearer invalido"},
+            json={"symbol": "ATOMUSDT", "timeframe": "15m", "leverage": 3},
+        )
+        assert resp.status_code == 401
+        assert resp.json()["error"] == "unauthorized"
+
+    def test_escrita_permite_bearer_valido_quando_requerida(self) -> None:
+        app, _ = _make_app(auth_required=True, auth_token="token123")
+        client = TestClient(app)
+        resp = client.post(
+            "/onboarding",
+            headers={"Authorization": "Bearer token123"},
+            json={"symbol": "ATOMUSDT", "timeframe": "15m", "leverage": 3},
+        )
+        assert resp.status_code == 201
+
+    def test_gets_permanecem_livres_quando_auth_requerida(self) -> None:
+        app, _ = _make_app(auth_required=True, auth_token="token123")
+        client = TestClient(app)
+        resp = client.get("/onboarding")
+        assert resp.status_code == 200

@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "command",
+        "windows": "powershell -NoProfile -ExecutionPolicy Bypass -File .github/hooks/scripts/lint-on-edit.ps1",
+        "linux": "bash .github/hooks/scripts/lint-on-edit.sh",
+        "osx": "bash .github/hooks/scripts/lint-on-edit.sh",
+        "timeout": 30
+      }
+    ]
+  }
+}

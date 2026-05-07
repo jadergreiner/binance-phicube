@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, cast
 from unittest.mock import patch
 
+import pytest
+
 from src.config.settings import Settings
 
 
@@ -103,3 +105,29 @@ def test_carrega_com_configuracao_telegram_parcial(monkeypatch) -> None:
 
     assert settings.telegram_token == "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
     assert settings.telegram_chat_id is None
+
+
+def test_requer_token_quando_write_auth_ativo(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv("DASHBOARD_WRITE_AUTH_REQUIRED", "true")
+    monkeypatch.delenv("DASHBOARD_WRITE_AUTH_TOKEN", raising=False)
+
+    with pytest.raises(ValueError, match="DASHBOARD_WRITE_AUTH_TOKEN obrigatorio"):
+        _build_settings()
+
+
+def test_aceita_write_auth_ativo_com_token(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv("DASHBOARD_WRITE_AUTH_REQUIRED", "true")
+    monkeypatch.setenv("DASHBOARD_WRITE_AUTH_TOKEN", "token123")
+
+    settings = _build_settings()
+
+    assert settings.dashboard_write_auth_required is True
+    assert settings.dashboard_write_auth_token == "token123"

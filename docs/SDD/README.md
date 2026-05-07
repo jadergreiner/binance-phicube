@@ -79,6 +79,7 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/](SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/SPEC.md) | SPEC_017 | Saúde do Bot: Heartbeat no MongoDB e Healthcheck HTTP | Concluída |
 | [SPEC_018_EXPANSAO_PARES_COMMODITIES/](SPEC_018_EXPANSAO_PARES_COMMODITIES/SPEC.md) | SPEC_018 | Expansão de Pares: Commodities (XPTUSDT e COPPERUSDT) | Concluída |
 | [SPEC_019_ONBOARDING_SIMBOLO/](SPEC_019_ONBOARDING_SIMBOLO/SPEC.md) | SPEC_019 | Onboarding de Símbolo — Wizard de Inclusão, Backtest e Aprovação para Produção | Concluída |
+| [SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/](SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/SPEC.md) | SPEC_020 | Hardening de Governança SDD, Segurança de Endpoints Sensíveis e Fechamento Operacional de Onboarding | Concluída |
 
 ---
 

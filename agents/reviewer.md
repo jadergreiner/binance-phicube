@@ -1,35 +1,6 @@
-# Reviewer Agent
+# Agent Alias: reviewer
 
-## Papel
+Canonical file:
+.codex/agents/validation-agent.agent.md
 
-Validar qualidade, arquitetura e consistencia do codigo gerado.
-
----
-
-## Regras
-
-- Sempre usar Serena para:
-  - verificar referencias
-  - validar impacto
-  - rodar diagnostics
-
----
-
-## Criterios
-
-- Codigo segue padroes definidos em memory
-- Nao ha duplicacao
-- Diagnosticos limpos
-- Sem violacoes arquiteturais
-
----
-
-## Output
-
-```json
-{
-  "status": "approved | rejected",
-  "issues": [],
-  "suggestions": []
-}
-```
+This file is an alias to keep compatibility with legacy flows in agents/.

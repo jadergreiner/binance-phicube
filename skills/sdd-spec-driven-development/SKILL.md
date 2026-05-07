@@ -1,21 +1,22 @@
 ---
 name: sdd-spec-driven-development
-description: Workflow replicado de .claude/commands/sdd-spec-driven-development.md para 'Spec-Driven Development (SDD) — Phicube'. Use quando precisar executar esse procedimento no projeto Binance Phicube.
+description: Workflow de Spec-Driven Development (SDD) para refinar, especificar e desenvolver itens com rastreabilidade fim a fim no Binance Phicube. Use quando criar feature, corrigir bug, alterar regra de negocio, refatorar modulo critico, revisar conformidade com SPEC/PRD, ou desenvolver com apoio de IA sem ambiguidade.
 ---
 
-# Spec-Driven Development (SDD) — Phicube
+# Spec-Driven Development (SDD) - Phicube
 
 Workflow operacional para transformar uma necessidade em implementação validada, mantendo a especificação como fonte de verdade.
 
-**Argumento:** item a tratar (ex: `"ajuste no signal_engine"`, `"novo endpoint"`, `"bug de ordem sem SL"`)
+Acionamento recomendado no Codex: `/sdd-spec-driven-development <item>`
 
-## Quando Usar
+## Resultado Esperado
 
-- Refinar uma demanda nova (feature, bug, melhoria)
-- Alterar regra de negócio ou estratégia
-- Especificar contrato técnico antes de implementar
-- Implementar item com apoio de IA sem perder aderência
-- Revisar PR com foco em conformidade com spec
+Ao final, o item deve ter:
+- Especificação clara e atualizada
+- Contrato técnico verificável
+- Implementação aderente
+- Testes vinculados à regra
+- Evidência de conformidade para merge
 
 ## Procedimento
 
@@ -36,7 +37,8 @@ Leia e alinhe as fontes:
 - `docs/SDD/SPEC.md` (fonte técnica)
 - `docs/SDD/README.md` (governança SDD)
 
-Se o item afeta estratégia de trading, incluir também `STRATEGY.md` (quando existir).
+Se o item afeta estratégia de trading, incluir também:
+- `STRATEGY.md` (quando existir)
 
 ### 3. Refinar Antes de Codar
 
@@ -58,7 +60,8 @@ Atualize primeiro a documentação aplicável:
 - `docs/SDD/SPEC.md` para mudanças técnicas
 - Documento SDD complementar, se necessário
 
-Critério de qualidade: outro engenheiro consegue implementar sem adivinhação.
+Critério de qualidade desta etapa:
+- Outro engenheiro consegue implementar sem adivinhação
 
 ### 5. Derivar Contratos e Testes da Spec
 
@@ -76,25 +79,33 @@ Checklist:
 
 ### 6. Implementar Guiado pela Spec
 
+Implementação deve seguir estritamente a especificação atualizada.
+
 - Sem decisões implícitas fora da spec
 - Se surgir dúvida de regra, voltar ao passo 4
-- Contexto explícito da seção da spec deve guiar a implementação
+- IA deve receber contexto explícito da seção da spec usada
 
 ### 7. Validar Conformidade e Encerrar
 
+Rodar validações e revisão:
+- Testes unitários e de integração aplicáveis
+- Checklist de conformidade com a spec
+- Revisão de risco (quando houver impacto financeiro)
+
+Critérios de conclusão:
 - [ ] Especificação atualizada antes do código
 - [ ] Código aderente ao contrato definido
 - [ ] Testes passando sem regressão
-- [ ] Rastreabilidade documentada: requisito -> spec -> teste -> código
+- [ ] Rastreabilidade documentada: requisito -> spec -> teste -> codigo
 
 ## Decisões e Ramificações
 
 ### A. Mudança de Estratégia de Trading
 
 Se alterar lógica de sinal/entrada/saída/SL/TP:
-- Consultar agente `trader-senior`
+- Consultar `@trader-senior`
 - Validar consistência com método BO Williams
-- Executar `/signal-review`
+- Reforçar validação com skill `signal-review`
 
 ### B. Hotfix em Produção
 
@@ -106,12 +117,12 @@ Se urgência impedir spec prévia:
 ### C. Impacto de Segurança
 
 Se houver mudança em segredos, acesso, Docker, env vars, dependências:
-- Executar `/security-audit`
+- Executar skill `security-audit`
 
 ### D. Alto Impacto em Qualidade
 
 Se alterar fluxo de ordens, risco, persistência ou integração:
-- Executar `/qa-review`
+- Executar skill `qa-review`
 
 ## Definição de Pronto (DoD SDD)
 
@@ -119,4 +130,12 @@ Se alterar fluxo de ordens, risco, persistência ou integração:
 - [ ] Testes comprovam regras e erros especificados
 - [ ] PR cita seções exatas da spec alteradas
 - [ ] Não há divergência entre comportamento e documentação
+- [ ] `tasks_status.json` e `spec_status_update.md` atualizados para a SPEC alvo, quando aplicavel
+
+## Prompts de Exemplo
+
+- "/sdd-spec-driven-development ajuste no signal_engine para evitar duplicacao de ordens"
+- "Aplique a skill SDD para refinar e especificar um ajuste no Risk Manager"
+- "Use a skill SDD para transformar este bug em spec + plano de implementação"
+- "Execute o workflow SDD para desenvolver nova regra de entrada no Signal Engine"
 

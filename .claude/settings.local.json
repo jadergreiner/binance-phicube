@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:\\\\repo\\\\binance-phicube\\\\docs\\\\SDD\\\\SPEC_012_MONITORAMENTO_ORDENS_POSICOES_ABERTAS\")",
+      "Bash(mkdir -p \"C:\\\\repo\\\\binance-phicube\\\\src\\\\monitoring\")",
+      "Bash(mkdir -p \"C:\\\\repo\\\\binance-phicube\\\\tests\\\\monitoring\")",
+      "Bash(python *)",
+      "Bash(ruff check *)",
+      "Skill(commit-commands:commit-push-pr)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(docker compose restart *)",
+      "Bash(docker compose *)",
+      "Bash(docker exec phicube-bot *)",
+      "Bash(New-Item -ItemType Directory -Path \"C:\\\\repo\\\\binance-phicube\\\\tests\\\\strategy\" -Force)",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType File -Path \"C:\\\\repo\\\\binance-phicube\\\\tests\\\\strategy\\\\__init__.py\" -Force)",
+      "PowerShell(New-Item *)",
+      "Bash(ruff format *)"
+    ]
+  }
+}

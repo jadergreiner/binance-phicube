@@ -95,6 +95,14 @@ class Settings(BaseSettings):
         default=None,
         description="Dashboard API Secret da Binance Testnet (READ_ONLY)",
     )
+    dashboard_write_auth_required: bool = Field(
+        default=False,
+        description="Exige autenticacao para endpoints de escrita do dashboard",
+    )
+    dashboard_write_auth_token: str | None = Field(
+        default=None,
+        description="Token Bearer para endpoints de escrita quando auth estiver habilitada",
+    )
 
     @field_validator("symbol_timeframes", mode="before")
     @classmethod
@@ -147,6 +155,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Commodities detectadas em SYMBOL_TIMEFRAMES mas backtest não validado. "
                 "Defina COMMODITIES_BACKTEST_VALIDATED=true após concluir backtest."
+            )
+        if self.dashboard_write_auth_required and not self.dashboard_write_auth_token:
+            raise ValueError(
+                "DASHBOARD_WRITE_AUTH_TOKEN obrigatorio quando "
+                "DASHBOARD_WRITE_AUTH_REQUIRED=true."
             )
         return self
 

@@ -115,7 +115,12 @@ Aprovação manual do operador.
 **Body (opcional):** `{ notes? }`  
 **Pré-condição:** status deve ser `BACKTESTED`  
 **Ação:** gera `config_string = "SYMBOL:TIMEFRAME:LEVERAGE"`, status → `APPROVED`  
-**Resposta:** `200 { ...sessão com config_string... }` | `404` | `409` (não está em BACKTESTED)
+**Resposta:** `200 { ...sessão com config_string..., operational_checklist: [...] }` | `404` | `409` (não está em BACKTESTED)
+
+**Checklist operacional pós-aprovação (operational_checklist):**
+1. Adicionar `config_string` em `SYMBOL_TIMEFRAMES` no `.env`
+2. Reiniciar o bot para aplicar o novo símbolo
+3. Validar sessão via `GET /onboarding` e monitorar `GET /health` no dashboard
 
 ---
 

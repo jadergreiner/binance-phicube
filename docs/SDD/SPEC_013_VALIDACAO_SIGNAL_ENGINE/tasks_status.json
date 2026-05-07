@@ -1,0 +1,25 @@
+{
+  "spec_id": "SPEC_013",
+  "updated_at": "2026-05-07T00:00:00Z",
+  "summary": {
+    "todo": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "done": 1
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Entrega consolidada com evidencias de codigo e testes no repositorio.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-07T00:00:00Z",
+      "links": {
+        "pr": "",
+        "commit": "",
+        "tests": "tests/strategy/test_signal_engine_corpus.py"
+      }
+    }
+  ]
+}

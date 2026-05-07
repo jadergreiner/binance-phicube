@@ -1,0 +1,147 @@
+{
+  "spec_id": "SPEC_020",
+  "generated_at": "2026-05-06T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Auditar completude de status das SPECs alvo",
+      "description": "Mapear lacunas de artefatos e evidencias em SPEC_013, 015, 016, 017, 018 e 019.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [],
+      "target_files": [
+        "docs/SDD/SPEC_013_VALIDACAO_SIGNAL_ENGINE/",
+        "docs/SDD/SPEC_015_SL_ORFAO_INTERVENCAO_ASSISTIDA/",
+        "docs/SDD/SPEC_016_VISIBILIDADE_OPERACIONAL_DASHBOARD/",
+        "docs/SDD/SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/",
+        "docs/SDD/SPEC_018_EXPANSAO_PARES_COMMODITIES/",
+        "docs/SDD/SPEC_019_ONBOARDING_SIMBOLO/"
+      ],
+      "constraints": [
+        "Nao inferir conclusao sem evidencia",
+        "Manter semantica canonica de status"
+      ],
+      "acceptance_criteria": [
+        "Checklist por SPEC preenchido",
+        "Lacunas documentadas com impacto"
+      ],
+      "evidence_required": [
+        "diagnostics_report"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Normalizar tasks_status e spec_status_update das SPECs alvo",
+      "description": "Criar/atualizar artefatos de status faltantes e alinhar com evidencias reais.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_013_VALIDACAO_SIGNAL_ENGINE/",
+        "docs/SDD/SPEC_015_SL_ORFAO_INTERVENCAO_ASSISTIDA/",
+        "docs/SDD/SPEC_016_VISIBILIDADE_OPERACIONAL_DASHBOARD/",
+        "docs/SDD/SPEC_017_SAUDE_BOT_HEARTBEAT_HEALTHCHECK/",
+        "docs/SDD/SPEC_018_EXPANSAO_PARES_COMMODITIES/",
+        "docs/SDD/SPEC_019_ONBOARDING_SIMBOLO/"
+      ],
+      "constraints": [
+        "Sem mascarar pendencias",
+        "Registrar desvios explicitamente"
+      ],
+      "acceptance_criteria": [
+        "Todas as SPECs alvo com arquivos de status presentes",
+        "Status coerente com codigo e testes"
+      ],
+      "evidence_required": [
+        "docs_diff",
+        "status_files"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Implementar autenticacao minima em endpoints sensiveis",
+      "description": "Adicionar controle de acesso para rotas de escrita do onboarding e equivalentes.",
+      "owner": "backend-senior",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/api/routes/onboarding.py",
+        "src/api/main.py",
+        "src/config/settings.py"
+      ],
+      "constraints": [
+        "Nao quebrar endpoints de leitura",
+        "Nao logar segredo/token"
+      ],
+      "acceptance_criteria": [
+        "POST/DELETE sensiveis exigem credencial valida",
+        "Resposta de erro padronizada para acesso negado"
+      ],
+      "evidence_required": [
+        "unit_tests",
+        "integration_tests"
+      ]
+    },
+    {
+      "id": "task_004",
+      "title": "Cobrir seguranca e onboarding com testes",
+      "description": "Adicionar cenarios positivo/negativo para autenticacao e fechamento operacional do onboarding.",
+      "owner": "qa-engineer",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": [
+        "task_003"
+      ],
+      "target_files": [
+        "tests/api/test_onboarding.py",
+        "tests/api/"
+      ],
+      "constraints": [
+        "Cobrir 401/403 e fluxo autorizado",
+        "Manter testes existentes verdes"
+      ],
+      "acceptance_criteria": [
+        "Suite valida controle de acesso",
+        "Fluxo onboarding validado sem regressao"
+      ],
+      "evidence_required": [
+        "test_result"
+      ]
+    },
+    {
+      "id": "task_005",
+      "title": "Consolidar fechamento da SPEC_020",
+      "description": "Atualizar tasks_status/spec_status_update da SPEC_020 e indice SDD com evidencias finais.",
+      "owner": "time-b-execucao",
+      "priority": "P1",
+      "status": "todo",
+      "depends_on": [
+        "task_002",
+        "task_004"
+      ],
+      "target_files": [
+        "docs/SDD/SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/tasks_status.json",
+        "docs/SDD/SPEC_020_HARDENING_GOVERNANCA_SEGURANCA_ONBOARDING/spec_status_update.md",
+        "docs/SDD/README.md"
+      ],
+      "constraints": [
+        "Rastreabilidade obrigatoria PRD -> SPEC -> teste -> codigo"
+      ],
+      "acceptance_criteria": [
+        "Status final documentado com evidencias",
+        "Indice SDD atualizado"
+      ],
+      "evidence_required": [
+        "status_update",
+        "files_changed"
+      ]
+    }
+  ]
+}
