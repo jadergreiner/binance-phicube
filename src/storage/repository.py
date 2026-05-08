@@ -12,6 +12,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 from pymongo.errors import DuplicateKeyError
@@ -25,6 +27,16 @@ _TRADES_COLLECTION = "trades"
 _SIGNALS_COLLECTION = "signals"
 _AUDIT_COLLECTION = "audit"
 _ONBOARDING_COLLECTION = "symbol_onboarding"
+_AUDIT_RETENTION_EVENTS = [
+    "signal_detected",
+    "trade_opened",
+    "trade_closed_tp",
+    "trade_closed_sl",
+    "trade_closed_manual",
+    "sl_missing_detected",
+    "sl_missing_renotified",
+    "sl_missing_cleared",
+]
 
 
 def _calc_metrics(trades: list[dict]) -> dict[str, float | int]:
@@ -148,7 +160,7 @@ class MongoRepository:
                 IndexModel(
                     [("ts", ASCENDING)],
                     expireAfterSeconds=retention_seconds,
-                    partialFilterExpression={"event": {"$ne": "heartbeat"}},
+                    partialFilterExpression={"event": {"$in": _AUDIT_RETENTION_EVENTS}},
                     name="audit_retention_ttl",
                 ),
             ]
@@ -310,6 +322,8 @@ class MongoRepository:
                     "take_profit": 1,
                     "pnl_usdt": 1,
                     "status": 1,
+                    "close_reason": 1,
+                    "is_estimated": 1,
                     "opened_at": 1,
                     "closed_at": 1,
                 }
@@ -420,6 +434,97 @@ class MongoRepository:
     async def save_signal(self, signal_dict: dict) -> str:
         result = await self._db[_SIGNALS_COLLECTION].insert_one(signal_dict)
         return str(result.inserted_id)
+
+    async def update_signal_execution_outcome(
+        self,
+        signal_id: str,
+        *,
+        execution_status: str,
+        execution_reason: str | None = None,
+        execution_details: dict[str, Any] | None = None,
+        trade_id: str | None = None,
+        outcome_at: datetime | None = None,
+    ) -> bool:
+        try:
+            object_id = ObjectId(signal_id)
+        except (InvalidId, TypeError):
+            logger.warning("signal_outcome_update_invalid_id", signal_id=signal_id)
+            return False
+
+        update: dict[str, Any] = {
+            "execution_status": execution_status,
+            "outcome_at": outcome_at or datetime.now(UTC),
+        }
+        if execution_reason is not None:
+            update["execution_reason"] = execution_reason
+        if execution_details is not None:
+            update["execution_details"] = execution_details
+        if trade_id is not None:
+            update["trade_id"] = trade_id
+
+        result = await self._db[_SIGNALS_COLLECTION].update_one(
+            {"_id": object_id},
+            {"$set": update},
+        )
+        return result.matched_count > 0
+
+    async def get_signal_history(self, limit: int = 50) -> list[dict]:
+        pipeline = [
+            {"$sort": {"detected_at": -1}},
+            {"$limit": limit},
+            {
+                "$project": {
+                    "_id": 0,
+                    "symbol": 1,
+                    "timeframe": 1,
+                    "direction": 1,
+                    "entry_price": 1,
+                    "stop_loss": 1,
+                    "take_profit": 1,
+                    "risk_reward_ratio": 1,
+                    "detected_at": 1,
+                    "execution_status": 1,
+                    "execution_reason": 1,
+                    "execution_details": 1,
+                    "trade_id": 1,
+                    "outcome_at": 1,
+                }
+            },
+        ]
+        cursor = self._db[_SIGNALS_COLLECTION].aggregate(pipeline)
+        return await cursor.to_list(length=limit)
+
+    async def get_latest_signal_diagnostics(self, limit: int = 10) -> list[dict]:
+        pipeline = [
+            {"$match": {"event": "signal_evaluated"}},
+            {"$sort": {"ts": -1}},
+            {
+                "$group": {
+                    "_id": {"symbol": "$symbol", "timeframe": "$timeframe"},
+                    "doc": {"$first": "$$ROOT"},
+                }
+            },
+            {"$replaceRoot": {"newRoot": "$doc"}},
+            {"$sort": {"ts": -1}},
+            {"$limit": limit},
+            {
+                "$project": {
+                    "_id": 0,
+                    "symbol": 1,
+                    "timeframe": 1,
+                    "decision": 1,
+                    "signal_generated": 1,
+                    "reason": 1,
+                    "evaluated_at": 1,
+                    "candle_open_time": 1,
+                    "long_conditions": 1,
+                    "short_conditions": 1,
+                    "ts": 1,
+                }
+            },
+        ]
+        cursor = self._db[_AUDIT_COLLECTION].aggregate(pipeline)
+        return await cursor.to_list(length=limit)
 
     # ─── Audit log ────────────────────────────────────────────────────────────
 

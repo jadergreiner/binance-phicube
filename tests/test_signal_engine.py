@@ -151,6 +151,25 @@ class TestSignalEngine:
             ]:
                 assert key in d
 
+    def test_consume_last_evaluation_retorna_no_signal_details(self):
+        df = _flat_df(200)
+        result = self.engine.evaluate("BTCUSDT", "15m", df)
+        assert result is None
+
+        evaluation = self.engine.consume_last_evaluation()
+        assert evaluation is not None
+        assert evaluation.symbol == "BTCUSDT"
+        assert evaluation.timeframe == "15m"
+        assert evaluation.signal_generated is False
+        assert evaluation.decision == "NO_SIGNAL"
+        assert evaluation.reason
+
+    def test_consume_last_evaluation_limpa_buffer(self):
+        df = _flat_df(200)
+        self.engine.evaluate("BTCUSDT", "15m", df)
+        assert self.engine.consume_last_evaluation() is not None
+        assert self.engine.consume_last_evaluation() is None
+
 
 class TestAlligatorHelpers:
     def test_bullish_condition(self):

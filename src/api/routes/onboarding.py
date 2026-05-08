@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import os
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 
+import pandas as pd
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
+
 from src.monitoring.logger import get_logger
+from src.strategy.indicators import compute_all, last_valid_fractal_high, last_valid_fractal_low
+from src.strategy.signal_engine import SignalEngine
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 logger = get_logger(__name__)
@@ -18,6 +24,7 @@ logger = get_logger(__name__)
 _VALID_TIMEFRAMES = {"1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
 _SYMBOL_RE = re.compile(r"^[A-Z]{2,15}USDT$")
 _COMMODITIES = frozenset({"XPTUSDT", "COPPERUSDT"})
+_MARKET_ANALYSIS_CANDLES_LIMIT = 260
 
 
 def _is_write_authorized(request: Request) -> bool:
@@ -84,6 +91,211 @@ def _active_symbols(request: Request) -> set[str]:
         return set()
 
 
+def _compose_triplet(symbol: str, timeframe: str, leverage: int) -> str:
+    return f"{symbol}:{timeframe}:{leverage}"
+
+
+def _parse_triplet(triplet: str) -> tuple[str, str, int] | None:
+    parts = [part.strip() for part in triplet.split(":")]
+    if len(parts) != 3:
+        return None
+    symbol, timeframe, leverage_raw = parts
+    if not symbol or not timeframe:
+        return None
+    try:
+        leverage = int(leverage_raw)
+    except (TypeError, ValueError):
+        return None
+    return symbol.upper(), timeframe, leverage
+
+
+def _settings_triplets(request: Request) -> list[str]:
+    settings = request.app.state.settings
+    triplets: list[str] = []
+    for cfg in getattr(settings, "symbol_timeframes", []):
+        symbol = str(getattr(cfg, "symbol", "")).upper()
+        timeframe = str(getattr(cfg, "timeframe", ""))
+        leverage = int(getattr(cfg, "leverage", 0))
+        if not symbol or not timeframe or leverage <= 0:
+            continue
+        triplets.append(_compose_triplet(symbol, timeframe, leverage))
+    return triplets
+
+
+def _approved_triplets(sessions: list[dict[str, Any]]) -> list[str]:
+    approved: list[str] = []
+    for session in sessions:
+        if session.get("status") != "APPROVED":
+            continue
+        parsed = _parse_triplet(str(session.get("config_string") or ""))
+        if parsed is None:
+            continue
+        symbol, timeframe, leverage = parsed
+        approved.append(_compose_triplet(symbol, timeframe, leverage))
+    return approved
+
+
+def _merge_triplets(base_triplets: list[str], approved_triplets: list[str]) -> list[str]:
+    merged: dict[tuple[str, str], int] = {}
+    order: list[tuple[str, str]] = []
+
+    def _upsert(triplet: str) -> None:
+        parsed = _parse_triplet(triplet)
+        if parsed is None:
+            return
+        symbol, timeframe, leverage = parsed
+        key = (symbol, timeframe)
+        if key not in merged:
+            order.append(key)
+        merged[key] = leverage
+
+    for triplet in base_triplets:
+        _upsert(triplet)
+    for triplet in approved_triplets:
+        _upsert(triplet)
+
+    return [
+        _compose_triplet(symbol, timeframe, merged[(symbol, timeframe)])
+        for symbol, timeframe in order
+    ]
+
+
+def _resolve_env_path() -> Path:
+    override = os.getenv("PHICUBE_ENV_PATH")
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path(__file__).resolve().parents[3] / ".env"
+
+
+def _upsert_env_key(path: Path, *, key: str, value: str) -> None:
+    lines: list[str] = []
+    if path.exists():
+        lines = path.read_text(encoding="utf-8").splitlines()
+
+    target_prefix = f"{key}="
+    replaced = False
+    for idx, line in enumerate(lines):
+        if line.strip().startswith(target_prefix):
+            lines[idx] = f"{target_prefix}{value}"
+            replaced = True
+            break
+
+    if not replaced:
+        lines.append(f"{target_prefix}{value}")
+
+    content = "\n".join(lines).rstrip() + "\n"
+    path.write_text(content, encoding="utf-8")
+
+
+def _validate_symbol(symbol: str) -> JSONResponse | None:
+    if not _SYMBOL_RE.match(symbol):
+        return JSONResponse(
+            status_code=422,
+            content={"error": "symbol_invalido", "detalhe": "Formato esperado: XXXXUSDT"},
+        )
+    return None
+
+
+def _validate_timeframe(timeframe: str) -> JSONResponse | None:
+    if timeframe not in _VALID_TIMEFRAMES:
+        return JSONResponse(
+            status_code=422,
+            content={"error": "timeframe_invalido", "validos": sorted(_VALID_TIMEFRAMES)},
+        )
+    return None
+
+
+def _parse_leverage(leverage_raw: Any) -> int | None:
+    try:
+        leverage = int(leverage_raw)
+    except (TypeError, ValueError):
+        return None
+    if not (1 <= leverage <= 20):
+        return None
+    return leverage
+
+
+def _validate_leverage(leverage_raw: Any) -> tuple[int | None, JSONResponse | None]:
+    leverage = _parse_leverage(leverage_raw)
+    if leverage is None:
+        return None, JSONResponse(
+            status_code=422,
+            content={"error": "leverage_invalido", "detalhe": "Deve ser inteiro entre 1 e 20"},
+        )
+    return leverage, None
+
+
+def _serialize_signal(signal: Any) -> dict[str, Any]:
+    payload = signal.to_dict()
+    detected_at = payload.get("detected_at")
+    if isinstance(detected_at, datetime):
+        payload["detected_at"] = detected_at.isoformat().replace("+00:00", "Z")
+    return payload
+
+
+def _safe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(parsed) or math.isinf(parsed):
+        return None
+    return parsed
+
+
+def _serialize_market_context(enriched: pd.DataFrame) -> dict[str, Any]:
+    if enriched.empty:
+        return {}
+    last = enriched.iloc[-1]
+    candle_open_time = last.get("open_time")
+    candle_open_time_iso: str | None = None
+    if hasattr(candle_open_time, "isoformat"):
+        candle_open_time_iso = candle_open_time.isoformat().replace("+00:00", "Z")
+    return {
+        "candle_open_time": candle_open_time_iso,
+        "open": _safe_float(last.get("open")),
+        "high": _safe_float(last.get("high")),
+        "low": _safe_float(last.get("low")),
+        "close": _safe_float(last.get("close")),
+        "volume": _safe_float(last.get("volume")),
+        "jaw": _safe_float(last.get("jaw")),
+        "teeth": _safe_float(last.get("teeth")),
+        "lips": _safe_float(last.get("lips")),
+        "ao": _safe_float(last.get("ao")),
+        "fractal_high_recent": last_valid_fractal_high(enriched),
+        "fractal_low_recent": last_valid_fractal_low(enriched),
+    }
+
+
+async def _build_symbol_timeframes_payload(request: Request) -> dict[str, Any]:
+    repo = request.app.state.repository
+    sessions = await repo.list_onboarding_sessions()
+    merged_triplets = _merge_triplets(_settings_triplets(request), _approved_triplets(sessions))
+    symbol_timeframes_line = ",".join(merged_triplets)
+    env_path = _resolve_env_path()
+    env_applied = False
+    env_apply_error: str | None = None
+    try:
+        _upsert_env_key(env_path, key="SYMBOL_TIMEFRAMES", value=symbol_timeframes_line)
+        env_applied = True
+    except Exception as exc:
+        env_apply_error = type(exc).__name__
+
+    return {
+        "symbol_timeframes_line": symbol_timeframes_line,
+        "env_path": str(env_path),
+        "env_applied": env_applied,
+        "env_apply_error": env_apply_error,
+        "operational_checklist": [
+            "SYMBOL_TIMEFRAMES atualizado automaticamente no .env",
+            "Reiniciar o bot para aplicar o novo simbolo",
+            "Validar sessao via GET /onboarding e monitorar status/health no dashboard",
+        ],
+    }
+
+
 @router.get("")
 async def list_sessions(request: Request) -> JSONResponse:
     repo = request.app.state.repository
@@ -109,26 +321,15 @@ async def create_session(
     timeframe = str(body.get("timeframe", "")).strip()
     leverage_raw = body.get("leverage")
 
-    # Validações básicas
-    if not _SYMBOL_RE.match(symbol):
-        return JSONResponse(
-            status_code=422,
-            content={"error": "symbol_invalido", "detalhe": "Formato esperado: XXXXUSDT"},
-        )
-    if timeframe not in _VALID_TIMEFRAMES:
-        return JSONResponse(
-            status_code=422,
-            content={"error": "timeframe_invalido", "validos": sorted(_VALID_TIMEFRAMES)},
-        )
-    try:
-        leverage = int(leverage_raw)  # type: ignore[arg-type]
-        if not (1 <= leverage <= 20):
-            raise ValueError
-    except (TypeError, ValueError):
-        return JSONResponse(
-            status_code=422,
-            content={"error": "leverage_invalido", "detalhe": "Deve ser inteiro entre 1 e 20"},
-        )
+    symbol_error = _validate_symbol(symbol)
+    if symbol_error is not None:
+        return symbol_error
+    timeframe_error = _validate_timeframe(timeframe)
+    if timeframe_error is not None:
+        return timeframe_error
+    leverage, leverage_error = _validate_leverage(leverage_raw)
+    if leverage_error is not None or leverage is None:
+        return leverage_error
 
     # Símbolo já ativo?
     if symbol in _active_symbols(request):
@@ -205,7 +406,7 @@ async def run_backtest(
     session = await repo.get_onboarding_session(sym)
     if session is None:
         return JSONResponse(status_code=404, content={"error": "sessao_nao_encontrada"})
-    if session["status"] in ("APPROVED",):
+    if session["status"] not in ("CANDIDATE", "BACKTESTED", "APPROVED"):
         return JSONResponse(
             status_code=409,
             content={"error": "estado_invalido", "status_atual": session["status"]},
@@ -235,10 +436,11 @@ async def run_backtest(
             await client.close()
 
         result_dict = _serialize_backtest(result)
+        next_status = "APPROVED" if session["status"] == "APPROVED" else "BACKTESTED"
         await repo.update_onboarding_session(
             sym,
             {
-                "status": "BACKTESTED",
+                "status": next_status,
                 "backtest_result": result_dict,
                 "backtest_limit": limit,
                 "backtest_error": None,
@@ -294,9 +496,162 @@ async def approve_session(
     )
     updated = await repo.get_onboarding_session(sym)
     payload = _serialize_session(updated or {})
-    payload["operational_checklist"] = [
-        "Adicionar config_string no SYMBOL_TIMEFRAMES do .env",
-        "Reiniciar o bot para aplicar o novo simbolo",
-        "Validar sessao via GET /onboarding e monitorar status/health no dashboard",
-    ]
+    payload.update(await _build_symbol_timeframes_payload(request))
     return JSONResponse(status_code=200, content=payload)
+
+
+@router.patch("/{symbol}")
+async def patch_session(
+    request: Request,
+    symbol: str,
+    body: Annotated[dict, Body()],
+) -> JSONResponse:
+    if not _is_write_authorized(request):
+        return _unauthorized_response()
+
+    repo = request.app.state.repository
+    if repo is None:
+        return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
+
+    current_symbol = symbol.upper()
+    session = await repo.get_onboarding_session(current_symbol)
+    if session is None:
+        return JSONResponse(status_code=404, content={"error": "sessao_nao_encontrada"})
+
+    editable_fields = {"symbol", "timeframe", "leverage", "notes"}
+    if not any(field in body for field in editable_fields):
+        return JSONResponse(
+            status_code=422,
+            content={"error": "payload_invalido", "detalhe": "Nenhum campo editavel informado"},
+        )
+
+    target_symbol = str(body.get("symbol", session["symbol"])).strip().upper()
+    symbol_error = _validate_symbol(target_symbol)
+    if symbol_error is not None:
+        return symbol_error
+
+    target_timeframe = str(body.get("timeframe", session["timeframe"])).strip()
+    timeframe_error = _validate_timeframe(target_timeframe)
+    if timeframe_error is not None:
+        return timeframe_error
+
+    target_leverage, leverage_error = _validate_leverage(body.get("leverage", session["leverage"]))
+    if leverage_error is not None or target_leverage is None:
+        return leverage_error
+
+    notes = session.get("notes")
+    if "notes" in body:
+        notes = str(body.get("notes", "")).strip() or None
+
+    if target_symbol != current_symbol:
+        if target_symbol in _active_symbols(request):
+            return JSONResponse(
+                status_code=409,
+                content={"error": "simbolo_ja_ativo", "symbol": target_symbol},
+            )
+        existing_target = await repo.get_onboarding_session(target_symbol)
+        if existing_target is not None:
+            return JSONResponse(
+                status_code=409,
+                content={"error": "sessao_ja_existe", "symbol": target_symbol},
+            )
+        cloned = dict(session)
+        cloned.update(
+            {
+                "symbol": target_symbol,
+                "timeframe": target_timeframe,
+                "leverage": target_leverage,
+                "notes": notes,
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        if cloned.get("status") == "APPROVED":
+            cloned["config_string"] = _compose_triplet(
+                target_symbol, target_timeframe, target_leverage
+            )
+        await repo.create_onboarding_session(cloned)
+        await repo.delete_onboarding_session(current_symbol)
+        current_symbol = target_symbol
+    else:
+        update: dict[str, Any] = {}
+        if target_timeframe != session.get("timeframe"):
+            update["timeframe"] = target_timeframe
+        if target_leverage != session.get("leverage"):
+            update["leverage"] = target_leverage
+        if notes != session.get("notes"):
+            update["notes"] = notes
+        if session.get("status") == "APPROVED":
+            new_config_string = _compose_triplet(target_symbol, target_timeframe, target_leverage)
+            if new_config_string != session.get("config_string"):
+                update["config_string"] = new_config_string
+        if update:
+            await repo.update_onboarding_session(current_symbol, update)
+
+    updated = await repo.get_onboarding_session(current_symbol)
+    payload = _serialize_session(updated or {})
+    if payload.get("status") == "APPROVED":
+        payload.update(await _build_symbol_timeframes_payload(request))
+    return JSONResponse(status_code=200, content=payload)
+
+
+@router.post("/{symbol}/market-analysis")
+async def run_market_analysis(request: Request, symbol: str) -> JSONResponse:
+    if not _is_write_authorized(request):
+        return _unauthorized_response()
+
+    repo = request.app.state.repository
+    if repo is None:
+        return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
+
+    sym = symbol.upper()
+    session = await repo.get_onboarding_session(sym)
+    if session is None:
+        return JSONResponse(status_code=404, content={"error": "sessao_nao_encontrada"})
+
+    try:
+        from src.config.settings import get_settings
+        from src.exchange.binance_client import BinanceClient
+
+        settings = get_settings()
+        client = BinanceClient(settings)
+        await client.connect()
+        try:
+            raw_df = await client.fetch_ohlcv_with_retry(
+                sym,
+                str(session["timeframe"]),
+                limit=_MARKET_ANALYSIS_CANDLES_LIMIT,
+            )
+        finally:
+            await client.close()
+
+        if raw_df.empty:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "market_analysis_unavailable", "tipo": "EmptyOHLCV"},
+            )
+
+        closed_df = raw_df.iloc[:-1].copy() if len(raw_df) > 1 else raw_df.copy()
+        if len(closed_df) < 50:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "market_analysis_unavailable", "tipo": "InsufficientCandles"},
+            )
+
+        enriched = compute_all(closed_df)
+        signal_engine = SignalEngine(risk_reward_ratio=float(settings.risk_reward_ratio))
+        signal = signal_engine.evaluate(sym, str(session["timeframe"]), closed_df)
+
+        payload = {
+            "symbol": sym,
+            "timeframe": session["timeframe"],
+            "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "signal_detected": signal is not None,
+            "signal": _serialize_signal(signal) if signal is not None else None,
+            "context": _serialize_market_context(enriched),
+        }
+        return JSONResponse(status_code=200, content=payload)
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "market_analysis_unavailable", "tipo": type(exc).__name__},
+        )

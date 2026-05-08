@@ -34,9 +34,7 @@ def _make_client() -> BinanceClient:
 async def test_validate_liquidity_ok() -> None:
     client = _make_client()
     client._exchange.fetch_ticker = AsyncMock(return_value={"quoteVolume": 600_000})
-    client._exchange.fetch_open_interest = AsyncMock(
-        return_value={"openInterestValue": 300_000}
-    )
+    client._exchange.fetch_open_interest = AsyncMock(return_value={"openInterestValue": 300_000})
 
     await client.validate_market_liquidity("XPTUSDT")
 
@@ -45,9 +43,7 @@ async def test_validate_liquidity_ok() -> None:
 async def test_validate_liquidity_volume_insuficiente() -> None:
     client = _make_client()
     client._exchange.fetch_ticker = AsyncMock(return_value={"quoteVolume": 400_000})
-    client._exchange.fetch_open_interest = AsyncMock(
-        return_value={"openInterestValue": 300_000}
-    )
+    client._exchange.fetch_open_interest = AsyncMock(return_value={"openInterestValue": 300_000})
 
     with pytest.raises(InsufficientLiquidityError, match="volume_24h"):
         await client.validate_market_liquidity("COPPERUSDT")
@@ -57,9 +53,7 @@ async def test_validate_liquidity_volume_insuficiente() -> None:
 async def test_validate_liquidity_oi_insuficiente() -> None:
     client = _make_client()
     client._exchange.fetch_ticker = AsyncMock(return_value={"quoteVolume": 700_000})
-    client._exchange.fetch_open_interest = AsyncMock(
-        return_value={"openInterestValue": 100_000}
-    )
+    client._exchange.fetch_open_interest = AsyncMock(return_value={"openInterestValue": 100_000})
 
     with pytest.raises(InsufficientLiquidityError, match="open_interest"):
         await client.validate_market_liquidity("XPTUSDT")
@@ -69,12 +63,29 @@ async def test_validate_liquidity_oi_insuficiente() -> None:
 async def test_validate_liquidity_oi_fetch_falha_trata_como_zero() -> None:
     client = _make_client()
     client._exchange.fetch_ticker = AsyncMock(return_value={"quoteVolume": 700_000})
-    client._exchange.fetch_open_interest = AsyncMock(
-        side_effect=RuntimeError("indisponível")
-    )
+    client._exchange.fetch_open_interest = AsyncMock(side_effect=RuntimeError("indisponível"))
 
     with pytest.raises(InsufficientLiquidityError, match="open_interest"):
         await client.validate_market_liquidity("XPTUSDT")
+
+
+@pytest.mark.asyncio
+async def test_validate_liquidity_converte_open_interest_amount_para_notional() -> None:
+    client = _make_client()
+    client._exchange.fetch_ticker = AsyncMock(
+        return_value={
+            "quoteVolume": 700_000,
+            "last": 95_000,
+        }
+    )
+    client._exchange.fetch_open_interest = AsyncMock(
+        return_value={
+            "openInterestValue": None,
+            "openInterestAmount": 5.0,
+        }
+    )
+
+    await client.validate_market_liquidity("BTCUSDT")
 
 
 @pytest.mark.asyncio

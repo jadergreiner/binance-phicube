@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
 
+from src.api.datetime_utils import BRAZIL_TIMEZONE, to_brazil_datetime_str, to_iso8601_utc
 from src.dashboard.analysis import build_market_analysis
 from src.dashboard.models import AccountSummary, PositionView, build_account_summary
 from src.monitoring.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
-
-
-def _to_iso8601(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _serialize_position(
@@ -44,6 +40,7 @@ def _serialize_position(
             roi_adjusted_pct = None
 
     sl_tp_data = sl_tp_map.get(position.symbol, {})
+    updated_at = to_iso8601_utc(position.updated_at)
     return {
         "symbol": position.symbol,
         "side": position.side,
@@ -58,17 +55,22 @@ def _serialize_position(
         "position_size_usdt": position_size_usdt,
         "roi_adjusted_pct": roi_adjusted_pct,
         "liquidation_price": position.liquidation_price,
-        "updated_at": _to_iso8601(position.updated_at),
+        "updated_at": updated_at,
+        "updated_at_br": to_brazil_datetime_str(updated_at),
     }
 
 
 def _serialize_summary(summary: AccountSummary) -> dict[str, Any]:
+    last_update_at = to_iso8601_utc(summary.last_update_at)
     return {
         "total_exposure_usdt": summary.total_exposure_usdt,
         "total_margin_used_usdt": summary.total_margin_used_usdt,
         "total_unrealized_pnl_usdt": summary.total_unrealized_pnl_usdt,
+        "account_equity_usdt": summary.account_equity_usdt,
+        "exposure_to_equity_ratio": summary.exposure_to_equity_ratio,
         "connection_status": summary.connection_status,
-        "last_update_at": _to_iso8601(summary.last_update_at),
+        "last_update_at": last_update_at,
+        "last_update_at_br": to_brazil_datetime_str(last_update_at),
     }
 
 
@@ -121,17 +123,72 @@ async def _load_open_trade_sl_tp(app: Any) -> dict[str, dict[str, float | None]]
         return {}
 
 
+def _normalize_signal_diag_time(value: Any) -> str | None:
+    if value is None:
+        return None
+    return to_iso8601_utc(value)
+
+
+def _serialize_signal_telemetry_row(item: dict[str, Any]) -> dict[str, Any]:
+    evaluated_at = _normalize_signal_diag_time(item.get("evaluated_at") or item.get("ts"))
+    candle_open_time = _normalize_signal_diag_time(item.get("candle_open_time"))
+    return {
+        "symbol": item.get("symbol"),
+        "timeframe": item.get("timeframe"),
+        "decision": item.get("decision") or "UNKNOWN",
+        "signal_generated": bool(item.get("signal_generated")),
+        "reason": item.get("reason") or "indisponivel",
+        "evaluated_at": evaluated_at,
+        "evaluated_at_br": to_brazil_datetime_str(evaluated_at),
+        "candle_open_time": candle_open_time,
+        "candle_open_time_br": to_brazil_datetime_str(candle_open_time),
+        "long_conditions": item.get("long_conditions"),
+        "short_conditions": item.get("short_conditions"),
+    }
+
+
+async def _load_signal_telemetry(app: Any) -> list[dict[str, Any]]:
+    repo = _get_repository(app)
+    if repo is None:
+        return []
+    get_latest = getattr(repo, "get_latest_signal_diagnostics", None)
+    if not callable(get_latest):
+        return []
+    try:
+        rows = await get_latest(limit=10)
+    except Exception as exc:
+        logger.warning(
+            "dashboard_signal_telemetry_load_failed",
+            error_type=type(exc).__name__,
+        )
+        return []
+    return [_serialize_signal_telemetry_row(row) for row in rows if isinstance(row, dict)]
+
+
 async def _build_snapshot(app: Any, stream: Any) -> dict[str, Any]:
     positions = list(stream.get_positions())
     connection_status = stream.get_status()
-    summary = build_account_summary(positions, connection_status)
+    account_equity_fn = getattr(stream, "get_account_equity_usdt", None)
+    account_equity_usdt = (
+        account_equity_fn()
+        if callable(account_equity_fn)
+        else getattr(stream, "_account_equity_usdt", None)
+    )
+    summary = build_account_summary(
+        positions,
+        connection_status,
+        account_equity_usdt=account_equity_usdt,
+    )
     market_analysis = build_market_analysis(positions)
     sl_tp_map = await _load_open_trade_sl_tp(app)
+    signal_telemetry = await _load_signal_telemetry(app)
     return {
         "positions": [_serialize_position(position, sl_tp_map) for position in positions],
         "summary": _serialize_summary(summary),
         "status": connection_status,
         "analysis": _serialize_market_analysis(market_analysis),
+        "signal_telemetry": signal_telemetry,
+        "timezone": BRAZIL_TIMEZONE,
     }
 
 

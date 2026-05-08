@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from src.api.datetime_utils import BRAZIL_TIMEZONE, to_brazil_datetime_str, to_iso8601_utc
+
 router = APIRouter()
 
 
@@ -25,7 +27,10 @@ async def get_performance(request: Request) -> JSONResponse:
                 content={"error": "database_unavailable"},
             )
         metrics = await repo.get_performance_metrics()
-        metrics["generated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        generated_at = to_iso8601_utc(datetime.now(UTC))
+        metrics["generated_at"] = generated_at
+        metrics["generated_at_br"] = to_brazil_datetime_str(generated_at)
+        metrics["timezone"] = BRAZIL_TIMEZONE
         return JSONResponse(status_code=200, content=metrics)
     except Exception:
         return JSONResponse(
@@ -42,11 +47,14 @@ async def get_performance_by_symbol(request: Request) -> JSONResponse:
         if repo is None:
             return JSONResponse(status_code=503, content={"error": "database_unavailable"})
         by_symbol = await repo.get_performance_by_symbol()
+        generated_at = to_iso8601_utc(datetime.now(UTC))
         return JSONResponse(
             status_code=200,
             content={
                 "by_symbol": by_symbol,
-                "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "generated_at": generated_at,
+                "generated_at_br": to_brazil_datetime_str(generated_at),
+                "timezone": BRAZIL_TIMEZONE,
             },
         )
     except Exception:
@@ -61,11 +69,14 @@ async def get_performance_by_timeframe(request: Request) -> JSONResponse:
         if repo is None:
             return JSONResponse(status_code=503, content={"error": "database_unavailable"})
         by_timeframe = await repo.get_performance_by_timeframe()
+        generated_at = to_iso8601_utc(datetime.now(UTC))
         return JSONResponse(
             status_code=200,
             content={
                 "by_timeframe": by_timeframe,
-                "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "generated_at": generated_at,
+                "generated_at_br": to_brazil_datetime_str(generated_at),
+                "timezone": BRAZIL_TIMEZONE,
             },
         )
     except Exception:

@@ -69,6 +69,8 @@ class AccountSummary:
     total_unrealized_pnl_usdt: float
     connection_status: ConnectionStatus
     last_update_at: datetime
+    account_equity_usdt: float | None = None
+    exposure_to_equity_ratio: float | None = None
 
     def __post_init__(self) -> None:
         if self.connection_status not in _CONNECTION_STATUS_VALUES:
@@ -82,7 +84,10 @@ class AccountSummary:
 
 
 def build_account_summary(
-    positions: list[PositionView], status: ConnectionStatus
+    positions: list[PositionView],
+    status: ConnectionStatus,
+    *,
+    account_equity_usdt: float | None = None,
 ) -> AccountSummary:
     """Monta o resumo agregado do painel com base nas posições abertas."""
     if status not in _CONNECTION_STATUS_VALUES:
@@ -102,6 +107,9 @@ def build_account_summary(
     total_exposure_usdt = sum(_extract_position_size(position) or 0.0 for position in positions)
     total_margin_used_usdt = sum(position.margin_used_usdt for position in positions)
     total_unrealized_pnl_usdt = sum(position.unrealized_pnl_usdt for position in positions)
+    exposure_to_equity_ratio: float | None = None
+    if account_equity_usdt is not None and account_equity_usdt > 0:
+        exposure_to_equity_ratio = total_exposure_usdt / account_equity_usdt
     last_update_at = max(
         (position.updated_at for position in positions),
         default=datetime.now(UTC),
@@ -111,6 +119,8 @@ def build_account_summary(
         total_exposure_usdt=total_exposure_usdt,
         total_margin_used_usdt=total_margin_used_usdt,
         total_unrealized_pnl_usdt=total_unrealized_pnl_usdt,
+        account_equity_usdt=account_equity_usdt,
+        exposure_to_equity_ratio=exposure_to_equity_ratio,
         connection_status=status,
         last_update_at=last_update_at,
     )

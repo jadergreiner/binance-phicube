@@ -44,6 +44,27 @@
             <li>Nenhuma oportunidade detectada.</li>
           </ul>
         </article>
+        <article class="analysis-card">
+          <p>Diagnóstico de Sinais</p>
+          <div class="table-wrap">
+            <table class="signal-diagnostic-table">
+              <thead>
+                <tr>
+                  <th>Símbolo</th>
+                  <th>TF</th>
+                  <th>Decisão</th>
+                  <th>Motivo</th>
+                  <th>Avaliado em</th>
+                </tr>
+              </thead>
+              <tbody id="signal-diagnostic-body">
+                <tr class="empty-row">
+                  <td colspan="5">Sem diagnóstico recente.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section id="banner" class="banner banner--hidden" aria-live="polite">
@@ -63,6 +84,14 @@
         <article class="summary-card">
           <p>PnL não realizado</p>
           <strong id="summary-pnl">—</strong>
+        </article>
+        <article class="summary-card">
+          <p>Patrimônio (equity)</p>
+          <strong id="summary-equity">—</strong>
+        </article>
+        <article class="summary-card">
+          <p>Exposição / Patrimônio</p>
+          <strong id="summary-exposure-ratio">—</strong>
         </article>
       </section>
 
@@ -195,6 +224,32 @@
 
       <section class="trade-history-panel">
         <div class="panel-header">
+          <h2>Trades em Aberto</h2>
+          <span class="snapshot-status">monitoramento</span>
+        </div>
+        <div class="table-wrap">
+          <table class="trade-history-table">
+            <thead>
+              <tr>
+                <th>Abertura</th>
+                <th>Símbolo</th>
+                <th>Margem (USDT)</th>
+                <th>Preço abertura</th>
+                <th>Preço atual</th>
+                <th>PnL (USDT)</th>
+              </tr>
+            </thead>
+            <tbody id="open-trades-body">
+              <tr class="empty-row">
+                <td colspan="6">Nenhum trade aberto encontrado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="trade-history-panel">
+        <div class="panel-header">
           <h2>Histórico de Trades</h2>
           <span class="snapshot-status">últimos 50</span>
         </div>
@@ -211,12 +266,42 @@
                 <th>TP</th>
                 <th>PnL (USDT)</th>
                 <th>Status</th>
+                <th>Origem</th>
                 <th>Fechado em</th>
               </tr>
             </thead>
             <tbody id="trade-history-body">
               <tr class="empty-row">
-                <td colspan="10">Nenhum trade fechado encontrado.</td>
+                <td colspan="11">Nenhum trade fechado encontrado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="trade-history-panel">
+        <div class="panel-header">
+          <h2>Sinais Gerados</h2>
+          <span class="snapshot-status">últimos 50</span>
+        </div>
+        <div class="table-wrap">
+          <table class="trade-history-table">
+            <thead>
+              <tr>
+                <th>Detectado em</th>
+                <th>Símbolo</th>
+                <th>TF</th>
+                <th>Direção</th>
+                <th>Entrada</th>
+                <th>SL</th>
+                <th>TP</th>
+                <th>Status Execução</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody id="signal-history-body">
+              <tr class="empty-row">
+                <td colspan="9">Nenhum sinal detectado.</td>
               </tr>
             </tbody>
           </table>
@@ -290,9 +375,54 @@
 
         <div id="onboarding-config-box" class="onboarding-config-box" hidden>
           <h3>Símbolo Aprovado</h3>
-          <p>Adicione a linha abaixo ao seu <code>.env</code> e reinicie o bot:</p>
+          <p>
+            <code>.env</code> atualizado automaticamente. A linha aplicada está abaixo para auditoria e,
+            após revisão, reinicie o bot para ativar o símbolo.
+          </p>
           <pre id="onboarding-config-string"></pre>
           <button class="btn btn-copy" id="onboarding-copy-btn">Copiar</button>
+        </div>
+
+        <div id="onboarding-manage-box" class="onboarding-manage-box" hidden>
+          <h3>Gestão do Símbolo</h3>
+          <form id="onboarding-manage-form" class="onboarding-form">
+            <input id="ob-manage-current-symbol" type="hidden" />
+            <div class="onboarding-form-fields">
+              <div class="form-field">
+                <label for="ob-manage-symbol">Símbolo</label>
+                <input id="ob-manage-symbol" type="text" maxlength="20" required />
+              </div>
+              <div class="form-field">
+                <label for="ob-manage-timeframe">Timeframe</label>
+                <select id="ob-manage-timeframe">
+                  <option value="1m">1m</option>
+                  <option value="5m">5m</option>
+                  <option value="15m">15m</option>
+                  <option value="30m">30m</option>
+                  <option value="1h">1h</option>
+                  <option value="2h">2h</option>
+                  <option value="4h">4h</option>
+                  <option value="6h">6h</option>
+                  <option value="12h">12h</option>
+                  <option value="1d">1d</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="ob-manage-leverage">Alavancagem</label>
+                <input id="ob-manage-leverage" type="number" min="1" max="20" required />
+              </div>
+            </div>
+            <div class="onboarding-form-actions">
+              <button type="submit" class="btn btn-primary">Salvar Config</button>
+              <button type="button" class="btn btn-backtest" id="ob-manage-backtest-btn">Backtest</button>
+              <button type="button" class="btn btn-manage-analysis" id="ob-manage-analysis-btn">
+                Análise Atual
+              </button>
+            </div>
+            <p id="onboarding-manage-status" class="onboarding-manage-status" hidden></p>
+            <p id="onboarding-manage-error" class="form-error" hidden></p>
+          </form>
+          <pre id="onboarding-manage-result" class="onboarding-manage-result" hidden></pre>
         </div>
       </section>
     </main>

@@ -16,6 +16,7 @@ Se margin_required > max_capital_allocation, a operação é bloqueada.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from src.monitoring.logger import get_logger
 from src.strategy.signal_engine import Direction, Signal
@@ -49,6 +50,13 @@ class PositionSize:
         }
 
 
+@dataclass(frozen=True)
+class RiskRejection:
+    code: str
+    reason: str
+    details: dict[str, Any]
+
+
 class RiskManager:
     """Calcula o tamanho de posição respeitando todos os limites de risco."""
 
@@ -63,6 +71,19 @@ class RiskManager:
         self._leverage = leverage
         self._max_alloc_pct = max_capital_allocation_pct
         self._min_notional = min_notional
+        self._last_rejection: RiskRejection | None = None
+
+    @property
+    def last_rejection(self) -> RiskRejection | None:
+        return self._last_rejection
+
+    def consume_last_rejection(self) -> RiskRejection | None:
+        rejection = self._last_rejection
+        self._last_rejection = None
+        return rejection
+
+    def _set_rejection(self, *, code: str, reason: str, details: dict[str, Any]) -> None:
+        self._last_rejection = RiskRejection(code=code, reason=reason, details=details)
 
     def calculate(
         self,
@@ -74,8 +95,14 @@ class RiskManager:
 
         Returns None if the trade would violate any risk constraint.
         """
+        self._last_rejection = None
         stop_distance = abs(signal.entry_price - signal.stop_loss)
         if stop_distance == 0:
+            self._set_rejection(
+                code="ZERO_STOP_DISTANCE",
+                reason="stop_distance_zero",
+                details={},
+            )
             logger.warning("zero_stop_distance", symbol=signal.symbol)
             return None
 
@@ -89,6 +116,14 @@ class RiskManager:
         max_allowed_margin = available_balance * (self._max_alloc_pct / 100.0)
 
         if margin_required > max_allowed_margin:
+            self._set_rejection(
+                code="MAX_CAPITAL_ALLOCATION_EXCEEDED",
+                reason="max_capital_allocation_exceeded",
+                details={
+                    "margin_required": round(margin_required, 4),
+                    "max_allowed_margin": round(max_allowed_margin, 4),
+                },
+            )
             logger.warning(
                 "position_rejected",
                 symbol=signal.symbol,
@@ -102,11 +137,24 @@ class RiskManager:
         qty = round(raw_qty, quantity_precision)
 
         if qty <= 0:
+            self._set_rejection(
+                code="QTY_ZERO_AFTER_ROUNDING",
+                reason="quantity_zero_after_rounding",
+                details={"quantity_precision": quantity_precision},
+            )
             logger.warning("position_size_zero_after_rounding", symbol=signal.symbol)
             return None
 
         # Enforce minimum notional
         if qty * signal.entry_price < self._min_notional:
+            self._set_rejection(
+                code="MIN_NOTIONAL_NOT_MET",
+                reason="below_min_notional",
+                details={
+                    "notional": round(qty * signal.entry_price, 2),
+                    "min_notional": self._min_notional,
+                },
+            )
             logger.warning(
                 "below_min_notional",
                 symbol=signal.symbol,
@@ -127,5 +175,6 @@ class RiskManager:
             risk_amount=round(risk_amount, 4),
         )
 
+        self._last_rejection = None
         logger.info("position_size_calculated", **pos.to_dict())
         return pos

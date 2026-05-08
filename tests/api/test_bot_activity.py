@@ -45,6 +45,9 @@ class TestBotActivityEndpoint:
         assert payload["threshold_minutes"] == 10
         assert payload["minutes_since_last_activity"] <= 10
         assert payload["last_activity_at"] is not None
+        assert payload["last_activity_at_br"] is not None
+        assert payload["checked_at_br"] is not None
+        assert payload["timezone"] == "America/Sao_Paulo"
 
     def test_retorna_inactive_quando_atividade_antiga(self) -> None:
         repo = AsyncMock()
@@ -72,6 +75,7 @@ class TestBotActivityEndpoint:
         assert response.status_code == 200
         assert response.json()["status"] == "inactive"
         assert response.json()["last_activity_at"] is None
+        assert response.json()["last_activity_at_br"] is None
         assert response.json()["minutes_since_last_activity"] is None
 
     def test_retorna_200_mesmo_com_falha_mongodb(self) -> None:

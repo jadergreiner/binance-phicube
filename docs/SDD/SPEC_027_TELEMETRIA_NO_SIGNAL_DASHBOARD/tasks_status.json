@@ -1,0 +1,43 @@
+{
+  "spec_id": "SPEC_027",
+  "updated_at": "2026-05-08T23:59:59Z",
+  "summary": {
+    "total": 3,
+    "done": 3,
+    "in_progress": 0,
+    "blocked": 0,
+    "todo": 0
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "evidence": [
+        "src/strategy/signal_engine.py"
+      ]
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "evidence": [
+        "src/main.py",
+        "src/storage/repository.py",
+        "src/api/routes/positions.py"
+      ]
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "evidence": [
+        "src/frontend/static/index.html",
+        "src/frontend/static/style.css",
+        "src/frontend/static/app.js",
+        "tests/test_signal_engine.py",
+        "tests/trading/test_trading_monitor_signal_outcomes.py",
+        "tests/api/test_signal_history.py",
+        "tests/dashboard/test_api.py",
+        "tests/dashboard/test_frontend.py"
+      ]
+    }
+  ]
+}

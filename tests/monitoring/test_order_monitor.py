@@ -326,6 +326,26 @@ async def test_012_07_fetch_order_esgota_retries_retorna_none():
     assert mock_client.fetch_order.call_count == 3
 
 
+@pytest.mark.asyncio
+async def test_012_07b_order_not_found_nao_aborta_e_permite_fechamento_manual():
+    """OrderNotFound deve seguir fluxo e fechar manualmente se posição já estiver zerada."""
+    trade = _make_trade()
+
+    monitor, mock_client, mock_repo, _ = _make_monitor(
+        get_open_trades=[trade],
+        fetch_positions=[],
+        fetch_ticker_price=40200.0,
+    )
+
+    mock_client.fetch_order = AsyncMock(side_effect=ccxt.OrderNotFound("missing"))
+
+    await monitor._check_trade(trade)
+
+    call_kwargs = mock_repo.update_trade_status.call_args.kwargs
+    assert call_kwargs["status"] == TradeStatus.CLOSED_MANUAL
+    assert call_kwargs["close_reason"] == "manual_close"
+
+
 # ─── TEST_012_08: falha em um símbolo não afeta outros ───────────────────────
 
 

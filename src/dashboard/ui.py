@@ -178,6 +178,8 @@ def serialize_account_summary(summary: AccountSummary) -> dict[str, object]:
         "total_exposure_usdt": summary.total_exposure_usdt,
         "total_margin_used_usdt": summary.total_margin_used_usdt,
         "total_unrealized_pnl_usdt": summary.total_unrealized_pnl_usdt,
+        "account_equity_usdt": summary.account_equity_usdt,
+        "exposure_to_equity_ratio": summary.exposure_to_equity_ratio,
         "connection_status": summary.connection_status,
         "last_update_at": _format_timestamp(summary.last_update_at),
     }

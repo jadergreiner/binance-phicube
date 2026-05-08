@@ -52,6 +52,7 @@ class PositionStream:
         on_update: UpdateCallback | None = None,
         session_factory: Callable[[], aiohttp.ClientSession] | None = None,
         keepalive_interval: float = _DEFAULT_KEEPALIVE_INTERVAL_SECONDS,
+        track_account_equity: bool = False,
     ) -> None:
         self._client = client
         self._cache = cache
@@ -59,6 +60,7 @@ class PositionStream:
         self.on_update = on_update
         self._session_factory = session_factory or _default_session_factory
         self._keepalive_interval = keepalive_interval
+        self._track_account_equity = track_account_equity
 
         self._positions: dict[str, PositionView] = {}
         self._status: ConnectionStatus = "offline"
@@ -76,6 +78,7 @@ class PositionStream:
         self._non_recoverable_auth_failure = False
         self._non_recoverable_auth_reason: str | None = None
         self._leverage_unresolved_symbols_logged: set[str] = set()
+        self._account_equity_usdt: float | None = None
 
     async def start(self) -> bool:
         """Carrega o snapshot inicial e inicia o userData stream."""
@@ -173,6 +176,10 @@ class PositionStream:
         """Retorna o status atual do stream do painel."""
         return self._status
 
+    def get_account_equity_usdt(self) -> float | None:
+        """Retorna o patrimônio estimado da conta (equity) em USDT."""
+        return self._account_equity_usdt
+
     def has_non_recoverable_auth_failure(self) -> bool:
         return self._non_recoverable_auth_failure
 
@@ -208,6 +215,8 @@ class PositionStream:
             positions[position.symbol] = position
 
         self._positions = positions
+        if self._track_account_equity:
+            await self._refresh_account_equity()
         self._save_current_snapshot()
         await self._notify_update()
         logger.info("dashboard_position_snapshot_loaded", positions=len(self._positions))
@@ -250,6 +259,7 @@ class PositionStream:
 
     async def _apply_account_update(self, payload: dict[str, Any]) -> None:
         account_update = payload.get("a", {})
+        self._update_account_equity_from_account_update(account_update)
         position_updates = account_update.get("P", [])
         updated_at = datetime.now(UTC)
 
@@ -292,6 +302,73 @@ class PositionStream:
             )
 
         self._save_current_snapshot()
+
+    async def _refresh_account_equity(self) -> None:
+        try:
+            balance_payload = await self._client.fetch_balance()
+        except Exception as exc:
+            logger.warning(
+                "dashboard_position_account_equity_fetch_failed",
+                error_type=type(exc).__name__,
+            )
+            return
+
+        self._account_equity_usdt = self._extract_account_equity_usdt(balance_payload)
+
+    def _update_account_equity_from_account_update(self, account_update: dict[str, Any]) -> None:
+        balances = account_update.get("B")
+        if not isinstance(balances, list):
+            return
+
+        for raw_balance in balances:
+            if not isinstance(raw_balance, dict):
+                continue
+            asset = str(raw_balance.get("a", "")).upper()
+            if asset != "USDT":
+                continue
+
+            wallet_balance = self._first_non_empty(raw_balance.get("wb"), raw_balance.get("cw"))
+            if wallet_balance in (None, ""):
+                continue
+
+            equity = self._to_float(wallet_balance)
+            if equity > 0:
+                self._account_equity_usdt = equity
+            return
+
+    def _extract_account_equity_usdt(self, payload: dict[str, Any]) -> float | None:
+        if not isinstance(payload, dict):
+            return None
+
+        total = payload.get("total")
+        if isinstance(total, dict):
+            usdt_total = total.get("USDT")
+            if usdt_total not in (None, ""):
+                equity = self._to_float(usdt_total)
+                if equity > 0:
+                    return equity
+
+        info = payload.get("info")
+        if isinstance(info, dict):
+            assets = info.get("assets")
+            if isinstance(assets, list):
+                for raw_asset in assets:
+                    if not isinstance(raw_asset, dict):
+                        continue
+                    asset = str(raw_asset.get("asset", "")).upper()
+                    if asset != "USDT":
+                        continue
+                    wallet_balance = self._first_non_empty(
+                        raw_asset.get("walletBalance"),
+                        raw_asset.get("marginBalance"),
+                    )
+                    if wallet_balance in (None, ""):
+                        continue
+                    equity = self._to_float(wallet_balance)
+                    if equity > 0:
+                        return equity
+
+        return None
 
     async def _fetch_position_snapshot(
         self,

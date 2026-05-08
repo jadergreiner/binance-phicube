@@ -6,6 +6,7 @@ import pytest
 
 from src.storage.repository import (
     _AUDIT_COLLECTION,
+    _AUDIT_RETENTION_EVENTS,
     _ONBOARDING_COLLECTION,
     _SIGNALS_COLLECTION,
     _TRADES_COLLECTION,
@@ -58,4 +59,6 @@ async def test_setup_indexes_respeita_retencao_minima_90_dias() -> None:
         i for i in audit_indexes if i.document.get("name") == "audit_retention_ttl"
     )
     assert audit_ttl_idx.document["expireAfterSeconds"] == 90 * 86400
-    assert audit_ttl_idx.document["partialFilterExpression"] == {"event": {"$ne": "heartbeat"}}
+    assert audit_ttl_idx.document["partialFilterExpression"] == {
+        "event": {"$in": _AUDIT_RETENTION_EVENTS}
+    }

@@ -83,6 +83,8 @@ class TestPerformanceBySymbolEndpoint:
         data = response.json()
         assert "by_symbol" in data
         assert "generated_at" in data
+        assert "generated_at_br" in data
+        assert data["timezone"] == "America/Sao_Paulo"
         assert "BTCUSDT" in data["by_symbol"]
         assert "ETHUSDT" in data["by_symbol"]
         assert data["by_symbol"]["BTCUSDT"]["total_trades"] == 5
@@ -113,6 +115,8 @@ class TestPerformanceByTimeframeEndpoint:
         data = response.json()
         assert "by_timeframe" in data
         assert "generated_at" in data
+        assert "generated_at_br" in data
+        assert data["timezone"] == "America/Sao_Paulo"
         assert "4h" in data["by_timeframe"]
         assert "1d" in data["by_timeframe"]
         assert data["by_timeframe"]["4h"]["total_trades"] == 6

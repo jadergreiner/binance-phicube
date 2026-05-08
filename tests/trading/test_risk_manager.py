@@ -65,6 +65,10 @@ class TestRiskManager:
         signal = _signal(entry=100.0, stop=100.0)
 
         assert manager.calculate(signal, available_balance=1000.0) is None
+        rejection = manager.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "ZERO_STOP_DISTANCE"
+        assert rejection.reason == "stop_distance_zero"
 
     def test_returns_none_when_rounding_turns_qty_zero(self) -> None:
         manager = RiskManager(
@@ -77,6 +81,9 @@ class TestRiskManager:
 
         # raw qty is tiny and rounds to 0 with precision=3
         assert manager.calculate(signal, available_balance=100.0, quantity_precision=3) is None
+        rejection = manager.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "QTY_ZERO_AFTER_ROUNDING"
 
     def test_returns_none_when_below_min_notional(self) -> None:
         manager = RiskManager(
@@ -89,6 +96,9 @@ class TestRiskManager:
 
         # qty should be 0.01, notional=1.0 < min_notional
         assert manager.calculate(signal, available_balance=100.0, quantity_precision=3) is None
+        rejection = manager.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "MIN_NOTIONAL_NOT_MET"
 
     def test_loga_warning_quando_excede_max_capital_allocation(self, capsys) -> None:
         manager = RiskManager(
@@ -105,6 +115,9 @@ class TestRiskManager:
         assert pos is None
         assert "position_rejected" in captured.out
         assert "max_capital_allocation_exceeded" in captured.out
+        rejection = manager.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "MAX_CAPITAL_ALLOCATION_EXCEEDED"
 
     def test_position_to_dict(self) -> None:
         manager = RiskManager(
@@ -122,3 +135,4 @@ class TestRiskManager:
         assert payload["direction"] == "LONG"
         assert payload["quantity"] == 2.0
         assert payload["risk_amount"] == 10.0
+        assert manager.last_rejection is None

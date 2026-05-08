@@ -4,6 +4,8 @@
   const PERFORMANCE_POLL_INTERVAL_MS = 60_000;
   const BOT_ACTIVITY_POLL_INTERVAL_MS = 30_000;
   const TRADE_HISTORY_POLL_INTERVAL_MS = 60_000;
+  const OPEN_TRADES_POLL_INTERVAL_MS = 60_000;
+  const SIGNAL_HISTORY_POLL_INTERVAL_MS = 60_000;
 
   const state = {
     socket: null,
@@ -15,6 +17,8 @@
     positions: [],
     filterSymbol: "",
     filterDirection: "",
+    onboardingSessionsMap: {},
+    managedSymbol: null,
   };
 
   const elements = {
@@ -24,12 +28,15 @@
     analysisBiasConfidence: document.getElementById("analysis-bias-confidence"),
     analysisBiasReason: document.getElementById("analysis-bias-reason"),
     analysisOpportunities: document.getElementById("analysis-opportunities"),
+    signalDiagnosticBody: document.getElementById("signal-diagnostic-body"),
     banner: document.getElementById("banner"),
     bannerTitle: document.getElementById("banner-title"),
     bannerMessage: document.getElementById("banner-message"),
     summaryExposure: document.getElementById("summary-exposure"),
     summaryMargin: document.getElementById("summary-margin"),
     summaryPnl: document.getElementById("summary-pnl"),
+    summaryEquity: document.getElementById("summary-equity"),
+    summaryExposureRatio: document.getElementById("summary-exposure-ratio"),
     snapshotStatus: document.getElementById("snapshot-status"),
     positionsBody: document.getElementById("positions-body"),
     performanceStatus: document.getElementById("performance-status"),
@@ -47,7 +54,9 @@
     botStatusTime: document.getElementById("bot-status-time"),
     filterSymbol: document.getElementById("filter-symbol"),
     directionButtons: Array.from(document.querySelectorAll(".dir-btn")),
+    openTradesBody: document.getElementById("open-trades-body"),
     tradeHistoryBody: document.getElementById("trade-history-body"),
+    signalHistoryBody: document.getElementById("signal-history-body"),
   };
 
   const moneyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -118,6 +127,33 @@
     }
   }
 
+  function getDateTimeLabel(payload, key) {
+    if (!payload || typeof payload !== "object") {
+      return "—";
+    }
+    const brKey = `${key}_br`;
+    const brValue = String(payload[brKey] || "").trim();
+    if (brValue) {
+      return brValue;
+    }
+    return formatDateTimeToLocal(payload[key]);
+  }
+
+  function getClockTimeLabel(payload, key) {
+    if (!payload || typeof payload !== "object") {
+      return "—";
+    }
+    const brValue = String(payload[`${key}_br`] || "").trim();
+    if (brValue) {
+      const pieces = brValue.split(" ");
+      if (pieces.length >= 2) {
+        return pieces[1];
+      }
+      return brValue;
+    }
+    return formatClockTime(payload[key]);
+  }
+
   function formatMoney(value) {
     if (value === null || value === undefined || value === "—") {
       return "—";
@@ -139,6 +175,13 @@
     return `${percentFormatter.format(Number(value))}%`;
   }
 
+  function formatRatio(value) {
+    if (value === null || value === undefined || value === "—") {
+      return "—";
+    }
+    return `${numberFormatter.format(Number(value))}x`;
+  }
+
   function getRoiClass(value) {
     if (value === null || value === undefined || value === "—") {
       return "";
@@ -151,6 +194,75 @@
       return "—";
     }
     return numberFormatter.format(Number(value));
+  }
+
+  function formatTradeStatus(status) {
+    const raw = String(status || "").toUpperCase();
+    if (raw === "CLOSED_MANUAL") {
+      return "CLOSED_EXTERNAL";
+    }
+    return raw || "—";
+  }
+
+  function formatTradeOrigin(trade) {
+    const closeReason = String(trade?.close_reason || "");
+    const estimated = trade?.is_estimated === true;
+    if (!closeReason && !estimated) {
+      return "—";
+    }
+
+    let label = closeReason || "unknown";
+    if (closeReason === "manual_close") {
+      label = "Reconciliação externa";
+    }
+
+    if (estimated) {
+      label += " (estimado)";
+    }
+    return label;
+  }
+
+  function buildTradeStatusTooltip(trade) {
+    const status = String(trade?.status || "").toUpperCase();
+    const closeReason = String(trade?.close_reason || "");
+    const estimated = trade?.is_estimated === true;
+
+    if (status === "CLOSED_MANUAL") {
+      return estimated
+        ? "Fechado fora do fluxo TP/SL detectado; preço de saída estimado por ticker."
+        : "Fechado fora do fluxo TP/SL detectado pelo monitor.";
+    }
+    if (closeReason) {
+      return `close_reason=${closeReason}`;
+    }
+    return status || "status indisponível";
+  }
+
+  function formatSignalExecutionStatus(status) {
+    const raw = String(status || "").toUpperCase();
+    const labels = {
+      TRADE_OPENED: "TRADE_OPENED",
+      REJECTED_NO_BALANCE: "REJECTED_NO_BALANCE",
+      REJECTED_RISK_MAX_CAPITAL: "REJECTED_RISK_MAX_CAPITAL",
+      REJECTED_RISK_ZERO_STOP: "REJECTED_RISK_ZERO_STOP",
+      REJECTED_RISK_QTY_ZERO: "REJECTED_RISK_QTY_ZERO",
+      REJECTED_RISK_MIN_NOTIONAL: "REJECTED_RISK_MIN_NOTIONAL",
+      REJECTED_ORDER_EXECUTION: "REJECTED_ORDER_EXECUTION",
+      REJECTED_UNKNOWN: "REJECTED_UNKNOWN",
+      UNKNOWN_LEGACY: "UNKNOWN_LEGACY",
+    };
+    return labels[raw] || raw || "—";
+  }
+
+  function buildSignalReason(signal) {
+    const reason = String(signal?.execution_reason || "").trim();
+    if (reason) {
+      return reason;
+    }
+    if (String(signal?.execution_status || "").toUpperCase() === "UNKNOWN_LEGACY") {
+      return "causa indisponível (pré-rastreio)";
+    }
+    return "—";
   }
 
   function setStatus(status) {
@@ -216,7 +328,9 @@
     elements.summaryExposure.textContent = formatMoney(summary.total_exposure_usdt);
     elements.summaryMargin.textContent = formatMoney(summary.total_margin_used_usdt);
     elements.summaryPnl.textContent = formatMoney(summary.total_unrealized_pnl_usdt);
-    elements.lastUpdate.textContent = `Atualizado em ${formatDateTimeToLocal(summary.last_update_at)}`;
+    elements.summaryEquity.textContent = formatMoney(summary.account_equity_usdt);
+    elements.summaryExposureRatio.textContent = formatRatio(summary.exposure_to_equity_ratio);
+    elements.lastUpdate.textContent = `Atualizado em ${getDateTimeLabel(summary, "last_update_at")}`;
   }
 
   function renderMarketAnalysis(analysis) {
@@ -249,6 +363,38 @@
           </li>
         `,
       )
+      .join("");
+  }
+
+  function renderSignalTelemetry(rows) {
+    if (!elements.signalDiagnosticBody) {
+      return;
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      elements.signalDiagnosticBody.innerHTML = `
+        <tr class="empty-row">
+          <td colspan="5">Sem diagnóstico recente.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    elements.signalDiagnosticBody.innerHTML = rows
+      .map((row) => {
+        const decision = String(row?.decision || "UNKNOWN");
+        const reason = String(row?.reason || "—");
+        const decisionClass =
+          row?.signal_generated === true ? "signal-decision-positive" : "signal-decision-neutral";
+        return `
+          <tr>
+            <td>${row?.symbol ?? "—"}</td>
+            <td>${row?.timeframe ?? "—"}</td>
+            <td class="${decisionClass}">${decision}</td>
+            <td>${reason}</td>
+            <td>${getDateTimeLabel(row, "evaluated_at")}</td>
+          </tr>
+        `;
+      })
       .join("");
   }
 
@@ -302,7 +448,7 @@
             <td>${formatNumber(position.position_size_usdt)}</td>
             <td class="${getRoiClass(position.roi_adjusted_pct)}">${formatPercent(position.roi_adjusted_pct)}</td>
             <td>${formatMoney(position.liquidation_price)}</td>
-            <td>${position.updated_at}</td>
+            <td>${getDateTimeLabel(position, "updated_at")}</td>
           </tr>
         `,
       )
@@ -362,7 +508,7 @@
     elements.botStatusIndicator.classList.toggle("bot-status-badge--inactive", !active);
     elements.botStatusText.textContent = active ? "ATIVO" : "INATIVO";
 
-    const latestCycle = formatClockTime(data?.last_activity_at);
+    const latestCycle = getClockTimeLabel(data, "last_activity_at");
     elements.botStatusTime.textContent = `Último ciclo: ${latestCycle}`;
     elements.botStatusIndicator.title = `Último ciclo detectado às ${latestCycle}`;
   }
@@ -371,7 +517,7 @@
     if (!Array.isArray(trades) || trades.length === 0) {
       elements.tradeHistoryBody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="10">Nenhum trade fechado encontrado.</td>
+          <td colspan="11">Nenhum trade fechado encontrado.</td>
         </tr>
       `;
       return;
@@ -382,6 +528,9 @@
         const pnlClass =
           trade.pnl_usdt == null ? "" : Number(trade.pnl_usdt) >= 0 ? "metric-positive" : "metric-negative";
         const pnlValue = trade.pnl_usdt == null ? "—" : formatMoney(trade.pnl_usdt);
+        const statusLabel = formatTradeStatus(trade.status);
+        const originLabel = formatTradeOrigin(trade);
+        const statusTooltip = buildTradeStatusTooltip(trade);
         return `
           <tr>
             <td>${trade.symbol ?? "—"}</td>
@@ -392,8 +541,79 @@
             <td>${formatPrice(trade.stop_loss)}</td>
             <td>${formatPrice(trade.take_profit)}</td>
             <td class="${pnlClass}">${pnlValue}</td>
-            <td>${trade.status ?? "—"}</td>
-            <td>${formatDateTimeToLocal(trade.closed_at)}</td>
+            <td title="${statusTooltip}">${statusLabel}</td>
+            <td title="${statusTooltip}">${originLabel}</td>
+            <td>${getDateTimeLabel(trade, "closed_at")}</td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function renderOpenTrades(trades) {
+    if (!Array.isArray(trades) || trades.length === 0) {
+      elements.openTradesBody.innerHTML = `
+        <tr class="empty-row">
+          <td colspan="6">Nenhum trade aberto encontrado.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    elements.openTradesBody.innerHTML = trades
+      .map((trade) => {
+        const pnlClass =
+          trade.unrealized_pnl_usdt == null
+            ? ""
+            : Number(trade.unrealized_pnl_usdt) >= 0
+              ? "metric-positive"
+              : "metric-negative";
+        const pnlValue =
+          trade.unrealized_pnl_usdt == null ? "—" : formatMoney(trade.unrealized_pnl_usdt);
+
+        return `
+          <tr>
+            <td>${getDateTimeLabel(trade, "opened_at")}</td>
+            <td>${trade.symbol ?? "—"}</td>
+            <td>${formatMoney(trade.margin_used_usdt)}</td>
+            <td>${formatPrice(trade.entry_price)}</td>
+            <td>${formatPrice(trade.current_price)}</td>
+            <td class="${pnlClass}">${pnlValue}</td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function renderSignalHistory(signals) {
+    if (!elements.signalHistoryBody) {
+      return;
+    }
+    if (!Array.isArray(signals) || signals.length === 0) {
+      elements.signalHistoryBody.innerHTML = `
+        <tr class="empty-row">
+          <td colspan="9">Nenhum sinal detectado.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    elements.signalHistoryBody.innerHTML = signals
+      .map((signal) => {
+        const statusLabel = formatSignalExecutionStatus(signal.execution_status);
+        const reason = buildSignalReason(signal);
+        const statusClass = statusLabel === "TRADE_OPENED" ? "metric-positive" : "metric-negative";
+        return `
+          <tr>
+            <td>${getDateTimeLabel(signal, "detected_at")}</td>
+            <td>${signal.symbol ?? "—"}</td>
+            <td>${signal.timeframe ?? "—"}</td>
+            <td>${String(signal.direction ?? "—").toUpperCase()}</td>
+            <td>${formatPrice(signal.entry_price)}</td>
+            <td>${formatPrice(signal.stop_loss)}</td>
+            <td>${formatPrice(signal.take_profit)}</td>
+            <td class="${statusClass}">${statusLabel}</td>
+            <td>${reason}</td>
           </tr>
         `;
       })
@@ -426,11 +646,38 @@
     }
   }
 
+  async function fetchOpenTrades() {
+    try {
+      const response = await fetch("/trades/open", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const payload = await response.json();
+      renderOpenTrades(payload.trades);
+    } catch (_) {
+      // silencioso — painel de posições não é afetado
+    }
+  }
+
+  async function fetchSignalHistory() {
+    try {
+      const response = await fetch("/signals/history", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const payload = await response.json();
+      renderSignalHistory(payload.signals);
+    } catch (_) {
+      // silencioso — painel de posições não é afetado
+    }
+  }
+
   function renderSnapshot(snapshot) {
     state.lastSnapshot = snapshot;
     renderPositions(snapshot.positions);
     renderSummary(snapshot.summary);
     renderMarketAnalysis(snapshot.analysis);
+    renderSignalTelemetry(snapshot.signal_telemetry);
     setStatus(snapshot.status);
     setBanner(snapshot.banner);
   }
@@ -562,6 +809,8 @@
     APPROVED: "Aprovado",
   };
 
+  const ONBOARDING_COLUMNS = 10;
+
   function _obStatusClass(status) {
     if (status === "APPROVED") return "ob-status--approved";
     if (status === "BACKTESTED") return "ob-status--backtested";
@@ -576,12 +825,47 @@
     return v == null ? "—" : v.toFixed(2);
   }
 
+  function setManageStatus(message, type = "info") {
+    const statusEl = document.getElementById("onboarding-manage-status");
+    if (!statusEl) return;
+    if (!message) {
+      statusEl.hidden = true;
+      statusEl.textContent = "";
+      statusEl.className = "onboarding-manage-status";
+      return;
+    }
+    statusEl.hidden = false;
+    statusEl.textContent = message;
+    statusEl.className = `onboarding-manage-status onboarding-manage-status--${type}`;
+  }
+
+  function _backtestSummary(payload) {
+    const result = payload?.backtest_result || {};
+    const totalTrades = result.total_trades ?? "—";
+    const winRate = result.win_rate_pct != null ? `${result.win_rate_pct.toFixed(2)}%` : "—";
+    const pf = result.profit_factor != null ? result.profit_factor.toFixed(2) : "—";
+    return `Backtest concluído: trades=${totalTrades}, win_rate=${winRate}, PF=${pf}.`;
+  }
+
+  function _renderOnboardingError(error, symbol) {
+    if (error === "simbolo_ja_ativo") return `${symbol} já está ativo no bot.`;
+    if (error === "sessao_ja_existe") return `Sessão para ${symbol} já existe.`;
+    if (error === "timeframe_invalido") return "Timeframe inválido.";
+    if (error === "leverage_invalido") return "Alavancagem inválida.";
+    return error || "Erro inesperado.";
+  }
+
   function renderOnboardingTable(sessions) {
     const tbody = document.getElementById("onboarding-body");
     if (!sessions || sessions.length === 0) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Nenhuma sessão de onboarding.</td></tr>';
+      state.onboardingSessionsMap = {};
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="${ONBOARDING_COLUMNS}">Nenhuma sessão de onboarding.</td></tr>`;
       return;
     }
+    state.onboardingSessionsMap = Object.fromEntries(
+      sessions.map((session) => [session.symbol, session]),
+    );
+
     tbody.innerHTML = sessions.map((s) => {
       const r = s.backtest_result;
       const trades = r ? r.total_trades : null;
@@ -600,7 +884,7 @@
         actions += `<button class="btn btn-sm btn-approve" data-symbol="${s.symbol}">Aprovar</button> `;
       }
       if (s.status === "APPROVED") {
-        actions += `<button class="btn btn-sm btn-show-config" data-symbol="${s.symbol}" data-config="${s.config_string}">Ver Config</button> `;
+        actions += `<button class="btn btn-sm btn-manage" data-symbol="${s.symbol}">Gerenciar</button> `;
       }
       actions += `<button class="btn btn-sm btn-delete-ob" data-symbol="${s.symbol}">Remover</button>`;
 
@@ -624,8 +908,8 @@
     tbody.querySelectorAll(".btn-approve").forEach((btn) => {
       btn.addEventListener("click", () => approveOnboarding(btn.dataset.symbol));
     });
-    tbody.querySelectorAll(".btn-show-config").forEach((btn) => {
-      btn.addEventListener("click", () => showOnboardingConfig(btn.dataset.config));
+    tbody.querySelectorAll(".btn-manage").forEach((btn) => {
+      btn.addEventListener("click", () => openOnboardingManagePanel(btn.dataset.symbol));
     });
     tbody.querySelectorAll(".btn-delete-ob").forEach((btn) => {
       btn.addEventListener("click", () => deleteOnboardingSession(btn.dataset.symbol));
@@ -642,8 +926,22 @@
   }
 
   async function startOnboardingBacktest(symbol) {
-    const btn = document.querySelector(`.btn-backtest[data-symbol="${symbol}"]`);
-    if (btn) { btn.disabled = true; btn.textContent = "Rodando…"; }
+    const tableButtons = Array.from(
+      document.querySelectorAll(`.btn-backtest[data-symbol="${symbol}"]`),
+    );
+    const manageButton = document.getElementById("ob-manage-backtest-btn");
+    const manageContext = state.managedSymbol === symbol;
+    const manageButtonInitialText = manageButton?.textContent || "Backtest";
+    tableButtons.forEach((button) => {
+      button.disabled = true;
+      button.textContent = "Rodando…";
+    });
+    if (manageContext && manageButton) {
+      manageButton.disabled = true;
+      manageButton.textContent = "Rodando backtest…";
+      setManageStatus("Backtest em execução. Isso pode levar alguns segundos.", "info");
+    }
+
     try {
       const res = await fetch(`/onboarding/${symbol}/backtest`, {
         method: "POST",
@@ -652,12 +950,38 @@
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (manageContext) {
+          setManageStatus(
+            `Falha no backtest: ${err.tipo || err.error || res.status}.`,
+            "error",
+          );
+        }
         alert(`Backtest falhou: ${err.tipo || err.error || res.status}`);
+        return;
+      }
+      const payload = await res.json().catch(() => ({}));
+      if (payload.symbol_timeframes_line || payload.config_string) {
+        showOnboardingConfig(payload.symbol_timeframes_line || payload.config_string);
+      }
+      if (state.managedSymbol === symbol) {
+        renderManageResult(payload, "Backtest executado.");
+        setManageStatus(_backtestSummary(payload), "success");
       }
     } catch (e) {
+      if (manageContext) {
+        setManageStatus("Erro de rede ao iniciar backtest.", "error");
+      }
       alert("Erro de rede ao iniciar backtest.");
     } finally {
       await fetchOnboardingSessions();
+      tableButtons.forEach((button) => {
+        button.disabled = false;
+        button.textContent = "Backtest";
+      });
+      if (manageContext && manageButton) {
+        manageButton.disabled = false;
+        manageButton.textContent = manageButtonInitialText;
+      }
     }
   }
 
@@ -675,7 +999,7 @@
         return;
       }
       const session = await res.json();
-      showOnboardingConfig(session.config_string);
+      showOnboardingConfig(session.symbol_timeframes_line || session.config_string);
     } catch (_) {
       alert("Erro de rede ao aprovar.");
     } finally {
@@ -690,6 +1014,103 @@
     pre.textContent = `SYMBOL_TIMEFRAMES=${configString}`;
     box.hidden = false;
     box.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function renderManageResult(payload, prefix = "Resposta recebida.") {
+    const result = document.getElementById("onboarding-manage-result");
+    if (!result) return;
+    result.hidden = false;
+    result.textContent = `${prefix}\n${JSON.stringify(payload, null, 2)}`;
+  }
+
+  function openOnboardingManagePanel(symbol) {
+    const session = state.onboardingSessionsMap[symbol];
+    if (!session) return;
+
+    const box = document.getElementById("onboarding-manage-box");
+    const errEl = document.getElementById("onboarding-manage-error");
+    const result = document.getElementById("onboarding-manage-result");
+    document.getElementById("ob-manage-current-symbol").value = session.symbol;
+    document.getElementById("ob-manage-symbol").value = session.symbol;
+    document.getElementById("ob-manage-timeframe").value = session.timeframe;
+    document.getElementById("ob-manage-leverage").value = String(session.leverage);
+    if (errEl) {
+      errEl.hidden = true;
+      errEl.textContent = "";
+    }
+    if (result) {
+      result.hidden = true;
+      result.textContent = "";
+    }
+    setManageStatus("");
+    state.managedSymbol = session.symbol;
+    box.hidden = false;
+    box.scrollIntoView({ behavior: "smooth" });
+  }
+
+  async function saveManagedSession(event) {
+    event.preventDefault();
+    const currentSymbol = document.getElementById("ob-manage-current-symbol").value.trim().toUpperCase();
+    const nextSymbol = document.getElementById("ob-manage-symbol").value.trim().toUpperCase();
+    const timeframe = document.getElementById("ob-manage-timeframe").value;
+    const leverage = parseInt(document.getElementById("ob-manage-leverage").value, 10);
+    const errEl = document.getElementById("onboarding-manage-error");
+    errEl.hidden = true;
+
+    try {
+      const res = await fetch(`/onboarding/${currentSymbol}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: nextSymbol, timeframe, leverage }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        errEl.textContent = _renderOnboardingError(payload.error || payload.detalhe, nextSymbol);
+        errEl.hidden = false;
+        return;
+      }
+      state.managedSymbol = payload.symbol;
+      document.getElementById("ob-manage-current-symbol").value = payload.symbol;
+      showOnboardingConfig(payload.symbol_timeframes_line || payload.config_string);
+      renderManageResult(payload, "Configuração salva.");
+      setManageStatus("Configuração atualizada com sucesso.", "success");
+      await fetchOnboardingSessions();
+    } catch (_) {
+      errEl.textContent = "Erro de rede ao salvar configuração.";
+      errEl.hidden = false;
+    }
+  }
+
+  async function runManagedBacktest() {
+    const currentSymbol = document.getElementById("ob-manage-current-symbol").value.trim().toUpperCase();
+    if (!currentSymbol) return;
+    await startOnboardingBacktest(currentSymbol);
+  }
+
+  async function runManagedMarketAnalysis() {
+    const currentSymbol = document.getElementById("ob-manage-current-symbol").value.trim().toUpperCase();
+    const errEl = document.getElementById("onboarding-manage-error");
+    if (!currentSymbol) return;
+    errEl.hidden = true;
+
+    try {
+      const res = await fetch(`/onboarding/${currentSymbol}/market-analysis`, {
+        method: "POST",
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        errEl.textContent = payload.tipo || payload.error || "Falha ao analisar mercado.";
+        errEl.hidden = false;
+        setManageStatus("Falha na análise técnica.", "error");
+        return;
+      }
+      renderManageResult(payload, "Análise técnica atual concluída.");
+      setManageStatus("Análise técnica concluída.", "success");
+    } catch (_) {
+      errEl.textContent = "Erro de rede ao solicitar análise.";
+      errEl.hidden = false;
+      setManageStatus("Erro de rede ao solicitar análise.", "error");
+    }
   }
 
   async function deleteOnboardingSession(symbol) {
@@ -741,14 +1162,21 @@
       const text = document.getElementById("onboarding-config-string").textContent;
       navigator.clipboard.writeText(text).catch(() => {});
     });
+
+    document.getElementById("onboarding-manage-form")?.addEventListener("submit", saveManagedSession);
+    document.getElementById("ob-manage-backtest-btn")?.addEventListener("click", runManagedBacktest);
+    document.getElementById("ob-manage-analysis-btn")?.addEventListener("click", runManagedMarketAnalysis);
   }
 
   // ─── Bootstrap ─────────────────────────────────────────────────────────────
 
   function bootstrap() {
     renderPositions([]);
+    renderSignalTelemetry([]);
     renderBotStatus({ status: "inactive", last_activity_at: null });
+    renderOpenTrades([]);
     renderTradeHistory([]);
+    renderSignalHistory([]);
     bindPositionFilterEvents();
     bindOnboardingForm();
     setStatus("offline");
@@ -756,11 +1184,15 @@
     connect();
     fetchPerformance();
     fetchBotActivity();
+    fetchOpenTrades();
     fetchTradeHistory();
+    fetchSignalHistory();
     fetchOnboardingSessions();
     window.setInterval(fetchPerformance, PERFORMANCE_POLL_INTERVAL_MS);
     window.setInterval(fetchBotActivity, BOT_ACTIVITY_POLL_INTERVAL_MS);
+    window.setInterval(fetchOpenTrades, OPEN_TRADES_POLL_INTERVAL_MS);
     window.setInterval(fetchTradeHistory, TRADE_HISTORY_POLL_INTERVAL_MS);
+    window.setInterval(fetchSignalHistory, SIGNAL_HISTORY_POLL_INTERVAL_MS);
     window.setInterval(fetchOnboardingSessions, 30_000);
   }
 

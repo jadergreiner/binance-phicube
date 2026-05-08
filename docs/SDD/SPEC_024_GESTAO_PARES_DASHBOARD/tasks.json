@@ -1,0 +1,47 @@
+{
+  "spec_id": "SPEC_024",
+  "generated_at": "2026-05-08T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Expandir onboarding backend com PATCH, backtest em APPROVED e market-analysis",
+      "owner": "backend-senior",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [],
+      "target_files": [
+        "src/api/routes/onboarding.py",
+        "tests/api/test_onboarding.py"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Evoluir UI de gestão de pares no dashboard",
+      "owner": "frontend-dashboard",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": ["task_001"],
+      "target_files": [
+        "src/frontend/static/index.html",
+        "src/frontend/static/app.js",
+        "src/frontend/static/style.css",
+        "tests/dashboard/test_frontend.py"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Registrar rastreabilidade SDD da SPEC_024",
+      "owner": "time-a-refinamento",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": ["task_001", "task_002"],
+      "target_files": [
+        "docs/SDD/SPEC_024_GESTAO_PARES_DASHBOARD/SPEC.md",
+        "docs/SDD/SPEC_024_GESTAO_PARES_DASHBOARD/tasks.json",
+        "docs/SDD/SPEC_024_GESTAO_PARES_DASHBOARD/tasks_status.json",
+        "docs/SDD/SPEC_024_GESTAO_PARES_DASHBOARD/spec_status_update.md",
+        "docs/SDD/README.md"
+      ]
+    }
+  ]
+}

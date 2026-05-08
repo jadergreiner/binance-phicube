@@ -57,6 +57,8 @@ class TestPerformanceGlobalEndpointSpec010:
         assert data["max_drawdown_usdt"] == -20.0
         assert data["profit_factor"] == 2.0
         assert "generated_at" in data
+        assert "generated_at_br" in data
+        assert data["timezone"] == "America/Sao_Paulo"
 
     def test_retorna_503_sem_repositorio(self) -> None:
         """TEST_010_02: repositório ausente → 503."""

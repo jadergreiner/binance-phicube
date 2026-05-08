@@ -16,12 +16,16 @@ class _FakeStream:
     def __init__(self, *, positions: list[object], status: str) -> None:
         self._positions = positions
         self._status = status
+        self._account_equity_usdt = None
 
     def get_positions(self) -> list[object]:
         return list(self._positions)
 
     def get_status(self) -> str:
         return self._status
+
+    def get_account_equity_usdt(self) -> float | None:
+        return self._account_equity_usdt
 
 
 def _make_position(*, symbol: str, updated_at: datetime) -> SimpleNamespace:

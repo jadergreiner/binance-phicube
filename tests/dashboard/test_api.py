@@ -13,15 +13,21 @@ from src.api import main as api_main
 
 
 class _FakeStream:
-    def __init__(self, *, positions: list[object], status: str) -> None:
+    def __init__(
+        self, *, positions: list[object], status: str, account_equity_usdt: float | None = None
+    ) -> None:
         self._positions = positions
         self._status = status
+        self._account_equity_usdt = account_equity_usdt
 
     def get_positions(self) -> list[object]:
         return list(self._positions)
 
     def get_status(self) -> str:
         return self._status
+
+    def get_account_equity_usdt(self) -> float | None:
+        return self._account_equity_usdt
 
 
 def _make_position(*, symbol: str, updated_at: datetime) -> SimpleNamespace:
@@ -149,16 +155,22 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
                 "roi_adjusted_pct": 1.0416666666666667,
                 "liquidation_price": 87000.0,
                 "updated_at": "2026-05-01T12:30:00Z",
+                "updated_at_br": "01/05/2026 09:30:00",
             }
         ],
         "summary": {
             "total_exposure_usdt": 24000.0,
             "total_margin_used_usdt": 2400.0,
             "total_unrealized_pnl_usdt": 250.0,
+            "account_equity_usdt": None,
+            "exposure_to_equity_ratio": None,
             "connection_status": "online",
             "last_update_at": "2026-05-01T12:30:00Z",
+            "last_update_at_br": "01/05/2026 09:30:00",
         },
         "status": "online",
+        "signal_telemetry": [],
+        "timezone": "America/Sao_Paulo",
         "analysis": {
             "bias": {
                 "direction": "LONG",
@@ -260,6 +272,33 @@ def test_get_positions_retorna_snapshot_com_fallback_de_calculo(monkeypatch) -> 
     assert payload["positions"][1]["roi_adjusted_pct"] is None
     assert payload["analysis"]["bias"]["direction"] == "LONG"
     assert payload["analysis"]["opportunities"][0]["symbol"] == "BTCUSDT"
+    assert payload["signal_telemetry"] == []
+
+
+def test_get_positions_calcula_exposure_to_equity_ratio_quando_equity_disponivel(
+    monkeypatch
+) -> None:
+    """GET /positions calcula exposure_to_equity_ratio quando há equity no stream."""
+    _patch_lifespan(monkeypatch)
+
+    with TestClient(api_main.create_app()) as client:
+        client.app.state.position_stream = _FakeStream(
+            positions=[
+                _make_position(
+                    symbol="BTCUSDT",
+                    updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+                )
+            ],
+            status="online",
+            account_equity_usdt=12000.0,
+        )
+
+        response = client.get("/positions")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["account_equity_usdt"] == pytest.approx(12000.0)
+    assert payload["summary"]["exposure_to_equity_ratio"] == pytest.approx(2.0)
 
 
 def test_websocket_positions_emite_snapshot_inicial(monkeypatch) -> None:
@@ -280,10 +319,12 @@ def test_websocket_positions_emite_snapshot_inicial(monkeypatch) -> None:
         with client.websocket_connect("/ws/positions") as websocket:
             payload = websocket.receive_json()
 
-        assert payload["status"] == "online"
-        assert payload["positions"][0]["symbol"] == "BTCUSDT"
-        assert payload["analysis"]["bias"]["direction"] == "LONG"
-        assert payload["analysis"]["opportunities"][0]["action"] == "ADD"
+    assert payload["status"] == "online"
+    assert payload["timezone"] == "America/Sao_Paulo"
+    assert "signal_telemetry" in payload
+    assert payload["positions"][0]["symbol"] == "BTCUSDT"
+    assert payload["analysis"]["bias"]["direction"] == "LONG"
+    assert payload["analysis"]["opportunities"][0]["action"] == "ADD"
 
 
 def test_websocket_positions_inclui_analysis_no_snapshot_inicial(monkeypatch) -> None:
@@ -305,8 +346,51 @@ def test_websocket_positions_inclui_analysis_no_snapshot_inicial(monkeypatch) ->
             payload = websocket.receive_json()
 
     assert payload["analysis"]["bias"]["direction"] == "LONG"
+    assert payload["timezone"] == "America/Sao_Paulo"
+    assert "signal_telemetry" in payload
     assert payload["analysis"]["bias"]["confidence"] == "high"
     assert payload["analysis"]["opportunities"][0]["action"] == "ADD"
+
+
+def test_get_positions_expoe_signal_telemetry_quando_repositorio_disponivel(monkeypatch) -> None:
+    """Snapshot deve incluir diagnóstico de última avaliação por símbolo."""
+    _patch_lifespan(monkeypatch)
+
+    repo = AsyncMock()
+    repo.get_open_trade_sl_tp = AsyncMock(return_value={})
+    repo.get_latest_signal_diagnostics = AsyncMock(
+        return_value=[
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "decision": "NO_SIGNAL",
+                "signal_generated": False,
+                "reason": "long_missing:close_above_fractal;short_missing:ao_negative",
+                "evaluated_at": datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+            }
+        ]
+    )
+
+    with TestClient(api_main.create_app()) as client:
+        client.app.state.repository = repo
+        client.app.state.position_stream = _FakeStream(
+            positions=[
+                _make_position(
+                    symbol="BTCUSDT",
+                    updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+                )
+            ],
+            status="online",
+        )
+        response = client.get("/positions")
+
+    assert response.status_code == 200
+    telemetry = response.json()["signal_telemetry"]
+    assert len(telemetry) == 1
+    assert telemetry[0]["symbol"] == "BTCUSDT"
+    assert telemetry[0]["decision"] == "NO_SIGNAL"
+    assert telemetry[0]["evaluated_at"] == "2026-05-01T12:30:00Z"
+    assert telemetry[0]["evaluated_at_br"] == "01/05/2026 09:30:00"
 
 
 def test_lifespan_mantem_aplicacao_no_ar_quando_binance_falha(monkeypatch) -> None:

@@ -137,12 +137,16 @@ def test_serialize_account_summary_renderiza_totais_e_timestamp_legivel() -> Non
         total_unrealized_pnl_usdt=600.0,
         connection_status="degraded",
         last_update_at=datetime(2026, 5, 1, 12, 31, tzinfo=UTC),
+        account_equity_usdt=17000.0,
+        exposure_to_equity_ratio=3.0,
     )
 
     assert serialize_account_summary(summary) == {
         "total_exposure_usdt": 51000.0,
         "total_margin_used_usdt": 5180.0,
         "total_unrealized_pnl_usdt": 600.0,
+        "account_equity_usdt": 17000.0,
+        "exposure_to_equity_ratio": 3.0,
         "connection_status": "degraded",
         "last_update_at": "2026-05-01 12:31:00 UTC",
     }

@@ -7,16 +7,13 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from src.api.datetime_utils import BRAZIL_TIMEZONE, to_brazil_datetime_str, to_iso8601_utc
 from src.monitoring.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
 _INACTIVITY_THRESHOLD_MINUTES = 10
 _BOT_HEARTBEAT_THRESHOLD_MINUTES = 10
-
-
-def _to_iso8601(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 async def _get_bot_process_status(repo) -> tuple[str, str | None]:
@@ -35,10 +32,11 @@ async def _get_bot_process_status(repo) -> tuple[str, str | None]:
 
     delta_minutes = (datetime.now(UTC) - last_heartbeat_at).total_seconds() / 60
     status = "alive" if delta_minutes <= _BOT_HEARTBEAT_THRESHOLD_MINUTES else "dead"
-    return status, _to_iso8601(last_heartbeat_at)
+    return status, to_iso8601_utc(last_heartbeat_at)
 
 
 @router.get("/health")
+@router.get("/system/health")
 async def health_check(request: Request) -> JSONResponse:
     """Verifica saúde da API, MongoDB e processo bot via heartbeat (SPEC_017).
 
@@ -47,6 +45,7 @@ async def health_check(request: Request) -> JSONResponse:
     """
     repo = getattr(request.app.state, "repository", None)
     if repo is None:
+        timestamp = to_iso8601_utc(datetime.now(UTC))
         return JSONResponse(
             status_code=503,
             content={
@@ -54,7 +53,10 @@ async def health_check(request: Request) -> JSONResponse:
                 "mongodb": "error",
                 "bot_process": "unknown",
                 "last_heartbeat_at": None,
-                "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "last_heartbeat_at_br": None,
+                "timestamp": timestamp,
+                "timestamp_br": to_brazil_datetime_str(timestamp),
+                "timezone": BRAZIL_TIMEZONE,
             },
         )
 
@@ -62,6 +64,7 @@ async def health_check(request: Request) -> JSONResponse:
         await repo.database.command("ping")
         mongodb_status = "ok"
     except Exception:
+        timestamp = to_iso8601_utc(datetime.now(UTC))
         return JSONResponse(
             status_code=503,
             content={
@@ -69,11 +72,15 @@ async def health_check(request: Request) -> JSONResponse:
                 "mongodb": "error",
                 "bot_process": "unknown",
                 "last_heartbeat_at": None,
-                "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "last_heartbeat_at_br": None,
+                "timestamp": timestamp,
+                "timestamp_br": to_brazil_datetime_str(timestamp),
+                "timezone": BRAZIL_TIMEZONE,
             },
         )
 
     bot_process, last_heartbeat_at = await _get_bot_process_status(repo)
+    timestamp = to_iso8601_utc(datetime.now(UTC))
 
     return JSONResponse(
         status_code=200,
@@ -82,7 +89,10 @@ async def health_check(request: Request) -> JSONResponse:
             "mongodb": mongodb_status,
             "bot_process": bot_process,
             "last_heartbeat_at": last_heartbeat_at,
-            "timestamp": _to_iso8601(datetime.now(UTC)),
+            "last_heartbeat_at_br": to_brazil_datetime_str(last_heartbeat_at),
+            "timestamp": timestamp,
+            "timestamp_br": to_brazil_datetime_str(timestamp),
+            "timezone": BRAZIL_TIMEZONE,
         },
     )
 
@@ -91,6 +101,7 @@ async def health_check(request: Request) -> JSONResponse:
 async def get_bot_activity(request: Request) -> JSONResponse:
     """Expõe atividade recente do bot com degradação silenciosa."""
     checked_at = datetime.now(UTC)
+    checked_at_iso = to_iso8601_utc(checked_at)
     repo = getattr(request.app.state, "repository", None)
 
     if repo is None:
@@ -99,9 +110,12 @@ async def get_bot_activity(request: Request) -> JSONResponse:
             content={
                 "status": "inactive",
                 "last_activity_at": None,
+                "last_activity_at_br": None,
                 "minutes_since_last_activity": None,
                 "threshold_minutes": _INACTIVITY_THRESHOLD_MINUTES,
-                "checked_at": _to_iso8601(checked_at),
+                "checked_at": checked_at_iso,
+                "checked_at_br": to_brazil_datetime_str(checked_at_iso),
+                "timezone": BRAZIL_TIMEZONE,
             },
         )
 
@@ -117,9 +131,12 @@ async def get_bot_activity(request: Request) -> JSONResponse:
             content={
                 "status": "inactive",
                 "last_activity_at": None,
+                "last_activity_at_br": None,
                 "minutes_since_last_activity": None,
                 "threshold_minutes": _INACTIVITY_THRESHOLD_MINUTES,
-                "checked_at": _to_iso8601(checked_at),
+                "checked_at": checked_at_iso,
+                "checked_at_br": to_brazil_datetime_str(checked_at_iso),
+                "timezone": BRAZIL_TIMEZONE,
             },
         )
 
@@ -133,9 +150,12 @@ async def get_bot_activity(request: Request) -> JSONResponse:
         status_code=200,
         content={
             "status": status,
-            "last_activity_at": _to_iso8601(last_activity_at),
+            "last_activity_at": to_iso8601_utc(last_activity_at),
+            "last_activity_at_br": to_brazil_datetime_str(last_activity_at),
             "minutes_since_last_activity": minutes_since_last_activity,
             "threshold_minutes": _INACTIVITY_THRESHOLD_MINUTES,
-            "checked_at": _to_iso8601(checked_at),
+            "checked_at": checked_at_iso,
+            "checked_at_br": to_brazil_datetime_str(checked_at_iso),
+            "timezone": BRAZIL_TIMEZONE,
         },
     )

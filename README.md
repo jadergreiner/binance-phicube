@@ -16,6 +16,12 @@
 | [PRD.md](./PRD.md) | Requisitos de produto (o quê e por quê) |
 | [docs/SDD/SPEC.md](./docs/SDD/SPEC.md) | Especificação técnica (como implementar) |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Como contribuir com o projeto |
+| [AGENTS.md](./AGENTS.md) | Guia durável para agentes (execução, validação e critérios de pronto) |
+| [code_review.md](./code_review.md) | Checklist padrão de revisão técnica |
+| [PLANS.md](./PLANS.md) | Template de plano para tarefas complexas |
+| [docs/CODEX_TASK_TEMPLATE.md](./docs/CODEX_TASK_TEMPLATE.md) | Template de pedido para reduzir retrabalho com Codex |
+| [docs/CODEX_BEST_PRACTICES_ADOPTION.md](./docs/CODEX_BEST_PRACTICES_ADOPTION.md) | Adoção local das boas práticas oficiais do Codex |
+| [docs/SKILLS_ADOPTION_PLAYBOOK.md](./docs/SKILLS_ADOPTION_PLAYBOOK.md) | Playbook de adoção e governança de skills do projeto |
 | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Código de conduta da comunidade |
 | [LICENSE](./LICENSE) | Licença MIT |
 

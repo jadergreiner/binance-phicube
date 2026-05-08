@@ -1,6 +1,7 @@
 ---
 name: sdd-spec-driven-development
 description: Workflow de Spec-Driven Development (SDD) para refinar, especificar e desenvolver itens com rastreabilidade fim a fim no Binance Phicube. Use quando criar feature, corrigir bug, alterar regra de negocio, refatorar modulo critico, revisar conformidade com SPEC/PRD, ou desenvolver com apoio de IA sem ambiguidade.
+argument-hint: ID da SPEC alvo e objetivo (ex: SPEC_028 + ajuste de risco no order_manager)
 ---
 
 # Spec-Driven Development (SDD) - Phicube
@@ -16,14 +17,80 @@ Ao final, o item deve ter:
 - Testes vinculados à regra
 - Evidência de conformidade para merge
 
+## Modo Obrigatório (Superpowers)
+
+Esta skill deve sempre executar o fluxo abaixo, nesta ordem, sem pular etapas:
+
+1. `Brainstorm`
+2. `Plano`
+3. `Testes`
+4. `Implementação`
+5. `Review`
+
+Se alguma etapa estiver incompleta, a skill não deve sinalizar conclusão.
+
+## Artefatos Obrigatórios por SPEC
+
+Para toda execução da skill em uma SPEC incremental (`docs/SDD/SPEC_NNN_.../`), criar ou atualizar:
+
+- `superpowers_brainstorm.md`
+- `plan.md`
+- `superpowers_test_plan.md`
+- `superpowers_implementation_log.md`
+- `superpowers_review.md`
+- `tasks_status.json`
+- `spec_status_update.md`
+
+## Memória Operacional (Substitui Claude-Mem / Claude-Reflect)
+
+Esta skill deve usar memória simples e local do projeto em:
+
+- `.ai/memory/project.md`
+- `.ai/memory/decisions.md`
+- `.ai/memory/corrections.md`
+- `.ai/memory/prompts.md`
+
+Regras:
+- Não usar estruturas paralelas de memória (ex.: Claude-Mem, Claude-Reflect)
+- Ler obrigatoriamente os 4 arquivos de memória no início da execução da skill
+- Atualizar obrigatoriamente os 4 arquivos ao final da execução da skill
+- Atualizar somente o necessário, com entradas curtas e datadas
+- Registrar fatos verificáveis, não opiniões vagas
+
+Templates canônicos desta skill:
+
+- `templates/superpowers_brainstorm.template.md`
+- `templates/superpowers_plan.template.md`
+- `templates/superpowers_test_plan.template.md`
+- `templates/superpowers_implementation_log.template.md`
+- `templates/superpowers_review.template.md`
+
 ## Procedimento
 
-### 1. Definir Escopo do Item
+### 1. Brainstorm (obrigatório)
 
-Registre em 3 linhas:
-- Objetivo do item
-- Problema que resolve
-- Impacto esperado (negócio/técnico)
+Objetivo: expandir opções de solução antes de convergir.
+
+Ações:
+- Registrar objetivo, problema e impacto esperado
+- Listar ao menos 3 opções de solução (com tradeoff)
+- Escolher opção recomendada com justificativa técnica
+- Documentar riscos iniciais e hipóteses
+- Atualizar `.ai/memory/project.md` com contexto resumido da execução
+
+Saída obrigatória:
+- `superpowers_brainstorm.md`
+
+### 2. Plano (obrigatório)
+
+Objetivo: converter a escolha do brainstorm em plano executável.
+
+Ações:
+- Definir escopo, fora de escopo e dependências
+- Quebrar em tarefas pequenas com dono e ordem de execução
+- Definir DoD objetivo
+- Mapear riscos e mitigação
+- Registrar decisão principal em `.ai/memory/decisions.md`
 
 Classifique o tipo:
 - Feature
@@ -31,32 +98,66 @@ Classifique o tipo:
 - Refactor
 - Hotfix
 
-### 2. Levantar Contexto Obrigatório
+Saída obrigatória:
+- `plan.md`
+
+### 3. Testes (obrigatório)
+
+Objetivo: derivar verificação antes da implementação.
+
+Ações:
+- Mapear regra -> teste (unitário, integração, regressão)
+- Definir cenários positivos, negativos e de borda
+- Definir comandos de teste e evidência esperada
+- Declarar gaps de cobertura e plano para fechá-los
+- Registrar prompts úteis para validação em `.ai/memory/prompts.md`
+
+Saída obrigatória:
+- `superpowers_test_plan.md`
+
+### 4. Implementação (obrigatório)
+
+Objetivo: executar estritamente conforme SPEC e plano.
+
+Ações:
+- Atualizar primeiro a documentação aplicável (spec first)
+- Implementar apenas o que está na SPEC
+- Atualizar status de tarefas e decisões técnicas
+- Registrar desvios e decisões no log
+- Registrar correções relevantes em `.ai/memory/corrections.md`
+
+Saídas obrigatórias:
+- `superpowers_implementation_log.md`
+- `tasks_status.json`
+
+### 5. Review (obrigatório)
+
+Objetivo: validar qualidade e conformidade antes de merge.
+
+Ações:
+- Validar aderência código <-> SPEC
+- Executar testes planejados e registrar resultado
+- Revisar riscos (qualidade, segurança e operação)
+- Declarar aprovação, pendências ou bloqueios
+- Consolidar aprendizados em `.ai/memory/project.md`
+
+Saídas obrigatórias:
+- `superpowers_review.md`
+- `spec_status_update.md`
+
+## Contexto Obrigatório
 
 Leia e alinhe as fontes:
 - `MANIFESTO.md` (princípios)
 - `PRD.md` (requisitos de produto)
 - `docs/SDD/SPEC.md` (fonte técnica)
 - `docs/SDD/README.md` (governança SDD)
+- `.ai/memory/project.md`, `.ai/memory/decisions.md`, `.ai/memory/corrections.md`, `.ai/memory/prompts.md` (memória operacional obrigatória)
 
 Se o item afeta estratégia de trading, incluir também:
 - `STRATEGY.md` (quando existir)
 
-### 3. Refinar Antes de Codar
-
-Defina explicitamente:
-- Regras de negócio
-- Critérios de aceite
-- Cenários de erro
-- Limites e restrições
-- Riscos (financeiros, operacionais, segurança)
-
-Formato mínimo recomendado:
-- Regra: "o sistema deve..."
-- Aceite: condição objetiva e mensurável
-- Erro: código/comportamento esperado
-
-### 4. Atualizar a Especificação (Spec First)
+## Regras de Execução (Spec First)
 
 Atualize primeiro a documentação aplicável:
 - `docs/SDD/SPEC.md` para mudanças técnicas
@@ -65,41 +166,10 @@ Atualize primeiro a documentação aplicável:
 Critério de qualidade desta etapa:
 - Outro engenheiro consegue implementar sem adivinhação
 
-### 5. Derivar Contratos e Testes da Spec
-
-Para cada regra criada/alterada, derivar:
-- Contrato de entrada/saída
-- Validações
-- Cenários positivos
-- Cenários negativos
-- Casos de borda
-
-Checklist:
-- [ ] Cada regra tem pelo menos 1 teste associado
-- [ ] Cenários críticos de erro estão cobertos
-- [ ] Existe rastreabilidade regra -> teste
-
-### 6. Implementar Guiado pela Spec
-
-Implementação deve seguir estritamente a especificação atualizada.
-
-Regras de execução:
+Regras operacionais:
 - Sem decisões implícitas fora da spec
-- Se surgir dúvida de regra, voltar ao passo 4
+- Se surgir dúvida de regra, voltar para Brainstorm/Plano e atualizar SPEC
 - IA deve receber contexto explícito da seção da spec usada
-
-### 7. Validar Conformidade e Encerrar
-
-Rodar validações e revisão:
-- Testes unitários e de integração aplicáveis
-- Checklist de conformidade com a spec
-- Revisão de risco (quando houver impacto financeiro)
-
-Critérios de conclusão:
-- [ ] Especificação atualizada antes do código
-- [ ] Código aderente ao contrato definido
-- [ ] Testes passando sem regressão
-- [ ] Rastreabilidade documentada: requisito -> spec -> teste -> codigo
 
 ## Decisões e Ramificações
 
@@ -130,13 +200,16 @@ Se alterar fluxo de ordens, risco, persistência ou integração:
 ## Definição de Pronto (DoD SDD)
 
 - [ ] Item implementado conforme spec vigente
+- [ ] Fluxo completo `Brainstorm -> Plano -> Testes -> Implementação -> Review` executado e documentado
 - [ ] Testes comprovam regras e erros especificados
 - [ ] PR cita seções exatas da spec alteradas
 - [ ] Não há divergência entre comportamento e documentação
 - [ ] `tasks_status.json` e `spec_status_update.md` atualizados para a SPEC alvo, quando aplicavel
+- [ ] `.ai/memory/project.md`, `.ai/memory/decisions.md`, `.ai/memory/corrections.md`, `.ai/memory/prompts.md` lidos no início e atualizados ao final
 
 ## Prompts de Exemplo
 
 - "Aplique a skill SDD para refinar e especificar um ajuste no Risk Manager"
 - "Use a skill SDD para transformar este bug em spec + plano de implementação"
 - "Execute o workflow SDD para desenvolver nova regra de entrada no Signal Engine"
+- "Use a skill SDD no modo Superpowers para rodar brainstorm, plano, testes, implementação e review"

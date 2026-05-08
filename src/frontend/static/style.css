@@ -484,6 +484,35 @@ h1 {
   background: rgba(148, 163, 184, 0.06);
 }
 
+.signal-diagnostic-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.signal-diagnostic-table th,
+.signal-diagnostic-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.signal-diagnostic-table th {
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.signal-decision-positive {
+  color: #86efac;
+}
+
+.signal-decision-neutral {
+  color: #fcd34d;
+}
+
 .metric-positive {
   color: #86efac;
 }
@@ -625,8 +654,10 @@ h1 {
 .btn-backtest:hover { background: #1e40af; }
 .btn-approve  { background: #15803d; color: #fff; }
 .btn-approve:hover  { background: #166534; }
-.btn-show-config { background: #6366f1; color: #fff; }
-.btn-show-config:hover { background: #4f46e5; }
+.btn-manage { background: #6366f1; color: #fff; }
+.btn-manage:hover { background: #4f46e5; }
+.btn-manage-analysis { background: #0f766e; color: #fff; }
+.btn-manage-analysis:hover { background: #115e59; }
 .btn-delete-ob { background: #7f1d1d; color: #fca5a5; }
 .btn-delete-ob:hover { background: #991b1b; }
 
@@ -709,3 +740,45 @@ h1 {
 }
 
 .btn-copy:hover { background: #4b5563; }
+
+.onboarding-manage-box {
+  margin-top: 1.25rem;
+  background: #0f1117;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.onboarding-manage-box h3 {
+  margin: 0 0 0.75rem;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.onboarding-manage-result {
+  margin-top: 0.85rem;
+  background: #1e2130;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.onboarding-manage-status {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+}
+
+.onboarding-manage-status--info {
+  color: #93c5fd;
+}
+
+.onboarding-manage-status--success {
+  color: #86efac;
+}
+
+.onboarding-manage-status--error {
+  color: #fca5a5;
+}

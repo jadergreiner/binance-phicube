@@ -1,0 +1,39 @@
+{
+  "spec_id": "SPEC_024",
+  "updated_at": "2026-05-08T12:00:00Z",
+  "summary": {
+    "total": 3,
+    "done": 3,
+    "in_progress": 0,
+    "blocked": 0,
+    "todo": 0
+  },
+  "tasks": [
+    {
+      "id": "task_001",
+      "status": "done",
+      "evidence": [
+        "src/api/routes/onboarding.py",
+        "tests/api/test_onboarding.py::26 passed"
+      ]
+    },
+    {
+      "id": "task_002",
+      "status": "done",
+      "evidence": [
+        "src/frontend/static/index.html",
+        "src/frontend/static/app.js",
+        "src/frontend/static/style.css",
+        "tests/dashboard/test_frontend.py::6 passed"
+      ]
+    },
+    {
+      "id": "task_003",
+      "status": "done",
+      "evidence": [
+        "docs/SDD/SPEC_024_GESTAO_PARES_DASHBOARD/*",
+        "docs/SDD/README.md"
+      ]
+    }
+  ]
+}

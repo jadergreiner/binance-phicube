@@ -14,8 +14,11 @@ TEST_019_10: backtest em sessão inexistente retorna 404
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pandas as pd
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -70,9 +73,12 @@ def _make_app(
 
     settings = MagicMock()
     cfg_list = []
-    for sym in (active_symbols or {"BTCUSDT", "ETHUSDT"}):
+    symbols = active_symbols if active_symbols is not None else {"BTCUSDT", "ETHUSDT"}
+    for sym in sorted(symbols):
         c = MagicMock()
         c.symbol = sym
+        c.timeframe = "15m"
+        c.leverage = 5
         cfg_list.append(c)
     settings.symbol_timeframes = cfg_list
     settings.dashboard_write_auth_required = auth_required
@@ -113,6 +119,13 @@ def _backtested_session(symbol: str = "ATOMUSDT") -> dict:
         "trades": [],
     }
     s["backtest_limit"] = 35000
+    return s
+
+
+def _approved_session(symbol: str = "ATOMUSDT") -> dict:
+    s = _backtested_session(symbol)
+    s["status"] = "APPROVED"
+    s["config_string"] = f"{symbol}:15m:3"
     return s
 
 
@@ -219,6 +232,44 @@ class TestBacktestTransiciona:
         assert store["ATOMUSDT"]["status"] == "BACKTESTED"
         assert store["ATOMUSDT"]["backtest_result"] is not None
 
+    def test_backtest_em_approved_mantem_status_approved(self) -> None:
+        from datetime import UTC, datetime
+
+        from src.backtest.models import BacktestResult
+
+        app, store = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        mock_result = BacktestResult(
+            symbol="ATOMUSDT",
+            timeframe="15m",
+            candles_used=34800,
+            total_trades=119,
+            win_rate_pct=40.34,
+            profit_factor=1.23,
+            max_drawdown_usdt=-396.23,
+            total_pnl_usdt=339.20,
+            avg_rrr=1.2,
+            generated_at=datetime.now(UTC),
+        )
+
+        with (
+            patch("src.exchange.binance_client.BinanceClient") as MockClient,
+            patch("src.backtest.engine.BacktestEngine") as MockEngine,
+            patch("src.config.settings.get_settings"),
+        ):
+            mock_client_inst = AsyncMock()
+            MockClient.return_value = mock_client_inst
+            mock_engine_inst = MagicMock()
+            mock_engine_inst.run = AsyncMock(return_value=mock_result)
+            MockEngine.return_value = mock_engine_inst
+
+            resp = client.post("/onboarding/ATOMUSDT/backtest", json={"limit": 35000})
+
+        assert resp.status_code == 200
+        assert store["ATOMUSDT"]["status"] == "APPROVED"
+        assert store["ATOMUSDT"]["backtest_result"] is not None
+
 
 # ─── TEST_019_05: aprovação gera config_string ───────────────────────────────
 
@@ -230,13 +281,18 @@ class TestAprovacaoGeraConfig:
         app, store = _make_app(sessions=[_backtested_session("ATOMUSDT")])
         client = TestClient(app)
 
-        resp = client.post("/onboarding/ATOMUSDT/approve", json={})
+        with TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            with patch("src.api.routes.onboarding._resolve_env_path", return_value=env_path):
+                resp = client.post("/onboarding/ATOMUSDT/approve", json={})
 
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "APPROVED"
         assert data["config_string"] is not None
         assert "ATOMUSDT" in data["config_string"]
+        assert data["symbol_timeframes_line"] == "BTCUSDT:15m:5,ETHUSDT:15m:5,ATOMUSDT:15m:3"
+        assert data["env_applied"] is True
         assert "operational_checklist" in data
         assert len(data["operational_checklist"]) == 3
 
@@ -251,8 +307,11 @@ class TestConfigStringFormato:
         app, _ = _make_app(sessions=[_backtested_session("ATOMUSDT")])
         client = TestClient(app)
 
-        resp = client.post("/onboarding/ATOMUSDT/approve", json={})
-        data = resp.json()
+        with TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            with patch("src.api.routes.onboarding._resolve_env_path", return_value=env_path):
+                resp = client.post("/onboarding/ATOMUSDT/approve", json={})
+                data = resp.json()
 
         parts = data["config_string"].split(":")
         assert len(parts) == 3
@@ -367,6 +426,116 @@ class TestValidacoesEntrada:
             "/onboarding", json={"symbol": "ATOMUSDT", "timeframe": "15m", "leverage": 50}
         )
         assert resp.status_code == 422
+
+
+class TestPatchSessaoOnboarding:
+    """SPEC_024 — edição de sessão de onboarding."""
+
+    def test_patch_approved_atualiza_config_env_e_mantem_status(self) -> None:
+        app, store = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        with TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            with patch("src.api.routes.onboarding._resolve_env_path", return_value=env_path):
+                resp = client.patch(
+                    "/onboarding/ATOMUSDT",
+                    json={"symbol": "SOLUSDT", "timeframe": "1h", "leverage": 7},
+                )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["symbol"] == "SOLUSDT"
+        assert data["status"] == "APPROVED"
+        assert data["config_string"] == "SOLUSDT:1h:7"
+        assert data["env_applied"] is True
+        assert "SOLUSDT:1h:7" in data["symbol_timeframes_line"]
+        assert "ATOMUSDT" not in store
+        assert "SOLUSDT" in store
+
+    def test_patch_rename_para_simbolo_ativo_retorna_409(self) -> None:
+        app, _ = _make_app(sessions=[_approved_session("ATOMUSDT")], active_symbols={"SOLUSDT"})
+        client = TestClient(app)
+
+        resp = client.patch("/onboarding/ATOMUSDT", json={"symbol": "SOLUSDT"})
+
+        assert resp.status_code == 409
+        assert resp.json()["error"] == "simbolo_ja_ativo"
+
+    def test_patch_rename_para_sessao_existente_retorna_409(self) -> None:
+        app, _ = _make_app(sessions=[_approved_session("ATOMUSDT"), _session("SOLUSDT")])
+        client = TestClient(app)
+
+        resp = client.patch("/onboarding/ATOMUSDT", json={"symbol": "SOLUSDT"})
+
+        assert resp.status_code == 409
+        assert resp.json()["error"] == "sessao_ja_existe"
+
+    def test_patch_payload_invalido_retorna_422(self) -> None:
+        app, _ = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        resp = client.patch("/onboarding/ATOMUSDT", json={"leverage": 99})
+
+        assert resp.status_code == 422
+        assert resp.json()["error"] == "leverage_invalido"
+
+
+class TestMarketAnalysisOnboarding:
+    """SPEC_024 — análise técnica sob demanda por símbolo."""
+
+    def test_market_analysis_sucesso_sem_sinal(self) -> None:
+        app, _ = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        frame = pd.DataFrame(
+            {
+                "open_time": pd.date_range("2026-01-01", periods=80, freq="15min", tz="UTC"),
+                "open": [10 + i * 0.01 for i in range(80)],
+                "high": [10.2 + i * 0.01 for i in range(80)],
+                "low": [9.8 + i * 0.01 for i in range(80)],
+                "close": [10.1 + i * 0.01 for i in range(80)],
+                "volume": [1000 + i for i in range(80)],
+            }
+        )
+
+        with (
+            patch("src.api.routes.onboarding.SignalEngine.evaluate", return_value=None),
+            patch("src.exchange.binance_client.BinanceClient") as MockClient,
+            patch("src.config.settings.get_settings") as mock_settings,
+        ):
+            mock_settings.return_value = MagicMock(risk_reward_ratio=2.0)
+            mock_client_inst = AsyncMock()
+            mock_client_inst.fetch_ohlcv_with_retry = AsyncMock(return_value=frame)
+            MockClient.return_value = mock_client_inst
+
+            resp = client.post("/onboarding/ATOMUSDT/market-analysis")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["signal_detected"] is False
+        assert data["signal"] is None
+        assert data["symbol"] == "ATOMUSDT"
+        assert data["timeframe"] == "15m"
+        assert "context" in data
+        assert "ao" in data["context"]
+
+    def test_market_analysis_falha_binance_retorna_503(self) -> None:
+        app, _ = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        with (
+            patch("src.exchange.binance_client.BinanceClient") as MockClient,
+            patch("src.config.settings.get_settings"),
+        ):
+            mock_client_inst = AsyncMock()
+            mock_client_inst.fetch_ohlcv_with_retry = AsyncMock(side_effect=RuntimeError("boom"))
+            MockClient.return_value = mock_client_inst
+
+            resp = client.post("/onboarding/ATOMUSDT/market-analysis")
+
+        assert resp.status_code == 503
+        assert resp.json()["error"] == "market_analysis_unavailable"
 
 
 class TestAutenticacaoEscritaOnboarding:

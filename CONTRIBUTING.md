@@ -52,6 +52,44 @@ Regras objetivas:
 - Sem Task Graph aprovado, não inicia codificação.
 - Sem parecer aprovado do Validation Agent, não libera commit/merge.
 
+### Uso disciplinado do Codex (obrigatório)
+
+Para reduzir retrabalho e respostas vagas, todo pedido ao Codex deve seguir:
+
+- `Goal`: o que mudar.
+- `Context`: arquivos/logs/erros relevantes.
+- `Constraints`: regras e limites.
+- `Done when`: evidências de conclusão.
+
+Template oficial: `docs/CODEX_TASK_TEMPLATE.md`.
+
+Referências operacionais:
+
+- `AGENTS.md` (regras duráveis para agentes)
+- `PLANS.md` (planejamento de tarefas complexas)
+- `code_review.md` (checklist de revisão)
+
+Puxão de orelha (anti-padrões que atrasam o time):
+
+- Pedido genérico sem erro reproduzível e sem arquivos-alvo.
+- Mudança grande sem planejamento explícito.
+- Prompt com regras permanentes que deveriam estar em `AGENTS.md`.
+- Pedido de automação antes do fluxo manual estar estável.
+
+Protocolo de criticidade (obrigatorio):
+
+- Se o pedido vier sem `Goal/Context/Constraints/Done when`, interromper e reescrever o pedido no template antes de executar.
+- Se houver mudanca ampla sem plano, abrir `PLANS.md` (ou usar `/plan`) antes de qualquer alteracao de codigo.
+- Se a regra for recorrente, registrar no `AGENTS.md` e parar de repetir no prompt.
+- Se a acao pedir mais permissao que o necessario, reduzir escopo e justificar tecnicamente.
+
+Regras para criar/editar skills no projeto:
+
+- Uma skill deve resolver um fluxo unico e repetitivo.
+- `description` deve ser curta e conter gatilho claro de invocacao (`Use when ...`).
+- Comecar com `SKILL.md` instrucional; adicionar `scripts/` apenas quando houver ganho claro de determinismo.
+- Validar habilidade de trigger implicito/explicito antes de considerar a skill pronta.
+
 ### 1. Fork e Clone
 
 ```bash

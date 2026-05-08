@@ -16,6 +16,7 @@ import asyncio
 import signal
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 from src.config.settings import SymbolConfig, get_settings
 from src.exchange.binance_client import BinanceClient
@@ -27,7 +28,7 @@ from src.notifications.performance_reporter import PerformanceReporter
 from src.storage.repository import MongoRepository
 from src.strategy.signal_engine import SignalEngine
 from src.trading.order_manager import OrderManager, TradeStatus
-from src.trading.risk_manager import RiskManager
+from src.trading.risk_manager import RiskManager, RiskRejection
 
 logger = get_logger(__name__)
 
@@ -61,8 +62,8 @@ class HeartbeatTask:
     async def run(self) -> None:
         while True:
             try:
-                await asyncio.sleep(self.INTERVAL_SECONDS)
                 await self._beat()
+                await asyncio.sleep(self.INTERVAL_SECONDS)
             except asyncio.CancelledError:
                 return
             except Exception as exc:
@@ -196,28 +197,52 @@ class TradingMonitor:
 
         # Evaluate signal
         signal = self._signal_engine.evaluate(self._symbol, self._timeframe, df)
+        await self._persist_signal_evaluation()
         if signal is None:
             return
 
         # Persist signal regardless of execution
-        await self._repo.save_signal(signal.to_dict())
+        signal_id = await self._repo.save_signal(signal.to_dict())
         await self._repo.audit("signal_detected", signal.to_dict())
 
         # Calculate position size
         balance = await self._client.fetch_usdt_balance()
         if balance <= 0:
+            await self._set_signal_outcome(
+                signal_id,
+                execution_status="REJECTED_NO_BALANCE",
+                execution_reason="zero_or_negative_balance",
+                execution_details={"balance": balance},
+            )
             logger.warning("zero_balance", symbol=self._symbol)
             return
 
         qty_precision = self._client.get_quantity_precision(self._symbol)
         position = self._risk_manager.calculate(signal, balance, qty_precision)
         if position is None:
+            rejection = self._risk_manager.consume_last_rejection()
+            (
+                execution_status,
+                execution_reason,
+                execution_details,
+            ) = self._map_risk_rejection_outcome(rejection)
+            await self._set_signal_outcome(
+                signal_id,
+                execution_status=execution_status,
+                execution_reason=execution_reason,
+                execution_details=execution_details,
+            )
             logger.warning("position_size_rejected", symbol=self._symbol)
             return
 
         # Execute trade
         trade = await self._order_manager.execute(signal, position)
         if trade is None:
+            await self._set_signal_outcome(
+                signal_id,
+                execution_status="REJECTED_ORDER_EXECUTION",
+                execution_reason="order_manager_execute_returned_none",
+            )
             logger.error("trade_execution_failed", symbol=self._symbol)
             return
 
@@ -226,6 +251,21 @@ class TradingMonitor:
             "trade_opened",
             {"trade_id": trade_id, **trade.to_dict()},
         )
+        if trade.status == TradeStatus.OPEN:
+            await self._set_signal_outcome(
+                signal_id,
+                execution_status="TRADE_OPENED",
+                execution_reason="trade_opened",
+                trade_id=trade_id,
+            )
+        else:
+            await self._set_signal_outcome(
+                signal_id,
+                execution_status="REJECTED_ORDER_EXECUTION",
+                execution_reason="trade_saved_with_failed_status",
+                execution_details={"trade_status": trade.status.value},
+                trade_id=trade_id,
+            )
 
         if trade.status == TradeStatus.OPEN:
             # Send notification for successful trade
@@ -244,6 +284,62 @@ class TradingMonitor:
             )
         elif trade.status == TradeStatus.FAILED:
             logger.error("trade_saved_as_failed", symbol=self._symbol, trade_id=trade_id)
+
+    async def _persist_signal_evaluation(self) -> None:
+        consume = getattr(self._signal_engine, "consume_last_evaluation", None)
+        if not callable(consume):
+            return
+
+        evaluation = consume()
+        if evaluation is None:
+            return
+
+        to_dict = getattr(evaluation, "to_dict", None)
+        payload = to_dict() if callable(to_dict) else evaluation
+        if not isinstance(payload, dict):
+            return
+
+        await self._repo.audit("signal_evaluated", payload)
+
+    async def _set_signal_outcome(
+        self,
+        signal_id: str,
+        *,
+        execution_status: str,
+        execution_reason: str | None = None,
+        execution_details: dict[str, Any] | None = None,
+        trade_id: str | None = None,
+    ) -> None:
+        updated = await self._repo.update_signal_execution_outcome(
+            signal_id,
+            execution_status=execution_status,
+            execution_reason=execution_reason,
+            execution_details=execution_details,
+            trade_id=trade_id,
+        )
+        if not updated:
+            logger.warning(
+                "signal_outcome_not_updated",
+                signal_id=signal_id,
+                execution_status=execution_status,
+            )
+
+    @staticmethod
+    def _map_risk_rejection_outcome(
+        rejection: RiskRejection | None,
+    ) -> tuple[str, str | None, dict[str, Any] | None]:
+        if rejection is None:
+            return "REJECTED_UNKNOWN", "risk_rejected_without_structured_reason", None
+
+        mapping: dict[str, str] = {
+            "MAX_CAPITAL_ALLOCATION_EXCEEDED": "REJECTED_RISK_MAX_CAPITAL",
+            "ZERO_STOP_DISTANCE": "REJECTED_RISK_ZERO_STOP",
+            "QTY_ZERO_AFTER_ROUNDING": "REJECTED_RISK_QTY_ZERO",
+            "MIN_NOTIONAL_NOT_MET": "REJECTED_RISK_MIN_NOTIONAL",
+        }
+        execution_status = mapping.get(rejection.code, "REJECTED_UNKNOWN")
+        details = rejection.details or None
+        return execution_status, rejection.reason, details
 
 
 async def _main() -> None:

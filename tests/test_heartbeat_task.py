@@ -55,9 +55,7 @@ async def test_run_nao_propaga_excecao_de_audit() -> None:
     repo.audit = AsyncMock(side_effect=RuntimeError("mongo down"))
     task = HeartbeatTask(repo=repo, monitor_count=1)
     # Força intervalo 0 para que beats ocorram rapidamente no teste
-    task.__class__ = type(
-        "HeartbeatTaskFast", (HeartbeatTask,), {"INTERVAL_SECONDS": 0}
-    )
+    task.__class__ = type("HeartbeatTaskFast", (HeartbeatTask,), {"INTERVAL_SECONDS": 0})
 
     t = asyncio.create_task(task.run())
     await asyncio.sleep(0.05)

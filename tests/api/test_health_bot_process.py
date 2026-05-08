@@ -101,8 +101,11 @@ class TestBotProcessField:
         assert data["status"] == "ok"
         assert data["mongodb"] == "ok"
         assert "timestamp" in data
+        assert "timestamp_br" in data
+        assert data["timezone"] == "America/Sao_Paulo"
         assert "bot_process" in data
         assert "last_heartbeat_at" in data
+        assert "last_heartbeat_at_br" in data
 
     def test_last_heartbeat_at_formato_iso8601(self) -> None:
         """last_heartbeat_at é string ISO 8601 com sufixo Z quando heartbeat presente."""
@@ -115,6 +118,7 @@ class TestBotProcessField:
         ts = response.json()["last_heartbeat_at"]
         assert isinstance(ts, str)
         assert ts.endswith("Z")
+        assert response.json()["last_heartbeat_at_br"]
 
     def test_limiar_9min_retorna_alive(self) -> None:
         """Heartbeat há 9 min 55 s → 'alive' (abaixo do threshold de 10 min)."""

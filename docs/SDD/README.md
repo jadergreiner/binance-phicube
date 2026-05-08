@@ -46,13 +46,18 @@ Este é o **Software Design Document (SDD)** — especificação técnica execut
     - Pipeline oficial: SPEC -> Planner Agent -> Task Graph -> Dev Agent (Serena) -> Validation Agent -> Commit/Review Gate
     - Definições de entrada/saída por etapa e critérios de gate
 
-4. **ARCHITECTURE.md** *(em breve)* — Diagrama de arquitetura profundo
+4. **Superpowers Workflow (SDD Skill)** — Fluxo mandatório da skill `sdd-spec-driven-development`
+   - Ordem fixa: Brainstorm -> Plano -> Testes -> Implementação -> Review
+   - Artefatos por SPEC: `superpowers_brainstorm.md`, `plan.md`, `superpowers_test_plan.md`, `superpowers_implementation_log.md`, `superpowers_review.md`
+   - Memória operacional simplificada: `.ai/memory/project.md`, `.ai/memory/decisions.md`, `.ai/memory/corrections.md`, `.ai/memory/prompts.md`
 
-5. **DATA_MODELS.md** *(em breve)* — Esquema de dados
+5. **ARCHITECTURE.md** *(em breve)* — Diagrama de arquitetura profundo
 
-6. **ERROR_HANDLING.md** *(em breve)* — Estratégia de falhas
+6. **DATA_MODELS.md** *(em breve)* — Esquema de dados
 
-7. **SECURITY_DESIGN.md** *(em breve)* — Design de segurança
+7. **ERROR_HANDLING.md** *(em breve)* — Estratégia de falhas
+
+8. **SECURITY_DESIGN.md** *(em breve)* — Design de segurança
 
 ### SPECs Incrementais
 
@@ -83,6 +88,10 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/](SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/SPEC.md) | SPEC_021 | Validação Operacional e Resiliência de Produção | Em Execução |
 | [SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/](SPEC_022_CONVERGENCIA_PRD_SDD_CODIGO/SPEC.md) | SPEC_022 | Convergencia PRD-SDD-Codigo para Regras Criticas de Risco e Escalabilidade | Concluída |
 | [SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/](SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/SPEC.md) | SPEC_023 | Fechamento de Gaps do PRD (MVP + OKR Atuais) | Em Execução |
+| [SPEC_024_GESTAO_PARES_DASHBOARD/](SPEC_024_GESTAO_PARES_DASHBOARD/SPEC.md) | SPEC_024 | Gestão de Pares no Dashboard (Sessão Inferior) | Concluída |
+| [SPEC_025_SINAIS_DASHBOARD_DIAGNOSTICO_EXECUCAO/](SPEC_025_SINAIS_DASHBOARD_DIAGNOSTICO_EXECUCAO/SPEC.md) | SPEC_025 | Sinais no Dashboard + Diagnóstico de Não Execução | Concluída |
+| [SPEC_026_NORMALIZACAO_HORARIO_BR_PAINEL_API/](SPEC_026_NORMALIZACAO_HORARIO_BR_PAINEL_API/SPEC.md) | SPEC_026 | Normalização de Horário Brasileiro no Painel e APIs | Concluída |
+| [SPEC_027_TELEMETRIA_NO_SIGNAL_DASHBOARD/](SPEC_027_TELEMETRIA_NO_SIGNAL_DASHBOARD/SPEC.md) | SPEC_027 | Telemetria de No-Signal no Dashboard | Concluída |
 
 ---
 
@@ -133,6 +142,8 @@ Ao receber artefatos do Time A:
 
 - [ ] **Leia SPEC.md completamente**
 - [ ] **Siga o pipeline em MCP_SERENA_FLOW.md** (Planner -> Task Graph -> Dev -> Validation -> Gate)
+- [ ] **Siga o fluxo Superpowers da skill SDD** (Brainstorm -> Plano -> Testes -> Implementação -> Review)
+- [ ] **Atualize memória operacional** em `.ai/memory/project.md`, `.ai/memory/decisions.md`, `.ai/memory/corrections.md` e `.ai/memory/prompts.md`
 - [ ] **Valide que PR code está em conformidade** (checklist em SPEC.md)
 - [ ] **Execute testes parametrizados** (verificam contratos em SDD)
 - [ ] **Atualize SDD se descobrir gap** (rastrear em Discussions)

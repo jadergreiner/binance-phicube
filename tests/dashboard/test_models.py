@@ -78,6 +78,8 @@ def test_test_001_02_lista_de_posicoes_multiplas_gera_totais_corretos() -> None:
     assert summary.total_exposure_usdt == pytest.approx(50940.0)
     assert summary.total_margin_used_usdt == pytest.approx(5180.0)
     assert summary.total_unrealized_pnl_usdt == pytest.approx(600.0)
+    assert summary.account_equity_usdt is None
+    assert summary.exposure_to_equity_ratio is None
     assert summary.connection_status == "online"
     assert summary.last_update_at == latest_update
 
@@ -206,8 +208,37 @@ def test_build_account_summary_fallback_calcula_exposicao_quando_position_size_n
     assert summary.total_exposure_usdt == pytest.approx(24000.0)
     assert summary.total_margin_used_usdt == pytest.approx(2400.0)
     assert summary.total_unrealized_pnl_usdt == pytest.approx(250.0)
+    assert summary.account_equity_usdt is None
+    assert summary.exposure_to_equity_ratio is None
     assert summary.connection_status == "online"
     assert summary.last_update_at == datetime(2026, 5, 1, 12, 30, tzinfo=UTC)
+
+
+def test_build_account_summary_calcula_exposure_to_equity_ratio_quando_equity_informado() -> None:
+    positions = [
+        PositionView(
+            symbol="BTCUSDT",
+            side="LONG",
+            quantity=0.25,
+            leverage=10,
+            entry_price=95000.0,
+            mark_price=96000.0,
+            unrealized_pnl_usdt=250.0,
+            margin_used_usdt=2400.0,
+            liquidation_price=87000.0,
+            updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+        )
+    ]
+
+    summary = build_account_summary(
+        positions,
+        "online",
+        account_equity_usdt=12000.0,
+    )
+
+    assert summary.total_exposure_usdt == pytest.approx(24000.0)
+    assert summary.account_equity_usdt == pytest.approx(12000.0)
+    assert summary.exposure_to_equity_ratio == pytest.approx(2.0)
 
 
 def test_build_account_summary_status_invalido_gera_value_error() -> None:

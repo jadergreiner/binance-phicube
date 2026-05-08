@@ -36,6 +36,14 @@ mcpServers:
       - @modelcontextprotocol/server-http
     env: {}
 
+  # 📚 Context7 (documentação atualizada de libs)
+  - name: context7
+    command: npx
+    args:
+      - -y
+      - @upstash/context7-mcp
+    env: {}
+
   # 🧠 Serena MCP (orquestração)
   - name: serena
     command: uvx

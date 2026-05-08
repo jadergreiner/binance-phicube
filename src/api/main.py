@@ -19,6 +19,7 @@ health_router = import_module("src.api.routes.health").router
 backtest_router = import_module("src.api.routes.backtest").router
 trades_router = import_module("src.api.routes.trades").router
 onboarding_router = import_module("src.api.routes.onboarding").router
+signals_router = import_module("src.api.routes.signals").router
 StaticFiles = import_module("fastapi.staticfiles").StaticFiles
 AdaptiveUpdater = DashboardModule.AdaptiveUpdater
 DashboardClient = DashboardModule.DashboardClient
@@ -40,6 +41,9 @@ class _OfflinePositionStream:
     def get_status(self) -> str:
         return "offline"
 
+    def get_account_equity_usdt(self) -> float | None:
+        return None
+
     async def stop(self, *, status: str = "offline") -> None:
         return None
 
@@ -58,7 +62,7 @@ async def lifespan(app: Any) -> AsyncIterator[None]:
     """Gerencia o ciclo de vida compartilhado do dashboard."""
     settings = get_settings()
     dashboard_client = DashboardClient(settings)
-    position_stream = PositionStream(dashboard_client)
+    position_stream = PositionStream(dashboard_client, track_account_equity=True)
     adaptive_updater = AdaptiveUpdater()
     try:
         repository = MongoRepository(
@@ -146,6 +150,7 @@ def create_app() -> Any:
     app.include_router(backtest_router)
     app.include_router(trades_router)
     app.include_router(onboarding_router)
+    app.include_router(signals_router)
 
     @app.get("/")
     async def read_index() -> FileResponse:

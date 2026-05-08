@@ -50,6 +50,7 @@ class SLMissingState:
     notification_count: int
     renotify_interval_seconds: int
 
+
 # Erros fatais que não entram em retry (padrão SPEC_007)
 _FATAL_ERRORS = (
     ccxt.AuthenticationError,
@@ -445,8 +446,7 @@ class OrderMonitor:
         try:
             orders = await self._client.fetch_open_orders(symbol)
             return any(
-                o.get("type", "").lower() in ("stop_market", "stop", "stop_loss")
-                for o in orders
+                o.get("type", "").lower() in ("stop_market", "stop", "stop_loss") for o in orders
             )
         except Exception as exc:
             logger.warning(
@@ -536,6 +536,16 @@ class OrderMonitor:
         for attempt in range(1, retries + 1):
             try:
                 return await self._client.fetch_order(order_id, symbol)
+            except ccxt.OrderNotFound:
+                # Ordem pode já ter saído da janela de consulta da exchange.
+                # Não é erro fatal para o monitor: seguimos com fallback
+                # de reconciliação por posição aberta/fechada.
+                logger.info(
+                    "fetch_order_not_found",
+                    order_id=order_id,
+                    symbol=symbol,
+                )
+                return None
             except _FATAL_ERRORS:
                 raise
             except Exception as exc:

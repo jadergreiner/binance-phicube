@@ -86,11 +86,44 @@ class Signal:
         }
 
 
+@dataclass(frozen=True)
+class SignalEvaluation:
+    symbol: str
+    timeframe: str
+    decision: str
+    signal_generated: bool
+    reason: str
+    evaluated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    candle_open_time: datetime | None = None
+    long_conditions: dict[str, bool] | None = None
+    short_conditions: dict[str, bool] | None = None
+
+    def to_dict(self) -> dict:
+        payload: dict[str, object] = {
+            "symbol": self.symbol,
+            "timeframe": self.timeframe,
+            "decision": self.decision,
+            "signal_generated": self.signal_generated,
+            "reason": self.reason,
+            "evaluated_at": self.evaluated_at,
+            "candle_open_time": self.candle_open_time,
+            "long_conditions": self.long_conditions,
+            "short_conditions": self.short_conditions,
+        }
+        return payload
+
+
 class SignalEngine:
     """Evaluates a closed OHLCV DataFrame and returns a Signal or None."""
 
     def __init__(self, risk_reward_ratio: float = 2.0) -> None:
         self._rrr = risk_reward_ratio
+        self._last_evaluation: SignalEvaluation | None = None
+
+    def consume_last_evaluation(self) -> SignalEvaluation | None:
+        evaluation = self._last_evaluation
+        self._last_evaluation = None
+        return evaluation
 
     def evaluate(
         self,
@@ -106,6 +139,13 @@ class SignalEngine:
         """
         if len(df) < 50:
             logger.debug("insufficient_candles", symbol=symbol, rows=len(df))
+            self._last_evaluation = SignalEvaluation(
+                symbol=symbol,
+                timeframe=timeframe,
+                decision="SKIPPED_INSUFFICIENT_CANDLES",
+                signal_generated=False,
+                reason="insufficient_candles",
+            )
             return None
 
         enriched = compute_all(df)
@@ -121,6 +161,17 @@ class SignalEngine:
 
         if any(pd.isna(v) for v in [jaw, teeth, lips, ao]):
             logger.debug("indicators_not_ready", symbol=symbol)
+            candle_open_time = last.get("open_time")
+            self._last_evaluation = SignalEvaluation(
+                symbol=symbol,
+                timeframe=timeframe,
+                decision="SKIPPED_INDICATORS_NOT_READY",
+                signal_generated=False,
+                reason="indicators_not_ready",
+                candle_open_time=(
+                    candle_open_time if isinstance(candle_open_time, datetime) else None
+                ),
+            )
             return None
 
         jaw, teeth, lips, ao = float(jaw), float(teeth), float(lips), float(ao)
@@ -156,6 +207,26 @@ class SignalEngine:
                 fractal_ref=fractal_high,
             )
             logger.info("signal_detected", **signal.to_dict())
+            self._last_evaluation = SignalEvaluation(
+                symbol=symbol,
+                timeframe=timeframe,
+                decision="SIGNAL_LONG",
+                signal_generated=True,
+                reason="long_conditions_met",
+                candle_open_time=last.get("open_time"),
+                long_conditions={
+                    "alligator_bullish": alligator_bullish,
+                    "ao_positive": ao_positive,
+                    "close_above_fractal": close_above_fractal,
+                    "valid_sl": valid_sl,
+                },
+                short_conditions={
+                    "alligator_bearish": False,
+                    "ao_negative": False,
+                    "close_below_fractal": False,
+                    "valid_sl": False,
+                },
+            )
             return signal
 
         # ─── Short signal ─────────────────────────────────────────────────────
@@ -189,8 +260,55 @@ class SignalEngine:
                 fractal_ref=fractal_low_ref,
             )
             logger.info("signal_detected", **signal.to_dict())
+            self._last_evaluation = SignalEvaluation(
+                symbol=symbol,
+                timeframe=timeframe,
+                decision="SIGNAL_SHORT",
+                signal_generated=True,
+                reason="short_conditions_met",
+                candle_open_time=last.get("open_time"),
+                long_conditions={
+                    "alligator_bullish": alligator_bullish,
+                    "ao_positive": ao_positive,
+                    "close_above_fractal": close_above_fractal,
+                    "valid_sl": valid_sl,
+                },
+                short_conditions={
+                    "alligator_bearish": alligator_bearish,
+                    "ao_negative": ao_negative,
+                    "close_below_fractal": close_below_fractal,
+                    "valid_sl": valid_sl_short,
+                },
+            )
             return signal
 
+        long_conditions = {
+            "alligator_bullish": alligator_bullish,
+            "ao_positive": ao_positive,
+            "close_above_fractal": close_above_fractal,
+            "valid_sl": valid_sl,
+        }
+        short_conditions = {
+            "alligator_bearish": alligator_bearish,
+            "ao_negative": ao_negative,
+            "close_below_fractal": close_below_fractal,
+            "valid_sl": valid_sl_short,
+        }
+        missing_long = [k for k, ok in long_conditions.items() if not ok]
+        missing_short = [k for k, ok in short_conditions.items() if not ok]
+        self._last_evaluation = SignalEvaluation(
+            symbol=symbol,
+            timeframe=timeframe,
+            decision="NO_SIGNAL",
+            signal_generated=False,
+            reason=(
+                f"long_missing:{','.join(missing_long)};"
+                f"short_missing:{','.join(missing_short)}"
+            ),
+            candle_open_time=last.get("open_time"),
+            long_conditions=long_conditions,
+            short_conditions=short_conditions,
+        )
         logger.debug("no_signal", symbol=symbol, timeframe=timeframe)
         return None
 

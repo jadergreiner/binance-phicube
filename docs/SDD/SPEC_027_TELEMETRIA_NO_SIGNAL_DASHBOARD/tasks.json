@@ -1,0 +1,52 @@
+{
+  "spec_id": "SPEC_027",
+  "generated_at": "2026-05-08T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Instrumentar SignalEngine com telemetria estruturada por ciclo",
+      "owner": "backend-senior",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [],
+      "target_files": [
+        "src/strategy/signal_engine.py"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Persistir e expor diagnóstico no snapshot do dashboard",
+      "owner": "backend-senior",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/main.py",
+        "src/storage/repository.py",
+        "src/api/routes/positions.py"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Renderizar diagnóstico no frontend e cobrir testes",
+      "owner": "frontend-dashboard",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": [
+        "task_002"
+      ],
+      "target_files": [
+        "src/frontend/static/index.html",
+        "src/frontend/static/style.css",
+        "src/frontend/static/app.js",
+        "tests/test_signal_engine.py",
+        "tests/trading/test_trading_monitor_signal_outcomes.py",
+        "tests/api/test_signal_history.py",
+        "tests/dashboard/test_api.py",
+        "tests/dashboard/test_frontend.py"
+      ]
+    }
+  ]
+}

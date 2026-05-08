@@ -136,9 +136,17 @@ class BinanceClient:
             raise InsufficientLiquidityError(
                 f"{symbol}: volume_24h={volume_24h:.0f} USDT < mínimo {min_volume:.0f}"
             )
+
+        reference_price = float(
+            ticker.get("last") or ticker.get("close") or ticker.get("mark") or 0.0
+        )
         try:
             oi_data = await self._exchange.fetch_open_interest(symbol)
             oi = float(oi_data.get("openInterestValue") or 0.0)
+            if oi <= 0.0:
+                oi_amount = float(oi_data.get("openInterestAmount") or 0.0)
+                if oi_amount > 0.0 and reference_price > 0.0:
+                    oi = oi_amount * reference_price
         except Exception as exc:
             logger.warning(
                 "fetch_open_interest_failed",
@@ -152,9 +160,7 @@ class BinanceClient:
             )
         logger.info("market_liquidity_ok", symbol=symbol, volume_24h=volume_24h, oi=oi)
 
-    async def fetch_quantity_precision_map(
-        self, symbols: list[str]
-    ) -> dict[str, int]:
+    async def fetch_quantity_precision_map(self, symbols: list[str]) -> dict[str, int]:
         """Retorna {symbol: casas_decimais} para cada símbolo solicitado."""
         markets = await self._exchange.load_markets()
         result: dict[str, int] = {}

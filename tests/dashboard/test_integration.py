@@ -39,12 +39,16 @@ class _FakeStream:
         self._positions = positions
         self._status = status
         self.on_update = None
+        self._account_equity_usdt = None
 
     def get_positions(self) -> list[PositionView]:
         return list(self._positions)
 
     def get_status(self) -> str:
         return self._status
+
+    def get_account_equity_usdt(self) -> float | None:
+        return self._account_equity_usdt
 
 
 def _make_spec_002_position(*, symbol: str, updated_at: datetime) -> PositionView:

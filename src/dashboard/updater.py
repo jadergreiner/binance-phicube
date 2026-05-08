@@ -129,8 +129,10 @@ class AdaptiveUpdater:
 
                 now = self._now()
                 if self._last_update_at is not None:
-                    if stream.get_status() == "online" and self._detect_stale(
-                        self._last_update_at, now
+                    if (
+                        stream.get_status() == "online"
+                        and self._detect_stale(self._last_update_at, now)
+                        and not self._is_primary_transport_alive(stream)
                     ):
                         logger.warning(
                             "dashboard_adaptive_updater_stale_detected",
@@ -203,6 +205,8 @@ class AdaptiveUpdater:
 
         self._log_reconciliation_inconsistency(current_positions, positions)
         stream._positions = positions
+        if getattr(stream, "_track_account_equity", False):
+            await stream._refresh_account_equity()
         stream._save_current_snapshot()
         await stream._notify_update()
         self._last_update_at = updated_at
@@ -226,6 +230,19 @@ class AdaptiveUpdater:
 
         if self._last_update_at is None or latest_update > self._last_update_at:
             self._last_update_at = latest_update
+
+    def _is_primary_transport_alive(self, stream: PositionStream) -> bool:
+        checker = getattr(stream, "is_transport_open", None)
+        if callable(checker):
+            try:
+                return bool(checker())
+            except Exception:
+                return False
+
+        websocket = getattr(stream, "_websocket", None)
+        if websocket is None:
+            return False
+        return not bool(getattr(websocket, "closed", True))
 
     def _resolve_poll_interval(self, now: datetime) -> float:
         if self._degraded_since is None:

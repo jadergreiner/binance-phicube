@@ -1,0 +1,25 @@
+# Configuracao repo-specific do Codex para o Phicube.
+# Baseado em https://developers.openai.com/codex/config-sample
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "high"
+model_reasoning_summary = "auto"
+
+# AGENTS.md e docs do projeto sao a fonte primaria de comportamento.
+project_doc_fallback_filenames = [
+  ".codex/codex-instructions.md",
+]
+
+[sandbox_workspace_write]
+writable_roots = []
+network_access = false
+
+[shell_environment_policy]
+inherit = "all"
+ignore_default_excludes = false
+exclude = []
+set = {}
+include_only = []

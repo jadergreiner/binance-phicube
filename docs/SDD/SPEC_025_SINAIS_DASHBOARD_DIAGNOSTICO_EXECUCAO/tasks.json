@@ -1,0 +1,57 @@
+{
+  "spec_id": "SPEC_025",
+  "generated_at": "2026-05-08T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Implementar backend de sinais e diagnóstico de não execução",
+      "owner": "backend-senior",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [],
+      "target_files": [
+        "src/storage/repository.py",
+        "src/trading/risk_manager.py",
+        "src/main.py",
+        "src/api/routes/signals.py",
+        "src/api/main.py"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Evoluir frontend do dashboard com seção de sinais gerados",
+      "owner": "frontend-dashboard",
+      "priority": "P0",
+      "status": "done",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/frontend/static/index.html",
+        "src/frontend/static/app.js"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Validar e registrar rastreabilidade SDD da SPEC_025",
+      "owner": "time-a-refinamento",
+      "priority": "P1",
+      "status": "done",
+      "depends_on": [
+        "task_001",
+        "task_002"
+      ],
+      "target_files": [
+        "tests/api/test_signal_history.py",
+        "tests/trading/test_risk_manager.py",
+        "tests/trading/test_trading_monitor_signal_outcomes.py",
+        "tests/dashboard/test_frontend.py",
+        "docs/SDD/SPEC_025_SINAIS_DASHBOARD_DIAGNOSTICO_EXECUCAO/SPEC.md",
+        "docs/SDD/SPEC_025_SINAIS_DASHBOARD_DIAGNOSTICO_EXECUCAO/tasks.json",
+        "docs/SDD/SPEC_025_SINAIS_DASHBOARD_DIAGNOSTICO_EXECUCAO/tasks_status.json",
+        "docs/SDD/SPEC_025_SINAIS_DASHBOARD_DIAGNOSTICO_EXECUCAO/spec_status_update.md",
+        "docs/SDD/README.md"
+      ]
+    }
+  ]
+}

@@ -102,6 +102,7 @@ class _FakeStream:
         positions: list[PositionView],
         exchange: _FakeExchange | None = None,
         fail_start: bool = False,
+        transport_open: bool = True,
     ) -> None:
         self._status = status
         self._positions = {position.symbol: position for position in positions}
@@ -111,6 +112,7 @@ class _FakeStream:
             get_last_response_headers=self._get_last_response_headers,
         )
         self.fail_start = fail_start
+        self.transport_open = transport_open
         self.status_events: list[str] = []
         self.saved_snapshots: list[list[PositionView]] = []
         self.start_calls = 0
@@ -128,6 +130,9 @@ class _FakeStream:
 
     def get_non_recoverable_auth_reason(self) -> str | None:
         return None
+
+    def is_transport_open(self) -> bool:
+        return self.transport_open
 
     async def _set_status(self, status: str) -> None:
         self._status = status
@@ -188,7 +193,12 @@ async def test_test_001_03_ausencia_de_update_marca_stream_como_degraded() -> No
     base_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
     clock = _TestClock(base_time)
     stale_position = _make_position(updated_at=base_time - timedelta(seconds=4))
-    stream = _FakeStream(status="online", positions=[stale_position], fail_start=True)
+    stream = _FakeStream(
+        status="online",
+        positions=[stale_position],
+        fail_start=True,
+        transport_open=False,
+    )
     updater = AdaptiveUpdater(
         now=clock.now,
         sleep=clock.sleep,
@@ -202,6 +212,28 @@ async def test_test_001_03_ausencia_de_update_marca_stream_como_degraded() -> No
 
         assert stream.status_events[0] == "degraded"
         assert stream.get_status() == "degraded"
+    finally:
+        await updater.stop()
+
+
+@pytest.mark.asyncio
+async def test_nao_marca_degraded_quando_stream_online_tem_transporte_aberto() -> None:
+    base_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    clock = _TestClock(base_time)
+    stale_position = _make_position(updated_at=base_time - timedelta(seconds=30))
+    stream = _FakeStream(status="online", positions=[stale_position], fail_start=True)
+    updater = AdaptiveUpdater(
+        now=clock.now,
+        sleep=clock.sleep,
+        monitor_interval=0.01,
+        stale_window_seconds=3.0,
+    )
+
+    try:
+        await updater.start(stream)
+        await asyncio.sleep(0.1)
+        assert "degraded" not in stream.status_events
+        assert stream.get_status() == "online"
     finally:
         await updater.stop()
 
