@@ -16,6 +16,7 @@ Se margin_required > max_capital_allocation, a operação é bloqueada.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from src.monitoring.logger import get_logger
@@ -66,12 +67,16 @@ class RiskManager:
         leverage: int,
         max_capital_allocation_pct: float,
         min_notional: float = 5.0,  # mínimo nocional aceito pela Binance Futures
+        intraday_loss_limit_pct: float = 10.0,
     ) -> None:
         self._risk_pct = risk_per_trade_pct
         self._leverage = leverage
         self._max_alloc_pct = max_capital_allocation_pct
         self._min_notional = min_notional
+        self._intraday_loss_limit_pct = intraday_loss_limit_pct
         self._last_rejection: RiskRejection | None = None
+        self._daily_reference_capital: float | None = None
+        self._daily_reference_day: datetime.date | None = None
 
     @property
     def last_rejection(self) -> RiskRejection | None:
@@ -90,12 +95,42 @@ class RiskManager:
         signal: Signal,
         available_balance: float,
         quantity_precision: int = 3,
+        intraday_realized_pnl_usdt: float = 0.0,
+        now_utc: datetime | None = None,
     ) -> PositionSize | None:
         """Calculate position size for a given signal and available balance.
 
         Returns None if the trade would violate any risk constraint.
         """
         self._last_rejection = None
+        now = now_utc.astimezone(UTC) if now_utc else datetime.now(UTC)
+        self._refresh_intraday_reference(available_balance, now)
+        if self._intraday_loss_limit_reached(intraday_realized_pnl_usdt):
+            daily_reference_capital = self._daily_reference_capital or available_balance
+            intraday_loss_pct = round(
+                abs(intraday_realized_pnl_usdt) / daily_reference_capital * 100,
+                4,
+            )
+            self._set_rejection(
+                code="INTRADAY_LOSS_LIMIT_REACHED",
+                reason="intraday_loss_limit_reached",
+                details={
+                    "intraday_loss_pct": intraday_loss_pct,
+                    "threshold_pct": self._intraday_loss_limit_pct,
+                    "daily_reference_capital": round(daily_reference_capital, 4),
+                    "intraday_realized_pnl_usdt": round(intraday_realized_pnl_usdt, 4),
+                },
+            )
+            logger.warning(
+                "intraday_loss_limit_reached",
+                symbol=signal.symbol,
+                intraday_loss_pct=intraday_loss_pct,
+                threshold_pct=self._intraday_loss_limit_pct,
+                daily_reference_capital=round(daily_reference_capital, 4),
+                intraday_realized_pnl_usdt=round(intraday_realized_pnl_usdt, 4),
+            )
+            return None
+
         stop_distance = abs(signal.entry_price - signal.stop_loss)
         if stop_distance == 0:
             self._set_rejection(
@@ -178,3 +213,17 @@ class RiskManager:
         self._last_rejection = None
         logger.info("position_size_calculated", **pos.to_dict())
         return pos
+
+    def _refresh_intraday_reference(self, available_balance: float, now_utc: datetime) -> None:
+        day = now_utc.date()
+        if self._daily_reference_day != day or self._daily_reference_capital is None:
+            self._daily_reference_day = day
+            self._daily_reference_capital = available_balance
+
+    def _intraday_loss_limit_reached(self, intraday_realized_pnl_usdt: float) -> bool:
+        if intraday_realized_pnl_usdt >= 0:
+            return False
+        if not self._daily_reference_capital or self._daily_reference_capital <= 0:
+            return False
+        loss_pct = abs(intraday_realized_pnl_usdt) / self._daily_reference_capital * 100
+        return loss_pct >= self._intraday_loss_limit_pct

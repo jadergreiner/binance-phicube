@@ -50,6 +50,24 @@ Leia o [MANIFESTO.md](./MANIFESTO.md) para entender o conceito completo do proje
 
 ---
 
+## 🧩 OpenSpec (fluxo oficial)
+
+Este repositório usa o CLI oficial `openspec` como fluxo canônico de governança:
+
+- Inicializar: `openspec init`
+- Criar mudança: `openspec new change "<nome-kebab-case>"`
+- Explorar mudanças/specs: `openspec list --json`
+- Validar mudança: `openspec validate --strict --type change <nome-da-mudanca>`
+- Aplicar execução guiada: `/opsx:apply`
+- Arquivar mudança: `openspec archive <nome-da-mudanca>`
+
+Política de transição:
+
+- O fluxo compat local (`tools/openspec_local.py`) está **descontinuado** para uso diário.
+- Data de corte: **2026-05-15**.
+
+---
+
 ## 🤝 Contribuindo
 
 Contribuições são bem-vindas! Leia o [CONTRIBUTING.md](./CONTRIBUTING.md) para saber como participar do projeto.

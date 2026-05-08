@@ -218,7 +218,13 @@ class TradingMonitor:
             return
 
         qty_precision = self._client.get_quantity_precision(self._symbol)
-        position = self._risk_manager.calculate(signal, balance, qty_precision)
+        intraday_realized_pnl_usdt = await self._repo.get_intraday_realized_pnl_usdt()
+        position = self._risk_manager.calculate(
+            signal,
+            balance,
+            qty_precision,
+            intraday_realized_pnl_usdt=intraday_realized_pnl_usdt,
+        )
         if position is None:
             rejection = self._risk_manager.consume_last_rejection()
             (
@@ -336,6 +342,7 @@ class TradingMonitor:
             "ZERO_STOP_DISTANCE": "REJECTED_RISK_ZERO_STOP",
             "QTY_ZERO_AFTER_ROUNDING": "REJECTED_RISK_QTY_ZERO",
             "MIN_NOTIONAL_NOT_MET": "REJECTED_RISK_MIN_NOTIONAL",
+            "INTRADAY_LOSS_LIMIT_REACHED": "REJECTED_RISK_INTRADAY_LOSS_LIMIT",
         }
         execution_status = mapping.get(rejection.code, "REJECTED_UNKNOWN")
         details = rejection.details or None

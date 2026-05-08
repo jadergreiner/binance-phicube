@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -112,6 +113,68 @@ def cmd_ci_inspect(args: argparse.Namespace) -> int:
     return result.returncode
 
 
+def _normalize_spec_query(raw: str) -> str:
+    query = raw.strip().upper()
+    match = re.fullmatch(r"(?:SPEC[_-]?)?(\d{1,3})", query)
+    if match:
+        return f"SPEC_{int(match.group(1)):03d}"
+    return query.replace("-", "_")
+
+
+def _find_spec_candidates() -> list[Path]:
+    sdd_dir = ROOT / "docs" / "SDD"
+    return sorted(
+        [path for path in sdd_dir.glob("SPEC_*") if path.is_dir()],
+        key=lambda p: p.name,
+    )
+
+
+def cmd_openspec(args: argparse.Namespace) -> int:
+    base_spec = ROOT / "docs" / "SDD" / "SPEC.md"
+    if not args.query:
+        target = base_spec
+        if args.json:
+            _print_json({"ok": target.exists(), "path": str(target), "query": None})
+        else:
+            print(target)
+        return 0 if target.exists() else 1
+
+    query = _normalize_spec_query(args.query)
+    candidates = _find_spec_candidates()
+    exact = [path for path in candidates if path.name.startswith(query)]
+    partial = [path for path in candidates if query in path.name]
+    matches = exact or partial
+
+    if not matches:
+        if args.json:
+            _print_json({"ok": False, "query": query, "matches": []})
+        else:
+            print(f"Nenhuma SPEC encontrada para: {query}")
+        return 1
+
+    if len(matches) > 1:
+        if args.json:
+            _print_json(
+                {
+                    "ok": False,
+                    "query": query,
+                    "matches": [str(p / "SPEC.md") for p in matches],
+                }
+            )
+        else:
+            print(f"Multiplas SPECs encontradas para: {query}")
+            for path in matches:
+                print(path / "SPEC.md")
+        return 2
+
+    target = matches[0] / "SPEC.md"
+    if args.json:
+        _print_json({"ok": target.exists(), "query": query, "path": str(target)})
+    else:
+        print(target)
+    return 0 if target.exists() else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="phicube-ops", description="Phicube operations CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -135,6 +198,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_ci.add_argument("--pr", default=None, help="PR number or URL. Uses branch PR if omitted.")
     p_ci.add_argument("--json", action="store_true", help="Emit JSON output from inspector")
     p_ci.set_defaults(func=cmd_ci_inspect)
+
+    p_openspec = sub.add_parser(
+        "openspec",
+        help="Resolve caminho da SPEC por id ou termo",
+    )
+    p_openspec.add_argument(
+        "query",
+        nargs="?",
+        default=None,
+        help="Ex.: 23, SPEC_023 ou parte do titulo",
+    )
+    p_openspec.add_argument("--json", action="store_true", help="Emit JSON output")
+    p_openspec.set_defaults(func=cmd_openspec)
 
     return parser
 

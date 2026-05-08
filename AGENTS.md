@@ -32,6 +32,8 @@ Guia operacional para agentes neste repositorio.
 - Sempre explicitar criterio de pronto (done when) antes de concluir.
 - Nunca assumir acesso irrestrito: manter sandbox/aprovacoes no menor privilegio necessario.
 - Nao expor segredos em logs, docs, commits ou testes.
+- Governanca de mudancas: usar `openspec` oficial como fluxo canonico (`propose`, `explore`, `apply`, `archive`).
+- Fluxo compat local (`tools/openspec_local.py`) descontinuado para uso diario a partir de 2026-05-15.
 
 ## Higiene de sessao
 

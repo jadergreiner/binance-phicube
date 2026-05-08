@@ -46,6 +46,7 @@ async def test_tick_registra_desfecho_rejeicao_risco() -> None:
     repo = SimpleNamespace(
         count_open_trades=AsyncMock(return_value=0),
         get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=0.0),
         save_signal=AsyncMock(return_value="681cc200e8f9ff89bff8e463"),
         audit=AsyncMock(return_value=None),
         update_signal_execution_outcome=AsyncMock(return_value=True),
@@ -79,10 +80,52 @@ async def test_tick_registra_desfecho_rejeicao_risco() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tick_registra_desfecho_rejeicao_intraday_loss_limit() -> None:
+    repo = SimpleNamespace(
+        count_open_trades=AsyncMock(return_value=0),
+        get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=-120.0),
+        save_signal=AsyncMock(return_value="681cc200e8f9ff89bff8e463"),
+        audit=AsyncMock(return_value=None),
+        update_signal_execution_outcome=AsyncMock(return_value=True),
+    )
+    client = SimpleNamespace(
+        fetch_ohlcv_with_retry=AsyncMock(
+            return_value=pd.DataFrame({"close": [100.0, 101.0], "open": [99.0, 100.0]})
+        ),
+        fetch_usdt_balance=AsyncMock(return_value=1000.0),
+        get_quantity_precision=MagicMock(return_value=3),
+    )
+    signal = _build_signal()
+    signal_engine = SimpleNamespace(evaluate=MagicMock(return_value=signal))
+    risk_manager = SimpleNamespace(
+        calculate=MagicMock(return_value=None),
+        consume_last_rejection=lambda: RiskRejection(
+            code="INTRADAY_LOSS_LIMIT_REACHED",
+            reason="intraday_loss_limit_reached",
+            details={
+                "intraday_loss_pct": 12.0,
+                "threshold_pct": 10.0,
+                "daily_reference_capital": 1000.0,
+            },
+        ),
+    )
+    order_manager = SimpleNamespace(execute=AsyncMock(return_value=None))
+
+    monitor = _build_monitor(repo, client, signal_engine, risk_manager, order_manager)
+    await monitor._tick()
+
+    kwargs = repo.update_signal_execution_outcome.call_args.kwargs
+    assert kwargs["execution_status"] == "REJECTED_RISK_INTRADAY_LOSS_LIMIT"
+    assert kwargs["execution_reason"] == "intraday_loss_limit_reached"
+
+
+@pytest.mark.asyncio
 async def test_tick_registra_desfecho_trade_opened() -> None:
     repo = SimpleNamespace(
         count_open_trades=AsyncMock(return_value=0),
         get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=0.0),
         save_signal=AsyncMock(return_value="681cc200e8f9ff89bff8e463"),
         audit=AsyncMock(return_value=None),
         save_trade=AsyncMock(return_value="trade-123"),
@@ -130,6 +173,7 @@ async def test_tick_persiste_diagnostico_de_avaliacao_sem_sinal() -> None:
     repo = SimpleNamespace(
         count_open_trades=AsyncMock(return_value=0),
         get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=0.0),
         save_signal=AsyncMock(return_value="unused"),
         audit=AsyncMock(return_value=None),
         update_signal_execution_outcome=AsyncMock(return_value=True),

@@ -153,3 +153,30 @@ class TestGetPerformanceMetrics:
         assert metrics["profit_factor"] == 0.0  # gross_loss=0 → normalizado
         assert metrics["win_rate_pct"] == 100.0
         assert metrics["total_pnl_usdt"] == 30.0
+
+
+class TestGetIntradayRealizedPnl:
+    @pytest.mark.asyncio
+    async def test_soma_pnl_realizado_do_dia(self) -> None:
+        repo = _make_repo()
+        mock_collection = AsyncMock()
+        mock_cursor = AsyncMock()
+        mock_cursor.to_list = AsyncMock(
+            return_value=[
+                {"pnl_usdt": 10.0},
+                {"pnl_usdt": -4.0},
+                {"pnl_usdt": -1.5},
+            ]
+        )
+        mock_collection.find = MagicMock(return_value=mock_cursor)
+        repo._db = MagicMock()
+        repo._db.__getitem__ = MagicMock(return_value=mock_collection)
+
+        result = await repo.get_intraday_realized_pnl_usdt(
+            now=datetime(2026, 5, 8, 12, 0, tzinfo=UTC)
+        )
+
+        assert result == 4.5
+        query = mock_collection.find.call_args.args[0]
+        assert "closed_at" in query
+        assert "$gte" in query["closed_at"]

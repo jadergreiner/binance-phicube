@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from src.strategy.signal_engine import Direction, Signal
 from src.trading.risk_manager import PositionSize, RiskManager
 
@@ -136,3 +138,53 @@ class TestRiskManager:
         assert payload["quantity"] == 2.0
         assert payload["risk_amount"] == 10.0
         assert manager.last_rejection is None
+
+    def test_returns_none_when_intraday_loss_limit_reached(self) -> None:
+        manager = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=50.0,
+            intraday_loss_limit_pct=10.0,
+        )
+        signal = _signal(entry=100.0, stop=95.0)
+
+        pos = manager.calculate(
+            signal,
+            available_balance=1000.0,
+            quantity_precision=3,
+            intraday_realized_pnl_usdt=-100.0,
+            now_utc=datetime(2026, 5, 8, 12, 0, tzinfo=UTC),
+        )
+
+        assert pos is None
+        rejection = manager.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "INTRADAY_LOSS_LIMIT_REACHED"
+        assert rejection.reason == "intraday_loss_limit_reached"
+
+    def test_intraday_lock_resets_on_next_day(self) -> None:
+        manager = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=50.0,
+            intraday_loss_limit_pct=10.0,
+        )
+        signal = _signal(entry=100.0, stop=95.0)
+
+        blocked = manager.calculate(
+            signal,
+            available_balance=1000.0,
+            quantity_precision=3,
+            intraday_realized_pnl_usdt=-120.0,
+            now_utc=datetime(2026, 5, 8, 12, 0, tzinfo=UTC),
+        )
+        assert blocked is None
+
+        reopened = manager.calculate(
+            signal,
+            available_balance=1000.0,
+            quantity_precision=3,
+            intraday_realized_pnl_usdt=0.0,
+            now_utc=datetime(2026, 5, 9, 12, 0, tzinfo=UTC),
+        )
+        assert isinstance(reopened, PositionSize)

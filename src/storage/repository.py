@@ -332,6 +332,26 @@ class MongoRepository:
         cursor = self._db[_TRADES_COLLECTION].aggregate(pipeline)
         return await cursor.to_list(length=limit)
 
+    async def get_intraday_realized_pnl_usdt(self, now: datetime | None = None) -> float:
+        """Retorna PnL realizado intraday em USDT para o dia UTC corrente."""
+        ref = now.astimezone(UTC) if now else datetime.now(UTC)
+        start_of_day = ref.replace(hour=0, minute=0, second=0, microsecond=0)
+        closed_statuses = [
+            TradeStatus.CLOSED_TP.value,
+            TradeStatus.CLOSED_SL.value,
+            TradeStatus.CLOSED_MANUAL.value,
+        ]
+        cursor = self._db[_TRADES_COLLECTION].find(
+            {
+                "status": {"$in": closed_statuses},
+                "pnl_usdt": {"$ne": None},
+                "closed_at": {"$gte": start_of_day},
+            },
+            {"_id": 0, "pnl_usdt": 1},
+        )
+        rows = await cursor.to_list(length=None)
+        return round(sum(float(row.get("pnl_usdt") or 0.0) for row in rows), 4)
+
     async def get_open_trade_sl_tp(self) -> dict[str, dict[str, float | None]]:
         """Retorna {symbol: {sl_price, tp_price}} para trades OPEN."""
         cursor = self._db[_TRADES_COLLECTION].find(
