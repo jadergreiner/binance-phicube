@@ -414,6 +414,8 @@ async def _main() -> None:
         repository=repo,
         notifier=notifier,
         renotify_interval_seconds=settings.sl_missing_renotify_interval_minutes * 60,
+        manual_close_confirm_cycles=settings.order_monitor_manual_close_confirm_cycles,
+        manual_close_require_dual_source=settings.order_monitor_manual_close_require_dual_source,
     )
 
     tasks = [asyncio.create_task(m.run()) for m in monitors]

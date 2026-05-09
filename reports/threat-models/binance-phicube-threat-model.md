@@ -1,6 +1,6 @@
 # Threat Model: binance-phicube
 
-Generated: 2026-05-08 16:51 UTC
+Generated: 2026-05-09 13:00 UTC
 Repository: `C:\repo\binance-phicube`
 
 ## Scope And Assumptions

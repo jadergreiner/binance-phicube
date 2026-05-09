@@ -85,7 +85,7 @@ Lista todas as sessões de onboarding.
 Cria nova sessão de onboarding.  
 **Body:** `{ symbol, timeframe, leverage }`  
 **Validações:**
-- `symbol` ∈ formato válido (maiúsculas, sufixo USDT, 4–20 chars)
+- `symbol` ∈ formato válido (alfanumérico maiúsculo, sufixo USDT, base 2–15 chars)
 - `timeframe` ∈ `{1m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d}`
 - `leverage` ∈ `[1, 20]`
 - Símbolo **não** pode estar já ativo (em `SYMBOL_TIMEFRAMES`)

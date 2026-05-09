@@ -102,6 +102,7 @@ def _make_monitor(
     )
     mock_client.cancel_all_orders = AsyncMock()
     mock_client.fetch_open_positions = AsyncMock(return_value=fetch_positions or [])
+    mock_client.fetch_position_risk = AsyncMock(return_value=fetch_positions or [])
 
     if fetch_order_side_effect is not None:
         mock_client.fetch_order = AsyncMock(side_effect=fetch_order_side_effect)
@@ -267,7 +268,9 @@ async def test_012_05_fechamento_manual_cancel_all_closed_manual_is_estimated():
     await monitor._check_trade(trade)
     # 1º ciclo: apenas pendência de confirmação
     mock_repo.update_trade_status.assert_not_called()
-
+    await monitor._check_trade(trade)
+    # 2º ciclo: ainda pendência
+    mock_repo.update_trade_status.assert_not_called()
     await monitor._check_trade(trade)
 
     # Deve cancelar todas as ordens
@@ -332,7 +335,7 @@ async def test_012_07_fetch_order_esgota_retries_retorna_none():
 
 @pytest.mark.asyncio
 async def test_012_07b_order_not_found_nao_aborta_e_permite_fechamento_manual():
-    """OrderNotFound não deve fechar no 1º ciclo; fecha após confirmação em 2 ciclos."""
+    """OrderNotFound não deve fechar no 1º/2º ciclo; fecha após confirmação em 3 ciclos."""
     trade = _make_trade()
 
     monitor, mock_client, mock_repo, _ = _make_monitor(
@@ -342,6 +345,9 @@ async def test_012_07b_order_not_found_nao_aborta_e_permite_fechamento_manual():
     )
 
     mock_client.fetch_order = AsyncMock(side_effect=ccxt.OrderNotFound("missing"))
+
+    await monitor._check_trade(trade)
+    mock_repo.update_trade_status.assert_not_called()
 
     await monitor._check_trade(trade)
     mock_repo.update_trade_status.assert_not_called()
@@ -367,7 +373,55 @@ async def test_012_07c_order_not_found_com_posicao_aberta_mantem_trade_open():
 
     await monitor._check_trade(trade)
     await monitor._check_trade(trade)
+    await monitor._check_trade(trade)
 
+    mock_repo.update_trade_status.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_manual_close_nao_fecha_quando_fontes_divergem():
+    """Fonte A sem posição e fonte B com posição -> não fechar manualmente."""
+    trade = _make_trade(symbol="ATOMUSDT")
+    monitor, mock_client, mock_repo, _ = _make_monitor(
+        get_open_trades=[trade],
+        fetch_positions=[],
+        fetch_ticker_price=1.90,
+    )
+    mock_client.fetch_order = AsyncMock(side_effect=ccxt.OrderNotFound("missing"))
+    mock_client.fetch_position_risk = AsyncMock(
+        return_value=[{"symbol": "ATOMUSDT", "positionAmt": "1.0"}]
+    )
+
+    for _ in range(4):
+        await monitor._check_trade(trade)
+
+    mock_repo.update_trade_status.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_manual_close_pending_reseta_quando_posicao_reaparece():
+    """Contador pending deve resetar se posição reaparecer em qualquer fonte."""
+    trade = _make_trade(symbol="ATOMUSDT")
+    monitor, mock_client, mock_repo, _ = _make_monitor(
+        get_open_trades=[trade],
+        fetch_positions=[],
+        fetch_ticker_price=1.90,
+    )
+    mock_client.fetch_order = AsyncMock(side_effect=ccxt.OrderNotFound("missing"))
+    # 2 ciclos sem posição, depois reaparece, depois some novamente
+    seq = [
+        [],
+        [],
+        [{"symbol": "ATOMUSDT", "positionAmt": "1.0"}],
+        [],
+        [],
+    ]
+    mock_client.fetch_position_risk = AsyncMock(side_effect=seq)
+
+    for _ in seq:
+        await monitor._check_trade(trade)
+
+    # Não pode fechar: reaparecimento reseta pending.
     mock_repo.update_trade_status.assert_not_called()
 
 

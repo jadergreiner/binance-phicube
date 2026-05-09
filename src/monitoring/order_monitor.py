@@ -83,12 +83,16 @@ class OrderMonitor:
         notifier: Notifier,
         interval_seconds: int = 60,
         renotify_interval_seconds: int = _DEFAULT_RENOTIFY_INTERVAL_SECONDS,
+        manual_close_confirm_cycles: int = 3,
+        manual_close_require_dual_source: bool = True,
     ) -> None:
         self._client = client
         self._repository = repository
         self._notifier = notifier
         self._interval_seconds = interval_seconds
         self._renotify_interval_seconds = renotify_interval_seconds
+        self._manual_close_confirm_cycles = max(1, int(manual_close_confirm_cycles))
+        self._manual_close_require_dual_source = bool(manual_close_require_dual_source)
         # Estado de re-notificação por entry_order_id. Persistido apenas em memória
         # (DD-001): em restart, um segundo primeiro-alerta é enviado — comportamento
         # aceitável e documentado (CE-003).
@@ -204,9 +208,47 @@ class OrderMonitor:
             elif self._last_fetch_order_not_found:
                 order_not_found_seen = True
 
+        if order_not_found_seen:
+            await self._repository.audit(
+                "order_reference_missing",
+                {
+                    "entry_order_id": entry_order_id,
+                    "symbol": symbol,
+                    "sl_order_id": sl_order_id,
+                    "tp_order_id": tp_order_id,
+                },
+            )
+
         # ─── Verifica fechamento manual ───────────────────────────────────────
-        position_open = await self._is_position_open(symbol)
-        if position_open:
+        position_open_source_a = await self._is_position_open(symbol)
+        position_open_source_b = await self._is_position_open_risk(symbol)
+        dual_source_absent = (not position_open_source_a) and (not position_open_source_b)
+        should_confirm_absent = (
+            dual_source_absent
+            if self._manual_close_require_dual_source
+            else (not position_open_source_a)
+        )
+
+        if not should_confirm_absent:
+            if order_not_found_seen and (position_open_source_a or position_open_source_b):
+                logger.info(
+                    "manual_close_prevented_due_to_open_position",
+                    symbol=symbol,
+                    entry_order_id=entry_order_id,
+                    position_check_source_a=position_open_source_a,
+                    position_check_source_b=position_open_source_b,
+                    order_not_found_seen=order_not_found_seen,
+                )
+                await self._repository.audit(
+                    "manual_close_prevented_due_to_open_position",
+                    {
+                        "entry_order_id": entry_order_id,
+                        "symbol": symbol,
+                        "position_check_source_a": position_open_source_a,
+                        "position_check_source_b": position_open_source_b,
+                        "order_not_found_seen": order_not_found_seen,
+                    },
+                )
             self._manual_close_pending.pop(entry_order_id, None)
             return
 
@@ -214,13 +256,37 @@ class OrderMonitor:
         pending.missing_position_cycles += 1
         pending.order_not_found_seen = pending.order_not_found_seen or order_not_found_seen
         self._manual_close_pending[entry_order_id] = pending
-        if pending.missing_position_cycles < 2:
+        await self._repository.audit(
+            "reconciliation_pending_manual_close",
+            {
+                "entry_order_id": entry_order_id,
+                "symbol": symbol,
+                "missing_position_cycles": pending.missing_position_cycles,
+                "required_cycles": self._manual_close_confirm_cycles,
+                "position_check_source_a": position_open_source_a,
+                "position_check_source_b": position_open_source_b,
+                "order_not_found_seen": pending.order_not_found_seen,
+                "manual_close_decision_basis": {
+                    "require_dual_source": self._manual_close_require_dual_source,
+                    "dual_source_absent": dual_source_absent,
+                    "result": (
+                        "pending"
+                        if pending.missing_position_cycles < self._manual_close_confirm_cycles
+                        else "confirm_manual_close"
+                    ),
+                },
+            },
+        )
+        if pending.missing_position_cycles < self._manual_close_confirm_cycles:
             await self._repository.audit(
                 "manual_close_confirmation_pending",
                 {
                     "entry_order_id": entry_order_id,
                     "symbol": symbol,
                     "missing_position_cycles": pending.missing_position_cycles,
+                    "required_cycles": self._manual_close_confirm_cycles,
+                    "position_check_source_a": position_open_source_a,
+                    "position_check_source_b": position_open_source_b,
                     "order_not_found_seen": pending.order_not_found_seen,
                 },
             )
@@ -229,11 +295,14 @@ class OrderMonitor:
                 symbol=symbol,
                 entry_order_id=entry_order_id,
                 missing_position_cycles=pending.missing_position_cycles,
+                required_cycles=self._manual_close_confirm_cycles,
+                position_check_source_a=position_open_source_a,
+                position_check_source_b=position_open_source_b,
                 order_not_found_seen=pending.order_not_found_seen,
             )
             return
 
-        # Posição ausente por 2 ciclos consecutivos -> fechamento manual confirmado.
+        # Posição ausente por N ciclos consecutivos -> fechamento manual confirmado.
         await self._handle_manual_close(trade)
         self._manual_close_pending.pop(entry_order_id, None)
 
@@ -551,7 +620,7 @@ class OrderMonitor:
                 "exit_price": exit_price,
                 "pnl_usdt": pnl_usdt,
                 "is_estimated": True,
-                "manual_close_confirmed_cycles": 2,
+                "manual_close_confirmed_cycles": self._manual_close_confirm_cycles,
             },
         )
 
@@ -636,6 +705,30 @@ class OrderMonitor:
                 error_type=type(exc).__name__,
             )
             # Em caso de dúvida, assume que a posição existe (conservador)
+            return True
+
+    async def _is_position_open_risk(self, symbol: str) -> bool:
+        """Fonte secundária: posição aberta por position risk (posição != 0)."""
+        try:
+            target = self._normalize_symbol(symbol)
+            positions = await self._client.fetch_position_risk(symbol=symbol)
+            for pos in positions:
+                if self._normalize_symbol(str(pos.get("symbol", ""))) != target:
+                    continue
+                amount = pos.get("positionAmt", pos.get("contracts", 0))
+                try:
+                    if abs(float(amount or 0.0)) > 0.0:
+                        return True
+                except (TypeError, ValueError):
+                    continue
+            return False
+        except Exception as exc:
+            logger.warning(
+                "check_position_risk_failed",
+                symbol=symbol,
+                error_type=type(exc).__name__,
+            )
+            # Em caso de dúvida, assume posição aberta (conservador)
             return True
 
     @staticmethod

@@ -69,6 +69,18 @@ def test_frontend_expoe_gestao_de_simbolo_aprovado() -> None:
     assert "/onboarding/${symbol}/backtest`" not in javascript
 
 
+def test_frontend_onboarding_defaults_padronizados() -> None:
+    """Onboarding deve iniciar com defaults COPPERUSDT, 1h e 10x."""
+    html = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert 'id="ob-symbol"' in html
+    assert 'placeholder="COPPERUSDT"' in html
+    assert 'value="COPPERUSDT"' in html
+    assert '<option value="1h" selected>1h</option>' in html
+    assert 'id="ob-leverage"' in html
+    assert 'value="10"' in html
+
+
 def test_frontend_historico_expoe_origem_e_status_reconciliado() -> None:
     """SPEC_024/SPEC_016 — histórico deve explicar fechamento externo reconcilado."""
     html = INDEX_HTML.read_text(encoding="utf-8")

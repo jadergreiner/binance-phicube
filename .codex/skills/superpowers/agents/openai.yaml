@@ -1,0 +1,3 @@
+display_name: SuperPowers
+short_description: Protocolo de execucao em 5 etapas (brainstorm, plano, testes, implementacao, review)
+default_prompt: /superpowers objetivo + contexto

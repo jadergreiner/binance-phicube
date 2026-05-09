@@ -14,6 +14,7 @@ from typing import Annotated, Any
 from uuid import uuid4
 
 import pandas as pd
+from bson import ObjectId
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 logger = get_logger(__name__)
 
 _VALID_TIMEFRAMES = {"1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
-_SYMBOL_RE = re.compile(r"^[A-Z]{2,15}USDT$")
+_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,15}USDT$")
 _COMMODITIES = frozenset({"XPTUSDT", "COPPERUSDT"})
 _MARKET_ANALYSIS_CANDLES_LIMIT = 260
 
@@ -60,6 +61,8 @@ def _serialize_session(doc: dict[str, Any]) -> dict[str, Any]:
     for k, v in doc.items():
         if isinstance(v, datetime):
             out[k] = v.isoformat().replace("+00:00", "Z")
+        elif isinstance(v, ObjectId):
+            out[k] = str(v)
         elif isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
             out[k] = 0.0
         else:
@@ -194,7 +197,10 @@ def _validate_symbol(symbol: str) -> JSONResponse | None:
     if not _SYMBOL_RE.match(symbol):
         return JSONResponse(
             status_code=422,
-            content={"error": "symbol_invalido", "detalhe": "Formato esperado: XXXXUSDT"},
+            content={
+                "error": "symbol_invalido",
+                "detalhe": "Formato esperado: [A-Z0-9]{2,15}USDT",
+            },
         )
     return None
 
@@ -622,7 +628,37 @@ async def create_backtest_job(
     executor = _get_backtest_executor(request)
 
     async def _execute() -> None:
-        await executor.run(lambda: _run_backtest_job(request, job_id))
+        try:
+            await executor.run(lambda: _run_backtest_job(request, job_id))
+        except TimeoutError:
+            await repo.update_backtest_job(
+                job_id,
+                {
+                    "status": "failed",
+                    "completed_at": datetime.now(UTC),
+                    "error_code": "timeout",
+                    "error_message": "backtest job timed out",
+                },
+            )
+            await repo.update_onboarding_session(sym, {"backtest_error": "TimeoutError"})
+            logger.warning("onboarding_backtest_job_timeout", job_id=job_id, symbol=sym)
+        except Exception as exc:
+            await repo.update_backtest_job(
+                job_id,
+                {
+                    "status": "failed",
+                    "completed_at": datetime.now(UTC),
+                    "error_code": "job_runner_error",
+                    "error_message": str(exc)[:240] or type(exc).__name__,
+                },
+            )
+            await repo.update_onboarding_session(sym, {"backtest_error": type(exc).__name__})
+            logger.warning(
+                "onboarding_backtest_job_runner_failed",
+                job_id=job_id,
+                symbol=sym,
+                error_type=type(exc).__name__,
+            )
 
     run_inline = bool(
         getattr(request.app.state.settings, "onboarding_backtest_job_run_inline", False)

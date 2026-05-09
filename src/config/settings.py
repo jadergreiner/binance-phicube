@@ -90,6 +90,8 @@ class Settings(BaseSettings):
     )
     performance_report_interval_hours: Annotated[float, Field(ge=0)] = 24.0
     sl_missing_renotify_interval_minutes: Annotated[int, Field(ge=5)] = 15
+    order_monitor_manual_close_confirm_cycles: Annotated[int, Field(ge=1)] = 3
+    order_monitor_manual_close_require_dual_source: bool = True
 
     # Dashboard (API Key READ_ONLY — sem permissão de trade)
     dashboard_api_key: str = Field(..., description="Dashboard API Key (READ_ONLY)")

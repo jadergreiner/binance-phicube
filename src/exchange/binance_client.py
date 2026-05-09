@@ -120,6 +120,22 @@ class BinanceClient:
         positions = await self._exchange.fetch_positions()
         return [p for p in positions if float(p.get("contracts", 0)) != 0]
 
+    async def fetch_position_risk(self, *, symbol: str | None = None) -> list[dict[str, Any]]:
+        """Retorna position risk bruto (endpoint Binance Futures)."""
+        params: dict[str, Any] = {}
+        if symbol:
+            market_symbol = symbol
+            if "/" not in symbol:
+                market_symbol = f"{symbol[:-4]}/USDT:USDT" if symbol.endswith("USDT") else symbol
+            params["symbol"] = self._exchange.market_id(market_symbol)
+        method = getattr(self._exchange, "fapiPrivateGetPositionRisk", None)
+        if callable(method):
+            raw = await method(params)
+            if isinstance(raw, list):
+                return raw
+        # Fallback de compatibilidade (shape próximo, sem positionAmt garantido)
+        return await self._exchange.fetch_positions([symbol] if symbol else None)
+
     async def fetch_ticker(self, symbol: str) -> dict[str, Any]:
         return await self._exchange.fetch_ticker(symbol)
 

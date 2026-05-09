@@ -1,30 +1,64 @@
 # Instruções do Projeto — Binance Phicube
 
-## Idioma
+## Objetivo
 
-**Todo conteúdo produzido neste projeto deve estar em Português do Brasil (pt-BR)**, sem exceção:
+Este arquivo define regras operacionais complementares para uso do Codex no repositório Binance Phicube.
+O objetivo é garantir execução consistente, segura e verificável em tarefas de desenvolvimento.
 
+## Precedência de Instruções
+
+Ordem de prioridade para resolução de conflitos:
+
+1. `AGENTS.md` (fonte primária do repositório)
+2. `.codex/codex-instructions.md` (complemento operacional)
+3. Prompt da tarefa atual (escopo específico, sem contrariar os itens anteriores)
+
+## Idioma e Exceções
+
+Idioma padrão: Português do Brasil (pt-BR) para comunicação, documentação e textos operacionais produzidos no projeto.
+
+Aplicações padrão em pt-BR:
 - Respostas e explicações no chat
-- Comentários no código-fonte
-- Docstrings de funções, classes e módulos
-- Mensagens de erro e log descritivas (strings voltadas ao operador)
-- Nomes de variáveis e funções devem seguir o padrão do projeto (inglês técnico é aceito para nomes de código, mas explicações sempre em pt-BR)
-- Exemplos de uso e snippets gerados
+- Comentários e docstrings no código
+- Mensagens de log e erro voltadas ao operador
 - Arquivos de documentação (`.md`)
-- Mensagens de commit geradas automaticamente: **inglês** (padrão Conventional Commits — exceção técnica aceita pelo time)
-- Testes: descrições de `describe`, `it`, comentários e mensagens de assert em pt-BR
+- Descrições textuais em testes (quando aplicável)
 
-## Contexto do Projeto
+Exceções técnicas permitidas:
+- Mensagens de commit em inglês (Conventional Commits)
+- Identificadores técnicos de código (nomes de variáveis, funções, classes, tipos, APIs)
+- Mensagens brutas de bibliotecas, stack traces e erros não controláveis pelo projeto
 
-- **Nome**: Binance Phicube
-- **Tipo**: Bot de auto trade para Binance Futures USDT-M
-- **Estratégia**: BO Williams Phicube (Alligator SMMA + Awesome Oscillator + Fractais de 5 barras)
-- **Stack**: Python 3.11+, ccxt (async), MongoDB (motor), Docker Compose, pytest
-- **Ambiente padrão**: Binance Testnet durante desenvolvimento
+## Regras de Execução
 
-## Princípios de Comunicação
+- Em mudanças complexas, planejar antes de codar (modo plano ou `PLANS.md`).
+- Em mudanças simples e locais, implementar direto e validar rapidamente.
+- Não expor segredos em logs, documentação, testes ou commits.
+- Manter menor privilégio possível de execução (sandbox/aprovações), com exceções justificadas.
 
-1. Seja direto e objetivo — o time é técnico
-2. Prefira exemplos concretos a explicações genéricas
-3. Ao gerar código, sempre explique *o que* e *por que*, não apenas *como*
-4. Ao identificar riscos (financeiros, de segurança ou de dados), destaque explicitamente
+## Uso de Skills e MCP
+
+- Usar skills quando houver aderência objetiva entre a tarefa e o `description` da skill.
+- Evitar skill fora de escopo ou genérica quando uma execução direta for mais simples e segura.
+- Usar MCP quando ele agregar contexto verificável e reduzir ambiguidade.
+- Quando MCP não agregar valor prático para a tarefa, operar diretamente no código/repositório local.
+
+## Qualidade e Done When
+
+Para tarefas com alteração de código, mínimo esperado:
+
+- Executar testes relevantes para o escopo alterado.
+- Executar `ruff check` e `ruff format` quando aplicável.
+- Declarar critério de pronto (done when) alinhado ao `AGENTS.md`.
+
+Condição de pronto:
+- Código executa no contexto esperado.
+- Validações essenciais passaram.
+- Riscos residuais e limites foram explicitados quando houver.
+
+## Referências
+
+- `AGENTS.md`
+- `docs/CODEX_TASK_TEMPLATE.md`
+- `code_review.md`
+- `PLANS.md`

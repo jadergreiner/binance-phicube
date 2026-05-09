@@ -179,6 +179,21 @@ class TestCriarSessaoCandidata:
         assert data["leverage"] == 3
         assert "ATOMUSDT" in store
 
+    def test_criar_sessao_candidata_alfanumerica(self) -> None:
+        app, store = _make_app()
+        client = TestClient(app)
+
+        resp = client.post(
+            "/onboarding",
+            json={"symbol": "BROCCOLI714USDT", "timeframe": "15m", "leverage": 3},
+        )
+
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["symbol"] == "BROCCOLI714USDT"
+        assert data["status"] == "CANDIDATE"
+        assert "BROCCOLI714USDT" in store
+
 
 # ─── TEST_019_02: rejeitar símbolo já ativo ───────────────────────────────────
 
@@ -481,6 +496,24 @@ class TestBacktestJobs:
         payload = get_resp.json()
         assert payload["status"] == "succeeded"
         assert payload["backtest_result"]["symbol"] == "ATOMUSDT"
+
+    def test_timeout_do_executor_marca_job_como_failed(self) -> None:
+        app, _ = _make_app(sessions=[_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        async def _raise_timeout(_):
+            raise TimeoutError
+
+        with patch(
+            "src.api.routes.onboarding._BacktestJobExecutor.run",
+            side_effect=_raise_timeout,
+        ):
+            create_resp = client.post("/onboarding/ATOMUSDT/backtest-jobs", json={"limit": 35000})
+
+        assert create_resp.status_code == 202
+        payload = create_resp.json()
+        assert payload["status"] == "failed"
+        assert payload["error_code"] == "timeout"
 
 
 # ─── Validações de entrada ────────────────────────────────────────────────────

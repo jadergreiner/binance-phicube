@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import UTC, datetime
 
 import pandas as pd
+
+from src.backtest.models import BacktestResult, BacktestTrade
+from src.config.settings import Settings
+from src.exchange.binance_client import BinanceClient
+from src.strategy.signal_engine import SignalEngine
 
 # Duração de cada timeframe em milissegundos — usado para paginação por since
 _TF_MS: dict[str, int] = {
@@ -20,11 +26,6 @@ _TF_MS: dict[str, int] = {
     "12h": 43_200_000,
     "1d": 86_400_000,
 }
-
-from src.backtest.models import BacktestResult, BacktestTrade
-from src.config.settings import Settings
-from src.exchange.binance_client import BinanceClient
-from src.strategy.signal_engine import SignalEngine
 
 
 class BacktestEngine:
@@ -123,8 +124,12 @@ class BacktestEngine:
 
         trades: list[BacktestTrade] = []
         open_trade: dict | None = None
+        # Mantém o loop do evento responsivo durante backtests longos.
+        yield_every = 200
 
         for i in range(warmup, len(df)):
+            if (i - warmup) % yield_every == 0:
+                await asyncio.sleep(0)
             row = df.iloc[i]
             high = float(row["high"])
             low = float(row["low"])
