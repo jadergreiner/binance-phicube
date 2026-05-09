@@ -54,9 +54,15 @@ class HeartbeatTask:
 
     INTERVAL_SECONDS: int = 300
 
-    def __init__(self, repo: MongoRepository, monitor_count: int) -> None:
+    def __init__(
+        self,
+        repo: MongoRepository,
+        monitor_count: int,
+        monitor_count_getter: callable | None = None,
+    ) -> None:
         self._repo = repo
         self._monitor_count = monitor_count
+        self._monitor_count_getter = monitor_count_getter
         self._started_at = datetime.now(UTC)
 
     async def run(self) -> None:
@@ -71,15 +77,196 @@ class HeartbeatTask:
 
     async def _beat(self) -> None:
         uptime = int((datetime.now(UTC) - self._started_at).total_seconds())
+        monitor_count = self._monitor_count
+        if callable(self._monitor_count_getter):
+            monitor_count = int(self._monitor_count_getter())
         await self._repo.audit(
             "heartbeat",
             {
                 "process_uptime_seconds": uptime,
-                "monitor_count": self._monitor_count,
+                "monitor_count": monitor_count,
                 "metadata": {"source": "HeartbeatTask", "version": "1.0"},
             },
         )
         logger.debug("heartbeat_recorded", uptime_seconds=uptime)
+
+
+class RuntimeMonitorRegistry:
+    """Gerencia ciclo de vida de TradingMonitors em runtime."""
+
+    def __init__(
+        self,
+        *,
+        settings: Any,
+        client: BinanceClient,
+        repo: MongoRepository,
+        signal_engine: SignalEngine,
+        notifier: Notifier,
+    ) -> None:
+        self._settings = settings
+        self._client = client
+        self._repo = repo
+        self._signal_engine = signal_engine
+        self._notifier = notifier
+        self._tasks: dict[tuple[str, str], asyncio.Task] = {}
+        self._configs: dict[tuple[str, str], SymbolConfig] = {}
+
+    @property
+    def monitor_count(self) -> int:
+        return len(self._tasks)
+
+    def _build_monitor(self, cfg: SymbolConfig) -> TradingMonitor:
+        risk_manager = RiskManager(
+            risk_per_trade_pct=self._settings.risk_per_trade_pct,
+            leverage=cfg.leverage,
+            max_capital_allocation_pct=self._settings.max_capital_allocation_pct,
+        )
+        order_manager = OrderManager(self._client, leverage=cfg.leverage, notifier=self._notifier)
+        return TradingMonitor(
+            config=cfg,
+            client=self._client,
+            repo=self._repo,
+            signal_engine=self._signal_engine,
+            risk_manager=risk_manager,
+            order_manager=order_manager,
+            notifier=self._notifier,
+            max_open_positions=self._settings.max_open_positions,
+            warmup_candles=self._settings.warmup_candles,
+        )
+
+    async def add(self, cfg: SymbolConfig) -> None:
+        key = (cfg.symbol, cfg.timeframe)
+        if key in self._tasks:
+            if self._configs[key].leverage != cfg.leverage:
+                await self.remove(*key)
+            else:
+                return
+
+        await self._client.validate_market_liquidity(cfg.symbol)
+        await self._client.set_leverage(cfg.symbol, cfg.leverage)
+        monitor = self._build_monitor(cfg)
+        task = asyncio.create_task(monitor.run())
+        self._tasks[key] = task
+        self._configs[key] = cfg
+        logger.info(
+            "runtime_monitor_added",
+            symbol=cfg.symbol,
+            timeframe=cfg.timeframe,
+            leverage=cfg.leverage,
+        )
+
+    async def remove(self, symbol: str, timeframe: str) -> None:
+        key = (symbol, timeframe)
+        task = self._tasks.pop(key, None)
+        self._configs.pop(key, None)
+        if task is None:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        logger.info("runtime_monitor_removed", symbol=symbol, timeframe=timeframe)
+
+    async def reconcile(self, desired_configs: list[SymbolConfig]) -> None:
+        desired: dict[tuple[str, str], SymbolConfig] = {
+            (cfg.symbol, cfg.timeframe): cfg for cfg in desired_configs
+        }
+        running = set(self._tasks.keys())
+        desired_keys = set(desired.keys())
+
+        for symbol, timeframe in sorted(running - desired_keys):
+            await self.remove(symbol, timeframe)
+
+        for key in sorted(desired_keys):
+            await self.add(desired[key])
+
+    async def close(self) -> None:
+        for symbol, timeframe in list(self._tasks.keys()):
+            await self.remove(symbol, timeframe)
+
+    def active_pairs(self) -> list[tuple[str, str, int]]:
+        return [
+            (cfg.symbol, cfg.timeframe, cfg.leverage)
+            for cfg in self._configs.values()
+        ]
+
+
+class RuntimeMonitorSyncTask:
+    """Sincroniza monitores ativos com sessões APPROVED do onboarding."""
+
+    def __init__(
+        self,
+        *,
+        settings: Any,
+        repo: MongoRepository,
+        registry: RuntimeMonitorRegistry,
+    ) -> None:
+        self._settings = settings
+        self._repo = repo
+        self._registry = registry
+        self._interval_seconds = int(settings.runtime_monitor_auto_sync_interval_seconds)
+
+    @staticmethod
+    def _base_configs(settings: Any) -> list[SymbolConfig]:
+        return [
+            SymbolConfig(symbol=cfg.symbol, timeframe=cfg.timeframe, leverage=cfg.leverage)
+            for cfg in settings.symbol_timeframes
+        ]
+
+    @staticmethod
+    def _approved_configs(sessions: list[dict[str, Any]]) -> list[SymbolConfig]:
+        approved: dict[tuple[str, str], SymbolConfig] = {}
+        for session in sessions:
+            if session.get("status") != "APPROVED":
+                continue
+            symbol = str(session.get("symbol", "")).upper().strip()
+            timeframe = str(session.get("timeframe", "")).strip()
+            leverage_raw = session.get("leverage")
+            if not symbol or not timeframe:
+                continue
+            try:
+                leverage = int(leverage_raw)
+            except (TypeError, ValueError):
+                continue
+            if leverage <= 0:
+                continue
+            approved[(symbol, timeframe)] = SymbolConfig(
+                symbol=symbol,
+                timeframe=timeframe,
+                leverage=leverage,
+            )
+        return list(approved.values())
+
+    async def _desired_configs(self) -> list[SymbolConfig]:
+        sessions = await self._repo.list_onboarding_sessions()
+        base: dict[tuple[str, str], SymbolConfig] = {
+            (cfg.symbol, cfg.timeframe): cfg for cfg in self._base_configs(self._settings)
+        }
+        for cfg in self._approved_configs(sessions):
+            base[(cfg.symbol, cfg.timeframe)] = cfg
+        return list(base.values())
+
+    async def sync_once(self) -> None:
+        desired = await self._desired_configs()
+        await self._registry.reconcile(desired)
+        logger.info(
+            "runtime_monitor_sync_completed",
+            desired_count=len(desired),
+            active_count=self._registry.monitor_count,
+            active_pairs=self._registry.active_pairs(),
+        )
+
+    async def run(self) -> None:
+        while True:
+            try:
+                await self.sync_once()
+                await asyncio.sleep(self._interval_seconds)
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                logger.error("runtime_monitor_sync_failed", error_type=type(exc).__name__)
+                await asyncio.sleep(self._interval_seconds)
 
 
 async def _health_server(host: str = "0.0.0.0", port: int = 8081) -> None:
@@ -365,10 +552,6 @@ async def _main() -> None:
     client = BinanceClient(settings)
     await client.connect()
 
-    # Validação de liquidez para todos os pares configurados
-    for cfg in configs:
-        await client.validate_market_liquidity(cfg.symbol)
-
     repo = MongoRepository(
         settings.mongodb_uri,
         settings.mongodb_database,
@@ -378,30 +561,13 @@ async def _main() -> None:
 
     signal_engine = SignalEngine(risk_reward_ratio=settings.risk_reward_ratio)
     notifier = _create_notifier(settings)
-
-    # Um TradingMonitor por triplet — cada um com seu próprio RiskManager e leverage
-    monitors = []
-    for cfg in configs:
-        risk_manager = RiskManager(
-            risk_per_trade_pct=settings.risk_per_trade_pct,
-            leverage=cfg.leverage,
-            max_capital_allocation_pct=settings.max_capital_allocation_pct,
-        )
-        order_manager = OrderManager(client, leverage=cfg.leverage, notifier=notifier)
-        await client.set_leverage(cfg.symbol, cfg.leverage)
-        monitors.append(
-            TradingMonitor(
-                config=cfg,
-                client=client,
-                repo=repo,
-                signal_engine=signal_engine,
-                risk_manager=risk_manager,
-                order_manager=order_manager,
-                notifier=notifier,
-                max_open_positions=settings.max_open_positions,
-                warmup_candles=settings.warmup_candles,
-            )
-        )
+    monitor_registry = RuntimeMonitorRegistry(
+        settings=settings,
+        client=client,
+        repo=repo,
+        signal_engine=signal_engine,
+        notifier=notifier,
+    )
 
     reporter = PerformanceReporter(
         repository=repo,
@@ -418,10 +584,30 @@ async def _main() -> None:
         manual_close_require_dual_source=settings.order_monitor_manual_close_require_dual_source,
     )
 
-    tasks = [asyncio.create_task(m.run()) for m in monitors]
+    tasks: list[asyncio.Task] = []
+    runtime_sync_task: RuntimeMonitorSyncTask | None = None
+    if settings.runtime_monitor_auto_sync:
+        runtime_sync_task = RuntimeMonitorSyncTask(
+            settings=settings,
+            repo=repo,
+            registry=monitor_registry,
+        )
+        await runtime_sync_task.sync_once()
+        tasks.append(asyncio.create_task(runtime_sync_task.run()))
+    else:
+        await monitor_registry.reconcile(configs)
+
     tasks.append(asyncio.create_task(reporter.run()))
     tasks.append(asyncio.create_task(order_monitor.run()))
-    tasks.append(asyncio.create_task(HeartbeatTask(repo=repo, monitor_count=len(monitors)).run()))
+    tasks.append(
+        asyncio.create_task(
+            HeartbeatTask(
+                repo=repo,
+                monitor_count=monitor_registry.monitor_count,
+                monitor_count_getter=lambda: monitor_registry.monitor_count,
+            ).run()
+        )
+    )
     tasks.append(asyncio.create_task(_health_server()))
 
     # Graceful shutdown on SIGINT / SIGTERM
@@ -429,11 +615,16 @@ async def _main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda: _shutdown(tasks, client, repo))
 
-    logger.info("phicube_running", monitor_count=len(tasks) - 1)
+    logger.info(
+        "phicube_running",
+        monitor_count=monitor_registry.monitor_count,
+        runtime_monitor_auto_sync=settings.runtime_monitor_auto_sync,
+    )
 
     try:
         await asyncio.gather(*tasks)
     finally:
+        await monitor_registry.close()
         await client.close()
         await repo.close()
         logger.info("phicube_stopped")

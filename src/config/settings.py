@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     sl_missing_renotify_interval_minutes: Annotated[int, Field(ge=5)] = 15
     order_monitor_manual_close_confirm_cycles: Annotated[int, Field(ge=1)] = 3
     order_monitor_manual_close_require_dual_source: bool = True
+    runtime_monitor_auto_sync: bool = False
+    runtime_monitor_auto_sync_interval_seconds: Annotated[int, Field(ge=5)] = 30
 
     # Dashboard (API Key READ_ONLY — sem permissão de trade)
     dashboard_api_key: str = Field(..., description="Dashboard API Key (READ_ONLY)")

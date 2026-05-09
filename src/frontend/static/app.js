@@ -924,6 +924,27 @@
     statusEl.className = `onboarding-manage-status onboarding-manage-status--${type}`;
   }
 
+  function renderOnboardingSyncStatus(syncStatus) {
+    const el = document.getElementById("onboarding-sync-status");
+    if (!el) return;
+    if (!syncStatus || typeof syncStatus !== "object") {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    const consistency = String(syncStatus.consistency_status || "DEGRADED").toUpperCase();
+    const isConsistent = consistency === "CONSISTENT";
+    if (isConsistent) {
+      el.textContent = "Consistência: CONSISTENT (Dashboard/Mongo/.env alinhados).";
+      el.style.color = "#86efac";
+    } else {
+      const error = syncStatus.env_apply_error || "erro não identificado";
+      el.textContent = `Consistência: DEGRADED (falha ao aplicar .env: ${error}).`;
+      el.style.color = "#fca5a5";
+    }
+    el.hidden = false;
+  }
+
   function _backtestSummary(payload) {
     const result = payload?.backtest_result || {};
     const totalTrades = result.total_trades ?? "—";
@@ -1125,6 +1146,7 @@
       }
       const session = await res.json();
       showOnboardingConfig(session.symbol_timeframes_line || session.config_string);
+      renderOnboardingSyncStatus(session.sync_status);
     } catch (_) {
       alert("Erro de rede ao aprovar.");
     } finally {
@@ -1132,11 +1154,12 @@
     }
   }
 
-  function showOnboardingConfig(configString) {
+  function showOnboardingConfig(configString, syncStatus = null) {
     const box = document.getElementById("onboarding-config-box");
     const pre = document.getElementById("onboarding-config-string");
     if (!configString) return;
     pre.textContent = `SYMBOL_TIMEFRAMES=${configString}`;
+    renderOnboardingSyncStatus(syncStatus);
     box.hidden = false;
     box.scrollIntoView({ behavior: "smooth" });
   }
@@ -1196,7 +1219,7 @@
       }
       state.managedSymbol = payload.symbol;
       document.getElementById("ob-manage-current-symbol").value = payload.symbol;
-      showOnboardingConfig(payload.symbol_timeframes_line || payload.config_string);
+      showOnboardingConfig(payload.symbol_timeframes_line || payload.config_string, payload.sync_status);
       renderManageResult(payload, "Configuração salva.");
       setManageStatus("Configuração atualizada com sucesso.", "success");
       await fetchOnboardingSessions();
@@ -1241,7 +1264,11 @@
   async function deleteOnboardingSession(symbol) {
     if (!confirm(`Remover sessão de onboarding para ${symbol}?`)) return;
     try {
-      await fetch(`/onboarding/${symbol}`, { method: "DELETE" });
+      const res = await fetch(`/onboarding/${symbol}`, { method: "DELETE" });
+      if (res.ok && res.status !== 204) {
+        const payload = await res.json().catch(() => ({}));
+        showOnboardingConfig(payload.symbol_timeframes_line, payload.sync_status);
+      }
     } catch (_) {}
     await fetchOnboardingSessions();
   }

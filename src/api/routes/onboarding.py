@@ -29,6 +29,8 @@ _VALID_TIMEFRAMES = {"1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,15}USDT$")
 _COMMODITIES = frozenset({"XPTUSDT", "COPPERUSDT"})
 _MARKET_ANALYSIS_CANDLES_LIMIT = 260
+_CONSISTENCY_STATUS_CONSISTENT = "CONSISTENT"
+_CONSISTENCY_STATUS_DEGRADED = "DEGRADED"
 
 
 def _is_write_authorized(request: Request) -> bool:
@@ -337,6 +339,79 @@ async def _build_symbol_timeframes_payload(request: Request) -> dict[str, Any]:
     }
 
 
+def _read_env_key(path: Path, *, key: str) -> str | None:
+    if not path.exists():
+        return None
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(f"{key}="):
+            return line.split("=", 1)[1]
+    return None
+
+
+def _build_sync_status(payload: dict[str, Any]) -> dict[str, Any]:
+    env_applied = bool(payload.get("env_applied"))
+    return {
+        "env_applied": env_applied,
+        "env_apply_error": payload.get("env_apply_error"),
+        "symbol_timeframes_line": payload.get("symbol_timeframes_line", ""),
+        "consistency_status": (
+            _CONSISTENCY_STATUS_CONSISTENT if env_applied else _CONSISTENCY_STATUS_DEGRADED
+        ),
+    }
+
+
+async def _apply_symbol_timeframes_sync(request: Request) -> dict[str, Any]:
+    repo = request.app.state.repository
+    payload = await _build_symbol_timeframes_payload(request)
+    sync_status = _build_sync_status(payload)
+    audit_payload = {
+        "symbol_timeframes_line": payload.get("symbol_timeframes_line", ""),
+        "env_path": payload.get("env_path"),
+        "env_applied": payload.get("env_applied"),
+        "env_apply_error": payload.get("env_apply_error"),
+        "consistency_status": sync_status["consistency_status"],
+    }
+    event = (
+        "onboarding_symbol_timeframes_sync_succeeded"
+        if sync_status["consistency_status"] == _CONSISTENCY_STATUS_CONSISTENT
+        else "onboarding_symbol_timeframes_sync_failed"
+    )
+    await repo.audit(event, audit_payload)
+    payload["sync_status"] = sync_status
+    return payload
+
+
+async def _build_consistency_snapshot(request: Request) -> dict[str, Any]:
+    repo = request.app.state.repository
+    sessions = await repo.list_onboarding_sessions()
+    approved_triplets = _approved_triplets(sessions)
+    merged_triplets = _merge_triplets(_settings_triplets(request), approved_triplets)
+    expected_line = ",".join(merged_triplets)
+    env_path = _resolve_env_path()
+    env_line = _read_env_key(env_path, key="SYMBOL_TIMEFRAMES")
+    consistency_status = (
+        _CONSISTENCY_STATUS_CONSISTENT
+        if env_line == expected_line
+        else _CONSISTENCY_STATUS_DEGRADED
+    )
+    return {
+        "consistency_status": consistency_status,
+        "expected_symbol_timeframes_line": expected_line,
+        "env_symbol_timeframes_line": env_line or "",
+        "env_path": str(env_path),
+        "approved_sessions_total": sum(1 for s in sessions if s.get("status") == "APPROVED"),
+        "approved_triplets_total": len(approved_triplets),
+        "divergence_reason": (
+            None
+            if consistency_status == _CONSISTENCY_STATUS_CONSISTENT
+            else "env_symbol_timeframes_mismatch"
+        ),
+    }
+
+
 @router.get("")
 async def list_sessions(request: Request) -> JSONResponse:
     repo = request.app.state.repository
@@ -344,6 +419,15 @@ async def list_sessions(request: Request) -> JSONResponse:
         return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
     sessions = await repo.list_onboarding_sessions()
     return JSONResponse(status_code=200, content=[_serialize_session(s) for s in sessions])
+
+
+@router.get("/consistency")
+async def get_consistency(request: Request) -> JSONResponse:
+    repo = request.app.state.repository
+    if repo is None:
+        return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
+    snapshot = await _build_consistency_snapshot(request)
+    return JSONResponse(status_code=200, content=snapshot)
 
 
 @router.post("")
@@ -424,10 +508,29 @@ async def delete_session(request: Request, symbol: str) -> JSONResponse:
     repo = request.app.state.repository
     if repo is None:
         return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
-    deleted = await repo.delete_onboarding_session(symbol.upper())
+    sym = symbol.upper()
+    session = await repo.get_onboarding_session(sym)
+    if session is None:
+        return JSONResponse(status_code=404, content={"error": "sessao_nao_encontrada"})
+    was_approved = session.get("status") == "APPROVED"
+    deleted = await repo.delete_onboarding_session(sym)
     if not deleted:
         return JSONResponse(status_code=404, content={"error": "sessao_nao_encontrada"})
-    return JSONResponse(status_code=204, content=None)
+    if not was_approved:
+        return JSONResponse(status_code=204, content=None)
+    sync_payload = await _apply_symbol_timeframes_sync(request)
+    return JSONResponse(
+        status_code=200,
+        content={
+            "deleted_symbol": sym,
+            "sync_status": sync_payload["sync_status"],
+            "symbol_timeframes_line": sync_payload["symbol_timeframes_line"],
+            "env_path": sync_payload["env_path"],
+            "env_applied": sync_payload["env_applied"],
+            "env_apply_error": sync_payload["env_apply_error"],
+            "operational_checklist": sync_payload["operational_checklist"],
+        },
+    )
 
 
 @router.post("/{symbol}/backtest")
@@ -725,7 +828,7 @@ async def approve_session(
     )
     updated = await repo.get_onboarding_session(sym)
     payload = _serialize_session(updated or {})
-    payload.update(await _build_symbol_timeframes_payload(request))
+    payload.update(await _apply_symbol_timeframes_sync(request))
     return JSONResponse(status_code=200, content=payload)
 
 
@@ -819,7 +922,7 @@ async def patch_session(
     updated = await repo.get_onboarding_session(current_symbol)
     payload = _serialize_session(updated or {})
     if payload.get("status") == "APPROVED":
-        payload.update(await _build_symbol_timeframes_payload(request))
+        payload.update(await _apply_symbol_timeframes_sync(request))
     return JSONResponse(status_code=200, content=payload)
 
 

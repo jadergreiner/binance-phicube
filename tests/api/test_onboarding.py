@@ -22,7 +22,7 @@ import pandas as pd
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.api.routes.onboarding import router
+from src.api.routes.onboarding import _approved_triplets, _merge_triplets, router
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -338,6 +338,7 @@ class TestAprovacaoGeraConfig:
         assert "ATOMUSDT" in data["config_string"]
         assert data["symbol_timeframes_line"] == "BTCUSDT:15m:5,ETHUSDT:15m:5,ATOMUSDT:15m:3"
         assert data["env_applied"] is True
+        assert data["sync_status"]["consistency_status"] == "CONSISTENT"
         assert "operational_checklist" in data
         assert len(data["operational_checklist"]) == 3
 
@@ -399,6 +400,22 @@ class TestDeletarSessao:
         resp = client.delete("/onboarding/ATOMUSDT")
 
         assert resp.status_code == 204
+        assert "ATOMUSDT" not in store
+
+    def test_deletar_sessao_approved_reconcilia_env(self) -> None:
+        app, store = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        with TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            with patch("src.api.routes.onboarding._resolve_env_path", return_value=env_path):
+                resp = client.delete("/onboarding/ATOMUSDT")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["deleted_symbol"] == "ATOMUSDT"
+        assert data["sync_status"]["consistency_status"] == "CONSISTENT"
+        assert "ATOMUSDT" not in data["symbol_timeframes_line"]
         assert "ATOMUSDT" not in store
 
     def test_deletar_sessao_inexistente_retorna_404(self) -> None:
@@ -569,6 +586,7 @@ class TestPatchSessaoOnboarding:
         assert data["status"] == "APPROVED"
         assert data["config_string"] == "SOLUSDT:1h:7"
         assert data["env_applied"] is True
+        assert data["sync_status"]["consistency_status"] == "CONSISTENT"
         assert "SOLUSDT:1h:7" in data["symbol_timeframes_line"]
         assert "ATOMUSDT" not in store
         assert "SOLUSDT" in store
@@ -704,3 +722,72 @@ class TestAutenticacaoEscritaOnboarding:
         client = TestClient(app)
         resp = client.get("/onboarding")
         assert resp.status_code == 200
+
+
+class TestConsistenciaOnboarding:
+    def test_consistency_endpoint_retorna_consistent(self) -> None:
+        app, _ = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        with TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            env_path.write_text(
+                "SYMBOL_TIMEFRAMES=BTCUSDT:15m:5,ETHUSDT:15m:5,ATOMUSDT:15m:3\n",
+                encoding="utf-8",
+            )
+            with patch("src.api.routes.onboarding._resolve_env_path", return_value=env_path):
+                resp = client.get("/onboarding/consistency")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["consistency_status"] == "CONSISTENT"
+        assert data["divergence_reason"] is None
+
+    def test_consistency_endpoint_retorna_degraded(self) -> None:
+        app, _ = _make_app(sessions=[_approved_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        with TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            env_path.write_text("SYMBOL_TIMEFRAMES=BTCUSDT:15m:5,ETHUSDT:15m:5\n", encoding="utf-8")
+            with patch("src.api.routes.onboarding._resolve_env_path", return_value=env_path):
+                resp = client.get("/onboarding/consistency")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["consistency_status"] == "DEGRADED"
+        assert data["divergence_reason"] == "env_symbol_timeframes_mismatch"
+
+    def test_approve_com_falha_no_env_retorna_degraded(self) -> None:
+        app, _ = _make_app(sessions=[_backtested_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        with (
+            patch("src.api.routes.onboarding._resolve_env_path", return_value=Path("C:/tmp/.env")),
+            patch("src.api.routes.onboarding._upsert_env_key", side_effect=PermissionError),
+        ):
+            resp = client.post("/onboarding/ATOMUSDT/approve", json={})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["sync_status"]["consistency_status"] == "DEGRADED"
+        assert data["env_applied"] is False
+        assert data["env_apply_error"] == "PermissionError"
+
+
+class TestReconciliacaoTriplets:
+    def test_merge_triplets_deduplica_por_symbol_timeframe(self) -> None:
+        merged = _merge_triplets(
+            ["BTCUSDT:15m:5", "ETHUSDT:15m:5"],
+            ["ETHUSDT:15m:10", "ATOMUSDT:15m:3"],
+        )
+        assert merged == ["BTCUSDT:15m:5", "ETHUSDT:15m:10", "ATOMUSDT:15m:3"]
+
+    def test_approved_triplets_ignora_config_string_invalido(self) -> None:
+        sessions = [
+            {"status": "APPROVED", "config_string": "ATOMUSDT:15m:3"},
+            {"status": "APPROVED", "config_string": "invalido"},
+            {"status": "CANDIDATE", "config_string": "SOLUSDT:1h:7"},
+        ]
+        approved = _approved_triplets(sessions)
+        assert approved == ["ATOMUSDT:15m:3"]

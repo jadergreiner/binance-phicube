@@ -751,6 +751,10 @@ h1 {
   font-size: 0.85rem;
 }
 
+.onboarding-sync-status {
+  font-weight: 700;
+}
+
 .onboarding-config-box pre {
   background: #1e2130;
   padding: 0.75rem 1rem;

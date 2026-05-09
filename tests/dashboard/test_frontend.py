@@ -61,11 +61,14 @@ def test_frontend_expoe_gestao_de_simbolo_aprovado() -> None:
     javascript = APP_JS.read_text(encoding="utf-8")
 
     assert "Gestão do Símbolo" in html
+    assert 'id="onboarding-sync-status"' in html
     assert "Gerenciar" in javascript
     assert "/market-analysis" in javascript
     assert 'method: "PATCH"' in javascript
     assert "/backtest-jobs" in javascript
     assert "_pollBacktestJob" in javascript
+    assert "consistency_status" in javascript
+    assert "renderOnboardingSyncStatus" in javascript
     assert "/onboarding/${symbol}/backtest`" not in javascript
 
 
