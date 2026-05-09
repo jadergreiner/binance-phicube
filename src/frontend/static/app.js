@@ -893,6 +893,8 @@
   };
 
   const ONBOARDING_COLUMNS = 10;
+  const BACKTEST_JOB_POLL_INTERVAL_MS = 1_500;
+  const BACKTEST_JOB_MAX_POLLS = 240;
 
   function _obStatusClass(status) {
     if (status === "APPROVED") return "ob-status--approved";
@@ -928,6 +930,33 @@
     const winRate = result.win_rate_pct != null ? `${result.win_rate_pct.toFixed(2)}%` : "—";
     const pf = result.profit_factor != null ? result.profit_factor.toFixed(2) : "—";
     return `Backtest concluído: trades=${totalTrades}, win_rate=${winRate}, PF=${pf}.`;
+  }
+
+  function _backtestJobStatusLabel(status) {
+    const s = String(status || "").toLowerCase();
+    if (s === "queued") return "na fila";
+    if (s === "running") return "em execução";
+    if (s === "succeeded") return "concluído";
+    if (s === "failed") return "falhou";
+    if (s === "canceled") return "cancelado";
+    return status || "desconhecido";
+  }
+
+  async function _pollBacktestJob(jobId) {
+    for (let attempt = 0; attempt < BACKTEST_JOB_MAX_POLLS; attempt += 1) {
+      const res = await fetch(`/onboarding/backtest-jobs/${jobId}`, { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error(`job_status_http_${res.status}`);
+      }
+      const payload = await res.json().catch(() => ({}));
+      const status = String(payload?.status || "").toLowerCase();
+      if (status === "queued" || status === "running") {
+        await new Promise((resolve) => window.setTimeout(resolve, BACKTEST_JOB_POLL_INTERVAL_MS));
+        continue;
+      }
+      return payload;
+    }
+    throw new Error("job_status_timeout");
   }
 
   function _renderOnboardingError(error, symbol) {
@@ -1022,11 +1051,11 @@
     if (manageContext && manageButton) {
       manageButton.disabled = true;
       manageButton.textContent = "Rodando backtest…";
-      setManageStatus("Backtest em execução. Isso pode levar alguns segundos.", "info");
+      setManageStatus("Backtest assíncrono iniciado. Aguardando processamento...", "info");
     }
 
     try {
-      const res = await fetch(`/onboarding/${symbol}/backtest`, {
+      const res = await fetch(`/onboarding/${symbol}/backtest-jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 35000 }),
@@ -1035,26 +1064,39 @@
         const err = await res.json().catch(() => ({}));
         if (manageContext) {
           setManageStatus(
-            `Falha no backtest: ${err.tipo || err.error || res.status}.`,
+            `Falha no backtest: ${err.error_message || err.error_code || res.status}.`,
             "error",
           );
         }
-        alert(`Backtest falhou: ${err.tipo || err.error || res.status}`);
+        alert(`Backtest falhou: ${err.error_message || err.error_code || res.status}`);
         return;
       }
-      const payload = await res.json().catch(() => ({}));
-      if (payload.symbol_timeframes_line || payload.config_string) {
-        showOnboardingConfig(payload.symbol_timeframes_line || payload.config_string);
+      const created = await res.json().catch(() => ({}));
+      const jobId = created?.job_id;
+      if (!jobId) {
+        throw new Error("job_id_missing");
       }
-      if (state.managedSymbol === symbol) {
-        renderManageResult(payload, "Backtest executado.");
-        setManageStatus(_backtestSummary(payload), "success");
+      if (manageContext) {
+        setManageStatus(`Backtest ${_backtestJobStatusLabel(created.status)}. Job: ${jobId}`, "info");
+      }
+      const payload = await _pollBacktestJob(jobId);
+      const status = String(payload?.status || "").toLowerCase();
+      if (status === "succeeded") {
+        if (state.managedSymbol === symbol) {
+          renderManageResult(payload, "Backtest assíncrono concluído.");
+          setManageStatus(_backtestSummary(payload), "success");
+        }
+      } else if (manageContext) {
+        setManageStatus(
+          `Backtest ${_backtestJobStatusLabel(status)}: ${payload?.error_message || payload?.error_code || "sem detalhe"}.`,
+          "error",
+        );
       }
     } catch (e) {
       if (manageContext) {
-        setManageStatus("Erro de rede ao iniciar backtest.", "error");
+        setManageStatus("Erro ao acompanhar job de backtest.", "error");
       }
-      alert("Erro de rede ao iniciar backtest.");
+      alert("Erro ao iniciar/acompanhar backtest.");
     } finally {
       await fetchOnboardingSessions();
       tableButtons.forEach((button) => {

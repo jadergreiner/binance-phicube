@@ -64,6 +64,9 @@ def test_frontend_expoe_gestao_de_simbolo_aprovado() -> None:
     assert "Gerenciar" in javascript
     assert "/market-analysis" in javascript
     assert 'method: "PATCH"' in javascript
+    assert "/backtest-jobs" in javascript
+    assert "_pollBacktestJob" in javascript
+    assert "/onboarding/${symbol}/backtest`" not in javascript
 
 
 def test_frontend_historico_expoe_origem_e_status_reconciliado() -> None:

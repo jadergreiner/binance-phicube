@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import math
 import os
 import re
+from asyncio import Semaphore
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
+from uuid import uuid4
 
 import pandas as pd
 from fastapi import APIRouter, Body, Request
@@ -245,6 +248,38 @@ def _safe_float(value: Any) -> float | None:
     return parsed
 
 
+class _BacktestJobExecutor:
+    def __init__(self, *, max_concurrency: int, timeout_seconds: int) -> None:
+        self._semaphore = Semaphore(max(1, max_concurrency))
+        self._timeout_seconds = max(5, timeout_seconds)
+
+    async def run(self, run_fn) -> Any:
+        async with self._semaphore:
+            return await asyncio.wait_for(run_fn(), timeout=self._timeout_seconds)
+
+
+def _job_error_response(code: str, message: str, *, status_code: int = 503) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={"error_code": code, "error_message": message},
+    )
+
+
+def _get_backtest_executor(request: Request) -> _BacktestJobExecutor:
+    current = getattr(request.app.state, "backtest_job_executor", None)
+    if current is not None:
+        return current
+    settings = request.app.state.settings
+    max_concurrency = int(getattr(settings, "onboarding_backtest_job_max_concurrency", 2))
+    timeout_seconds = int(getattr(settings, "onboarding_backtest_job_timeout_seconds", 600))
+    executor = _BacktestJobExecutor(
+        max_concurrency=max_concurrency,
+        timeout_seconds=timeout_seconds,
+    )
+    request.app.state.backtest_job_executor = executor
+    return executor
+
+
 def _serialize_market_context(enriched: pd.DataFrame) -> dict[str, Any]:
     if enriched.empty:
         return {}
@@ -395,26 +430,40 @@ async def run_backtest(
     symbol: str,
     body: Annotated[dict, Body()] = {},  # noqa: B006
 ) -> JSONResponse:
+    """Endpoint legado síncrono desativado."""
+    logger.warning(
+        "onboarding_backtest_legacy_endpoint_used", endpoint="/onboarding/{symbol}/backtest"
+    )
     if not _is_write_authorized(request):
         return _unauthorized_response()
+    return JSONResponse(
+        status_code=410,
+        content={
+            "error_code": "legacy_endpoint_deprecated",
+            "error_message": "Endpoint legado desativado. Use o fluxo assíncrono por jobs.",
+            "migration": {
+                "create_job": f"/onboarding/{symbol.upper()}/backtest-jobs",
+                "get_job": "/onboarding/backtest-jobs/{job_id}",
+            },
+        },
+    )
 
+
+async def _run_backtest_job(request: Request, job_id: str) -> None:
     repo = request.app.state.repository
-    if repo is None:
-        return JSONResponse(status_code=503, content={"error": "mongodb_unavailable"})
+    job = await repo.get_backtest_job(job_id)
+    if job is None:
+        return
 
-    sym = symbol.upper()
-    session = await repo.get_onboarding_session(sym)
-    if session is None:
-        return JSONResponse(status_code=404, content={"error": "sessao_nao_encontrada"})
-    if session["status"] not in ("CANDIDATE", "BACKTESTED", "APPROVED"):
-        return JSONResponse(
-            status_code=409,
-            content={"error": "estado_invalido", "status_atual": session["status"]},
-        )
+    symbol = str(job.get("symbol") or "").upper()
+    timeframe = str(job.get("timeframe") or "")
+    limit = int(job.get("limit") or 35000)
+    balance = float(job.get("initial_balance") or 1000.0)
 
-    limit = int(body.get("limit", 35000))
-    limit = max(50, min(60000, limit))
-    balance = float(body.get("balance", 1000.0))
+    await repo.update_backtest_job(
+        job_id,
+        {"status": "running", "started_at": datetime.now(UTC)},
+    )
 
     try:
         from src.backtest.engine import BacktestEngine
@@ -427,8 +476,8 @@ async def run_backtest(
         try:
             engine = BacktestEngine(settings, client)
             result = await engine.run(
-                sym,
-                session["timeframe"],
+                symbol,
+                timeframe,
                 limit=limit,
                 initial_balance=balance,
             )
@@ -436,28 +485,172 @@ async def run_backtest(
             await client.close()
 
         result_dict = _serialize_backtest(result)
-        next_status = "APPROVED" if session["status"] == "APPROVED" else "BACKTESTED"
-        await repo.update_onboarding_session(
-            sym,
+        session = await repo.get_onboarding_session(symbol)
+        if session is not None:
+            next_status = "APPROVED" if session["status"] == "APPROVED" else "BACKTESTED"
+            await repo.update_onboarding_session(
+                symbol,
+                {
+                    "status": next_status,
+                    "backtest_result": result_dict,
+                    "backtest_limit": limit,
+                    "backtest_error": None,
+                },
+            )
+
+        await repo.update_backtest_job(
+            job_id,
             {
-                "status": next_status,
+                "status": "succeeded",
+                "completed_at": datetime.now(UTC),
                 "backtest_result": result_dict,
-                "backtest_limit": limit,
-                "backtest_error": None,
+                "error_code": None,
+                "error_message": None,
             },
         )
-    except Exception as exc:
-        await repo.update_onboarding_session(
-            sym,
-            {"backtest_error": type(exc).__name__},
+        logger.info("onboarding_backtest_job_succeeded", job_id=job_id, symbol=symbol)
+    except TimeoutError:
+        await repo.update_backtest_job(
+            job_id,
+            {
+                "status": "failed",
+                "completed_at": datetime.now(UTC),
+                "error_code": "timeout",
+                "error_message": "backtest job timed out",
+            },
         )
-        return JSONResponse(
-            status_code=503,
-            content={"error": "backtest_falhou", "tipo": type(exc).__name__},
+        await repo.update_onboarding_session(symbol, {"backtest_error": "TimeoutError"})
+        logger.warning("onboarding_backtest_job_timeout", job_id=job_id, symbol=symbol)
+    except Exception as exc:
+        error_code = type(exc).__name__.lower()
+        await repo.update_backtest_job(
+            job_id,
+            {
+                "status": "failed",
+                "completed_at": datetime.now(UTC),
+                "error_code": error_code,
+                "error_message": str(exc)[:240] or type(exc).__name__,
+            },
+        )
+        await repo.update_onboarding_session(symbol, {"backtest_error": type(exc).__name__})
+        logger.warning(
+            "onboarding_backtest_job_failed",
+            job_id=job_id,
+            symbol=symbol,
+            error_type=type(exc).__name__,
         )
 
-    updated = await repo.get_onboarding_session(sym)
-    return JSONResponse(status_code=200, content=_serialize_session(updated or {}))
+
+@router.post("/{symbol}/backtest-jobs")
+async def create_backtest_job(
+    request: Request,
+    symbol: str,
+    body: Annotated[dict, Body()] = {},  # noqa: B006
+) -> JSONResponse:
+    if not _is_write_authorized(request):
+        return _unauthorized_response()
+
+    repo = request.app.state.repository
+    if repo is None:
+        return _job_error_response(
+            "mongodb_unavailable",
+            "MongoDB indisponível",
+            status_code=503,
+        )
+
+    sym = symbol.upper()
+    session = await repo.get_onboarding_session(sym)
+    if session is None:
+        return _job_error_response(
+            "sessao_nao_encontrada", "Sessão não encontrada", status_code=404
+        )
+    if session["status"] not in ("CANDIDATE", "BACKTESTED", "APPROVED"):
+        return _job_error_response(
+            "estado_invalido",
+            f"Estado atual inválido: {session['status']}",
+            status_code=409,
+        )
+
+    limit = int(body.get("limit", 35000))
+    limit = max(50, min(60000, limit))
+    balance = float(body.get("balance", 1000.0))
+    timeframe = str(session["timeframe"])
+    idempotency_key = f"{sym}:{timeframe}:{limit}:{balance:.8f}"
+
+    active = await repo.get_active_backtest_job_by_key(idempotency_key)
+    if active is not None:
+        return JSONResponse(
+            status_code=202,
+            content={
+                "job_id": active["job_id"],
+                "status": active["status"],
+                "symbol": sym,
+                "timeframe": timeframe,
+                "idempotency_key": idempotency_key,
+                "created_at": active.get("created_at"),
+                "updated_at": active.get("updated_at"),
+                "reused_active_job": True,
+            },
+        )
+
+    now = datetime.now(UTC)
+    job_id = str(uuid4())
+    job_doc = {
+        "job_id": job_id,
+        "symbol": sym,
+        "timeframe": timeframe,
+        "limit": limit,
+        "initial_balance": balance,
+        "idempotency_key": idempotency_key,
+        "status": "queued",
+        "created_at": now,
+        "updated_at": now,
+        "started_at": None,
+        "completed_at": None,
+        "backtest_result": None,
+        "error_code": None,
+        "error_message": None,
+    }
+    await repo.create_backtest_job(job_doc)
+    logger.info(
+        "onboarding_backtest_job_created",
+        job_id=job_id,
+        symbol=sym,
+        timeframe=timeframe,
+    )
+
+    executor = _get_backtest_executor(request)
+
+    async def _execute() -> None:
+        await executor.run(lambda: _run_backtest_job(request, job_id))
+
+    run_inline = bool(
+        getattr(request.app.state.settings, "onboarding_backtest_job_run_inline", False)
+    )
+    if run_inline:
+        await _execute()
+        refreshed = await repo.get_backtest_job(job_id)
+        if refreshed is not None:
+            payload = _serialize_session(refreshed)
+            payload["reused_active_job"] = False
+            return JSONResponse(status_code=202, content=payload)
+    else:
+        asyncio.create_task(_execute())
+
+    payload = _serialize_session(job_doc)
+    payload["reused_active_job"] = False
+    return JSONResponse(status_code=202, content=payload)
+
+
+@router.get("/backtest-jobs/{job_id}")
+async def get_backtest_job(request: Request, job_id: str) -> JSONResponse:
+    repo = request.app.state.repository
+    if repo is None:
+        return _job_error_response("mongodb_unavailable", "MongoDB indisponível", status_code=503)
+    job = await repo.get_backtest_job(job_id)
+    if job is None:
+        return _job_error_response("job_nao_encontrado", "Job não encontrado", status_code=404)
+    return JSONResponse(status_code=200, content=_serialize_session(job))
 
 
 @router.post("/{symbol}/approve")

@@ -1,25 +1,57 @@
 {
   "spec_id": "SPEC_019",
-  "updated_at": "2026-05-07T00:00:00Z",
+  "updated_at": "2026-05-09T00:00:00Z",
   "summary": {
     "todo": 0,
     "in_progress": 0,
     "blocked": 0,
-    "done": 1
+    "done": 5
   },
   "tasks": [
     {
-      "id": "task_001",
+      "id": "T1",
       "status": "done",
       "progress_pct": 100,
-      "notes": "Entrega consolidada com evidencias de codigo e testes no repositorio.",
+      "notes": "Backend legado desativado com retorno 410 e instrução de migração.",
       "updated_by": "time-b-execucao",
-      "updated_at": "2026-05-07T00:00:00Z",
-      "links": {
-        "pr": "",
-        "commit": "",
-        "tests": "tests/api/test_onboarding.py"
-      }
+      "updated_at": "2026-05-09T00:00:00Z",
+      "links": {"tests": "tests/api/test_onboarding.py"}
+    },
+    {
+      "id": "T2",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Fallback legado removido do frontend onboarding.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-09T00:00:00Z",
+      "links": {"tests": "tests/dashboard/test_frontend.py"}
+    },
+    {
+      "id": "T3",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Testes atualizados para contrato assíncrono-only e legado 410.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-09T00:00:00Z",
+      "links": {"tests": "tests/api/test_onboarding.py,tests/dashboard/test_frontend.py"}
+    },
+    {
+      "id": "T4",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "SPEC_019 sincronizada com corte imediato.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-09T00:00:00Z",
+      "links": {"tests": ""}
+    },
+    {
+      "id": "T5",
+      "status": "done",
+      "progress_pct": 100,
+      "notes": "Validação final concluída com suíte mínima e lint.",
+      "updated_by": "time-b-execucao",
+      "updated_at": "2026-05-09T00:00:00Z",
+      "links": {"tests": "pytest tests/api/test_onboarding.py tests/dashboard/test_frontend.py -q"}
     }
   ]
 }

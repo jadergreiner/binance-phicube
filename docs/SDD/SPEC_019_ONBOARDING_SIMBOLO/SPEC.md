@@ -101,14 +101,37 @@ Retorna sessão específica.
 Remove sessão (qualquer estado).  
 **Resposta:** `204` | `404`
 
-### `POST /onboarding/{symbol}/backtest`
-Executa backtest. Usa `BacktestEngine` com limite configurável.  
-**Body (opcional):** `{ limit?, balance? }`  
+### `POST /onboarding/{symbol}/backtest` (legado desativado)
+Endpoint legado síncrono desativado.
+
+**Contrato:**
+- Sempre retorna `410 Gone`.
+- Resposta inclui instrução de migração para:
+  - `POST /onboarding/{symbol}/backtest-jobs`
+  - `GET /onboarding/backtest-jobs/{job_id}`
+
+### `POST /onboarding/{symbol}/backtest-jobs` (assíncrono)
+Inicia job assíncrono de backtest para onboarding.
+**Body (opcional):** `{ limit?, balance? }`
 - `limit`: candles a buscar (50–60000, default 35000)
 - `balance`: saldo simulado USDT (default 1000)
 
-**Transição:** `CANDIDATE → BACKTESTED` (sucesso) ou permanece `CANDIDATE` + `backtest_error` (falha)  
-**Resposta:** `200 { ...sessão atualizada com backtest_result... }` | `404` | `409` (já em BACKTESTED/APPROVED)
+**Contrato:**
+- Retorna `202 Accepted` com `job_id`, `status` e metadados de rastreamento.
+- Se existir job ativo (`queued`/`running`) para a mesma chave lógica (`symbol`, `timeframe`, `limit`, `balance`), retorna o job ativo existente e `reused_active_job=true`.
+
+**Resposta:** `202 { job_id, status, symbol, timeframe, ... }` | `404` | `409`
+
+### `GET /onboarding/backtest-jobs/{job_id}` (assíncrono)
+Consulta estado e resultado de job de backtest.
+
+**Estados permitidos:** `queued`, `running`, `succeeded`, `failed`, `canceled`
+
+**Contrato:**
+- Em sucesso, retorna `backtest_result`.
+- Em falha, retorna `error_code` e `error_message`.
+
+**Resposta:** `200 { ...job... }` | `404`
 
 ### `POST /onboarding/{symbol}/approve`
 Aprovação manual do operador.  
@@ -148,7 +171,8 @@ Nova seção `<section class="onboarding-panel">` ao final de `index.html`:
 1. **Bot restart obrigatório:** após aprovação, o operador deve manualmente adicionar o `config_string` ao `.env` e reiniciar o bot. O dashboard exibe instruções claras.
 2. **Limite de backtest:** max 60000 candles. Operações longas (60000 × 15m ≈ 625 dias) podem levar ~60s.
 3. **Commodity gate:** se o símbolo for commodity (`XPTUSDT`, `COPPERUSDT`), o `config_string` incluirá comentário alertando para definir `COMMODITIES_BACKTEST_VALIDATED=true`.
-4. **Backtest usa API de trade:** o endpoint `/onboarding/{symbol}/backtest` usa `BinanceClient` com as chaves de trade (não dashboard). Se as chaves não estiverem configuradas, retorna 503.
+4. **Backtest assíncrono-only:** o fluxo oficial de backtest no onboarding é exclusivamente por jobs assíncronos (`/backtest-jobs`).
+5. **Endpoint legado desativado:** chamadas para `/onboarding/{symbol}/backtest` retornam `410 Gone` com instrução de migração.
 
 ---
 
@@ -156,7 +180,9 @@ Nova seção `<section class="onboarding-panel">` ao final de `index.html`:
 
 - [ ] `POST /onboarding` retorna 409 se símbolo já está em `SYMBOL_TIMEFRAMES` ativos
 - [ ] `POST /onboarding` retorna 409 se sessão com mesmo símbolo já existe
-- [ ] `POST /onboarding/{symbol}/backtest` faz transição CANDIDATE → BACKTESTED com métricas
+- [ ] `POST /onboarding/{symbol}/backtest-jobs` retorna `202` com `job_id` e estado inicial
+- [ ] `GET /onboarding/backtest-jobs/{job_id}` retorna estado terminal e `backtest_result` quando `succeeded`
+- [ ] `POST /onboarding/{symbol}/backtest` retorna `410 Gone` com instrução de migração
 - [ ] `POST /onboarding/{symbol}/approve` gera `config_string` no formato correto
 - [ ] Frontend exibe sessões, permite rodar backtest e aprovar via botões
 - [ ] `GET /backtest` aceita `limit` até 60000
@@ -171,7 +197,9 @@ Nova seção `<section class="onboarding-panel">` ao final de `index.html`:
 | Criar sessão | `POST /onboarding` | `test_criar_sessao_candidata` |
 | Rejeitar duplicado (ativo) | `POST /onboarding` | `test_rejeitar_simbolo_ja_ativo` |
 | Rejeitar duplicado (sessão) | `POST /onboarding` | `test_rejeitar_sessao_duplicada` |
-| Executar backtest | `POST /onboarding/{symbol}/backtest` | `test_backtest_transiciona_para_backtested` |
+| Criar job assíncrono | `POST /onboarding/{symbol}/backtest-jobs` | `test_backtest_transiciona_para_backtested` |
+| Consultar job assíncrono | `GET /onboarding/backtest-jobs/{job_id}` | `test_consulta_job_por_id` |
+| Legado desativado | `POST /onboarding/{symbol}/backtest` | `test_backtest_legado_retorna_410_com_migration` |
 | Aprovar sessão | `POST /onboarding/{symbol}/approve` | `test_aprovar_gera_config_string` |
 | Config string correta | `POST /onboarding/{symbol}/approve` | `test_config_string_formato` |
 | Listar sessões | `GET /onboarding` | `test_listar_sessoes` |

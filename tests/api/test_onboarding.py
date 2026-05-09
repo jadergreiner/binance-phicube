@@ -39,6 +39,7 @@ def _make_app(
 
     repo = AsyncMock()
     _sessions: dict[str, dict] = {}
+    _jobs: dict[str, dict] = {}
     if sessions:
         for s in sessions:
             _sessions[s["symbol"]] = s
@@ -63,11 +64,37 @@ def _make_app(
             return True
         return False
 
+    async def _create_job(doc: dict):
+        _jobs[doc["job_id"]] = dict(doc)
+
+    async def _get_job(job_id: str):
+        return _jobs.get(job_id)
+
+    async def _get_active_job(idempotency_key: str):
+        for job in _jobs.values():
+            if job.get("idempotency_key") == idempotency_key and job.get("status") in {
+                "queued",
+                "running",
+            }:
+                return job
+        return None
+
+    async def _update_job(job_id: str, update: dict) -> bool:
+        if job_id not in _jobs:
+            return False
+        _jobs[job_id].update(update)
+        _jobs[job_id]["updated_at"] = datetime.now(UTC)
+        return True
+
     repo.get_onboarding_session = _get
     repo.list_onboarding_sessions = _list
     repo.create_onboarding_session = _create
     repo.update_onboarding_session = _update
     repo.delete_onboarding_session = _delete
+    repo.create_backtest_job = _create_job
+    repo.get_backtest_job = _get_job
+    repo.get_active_backtest_job_by_key = _get_active_job
+    repo.update_backtest_job = _update_job
 
     app.state.repository = repo
 
@@ -83,6 +110,7 @@ def _make_app(
     settings.symbol_timeframes = cfg_list
     settings.dashboard_write_auth_required = auth_required
     settings.dashboard_write_auth_token = auth_token
+    settings.onboarding_backtest_job_run_inline = True
     app.state.settings = settings
 
     return app, _sessions
@@ -192,7 +220,7 @@ class TestRejeitarSessaoDuplicada:
 
 
 class TestBacktestTransiciona:
-    """TEST_019_04 — POST /onboarding/{symbol}/backtest → BACKTESTED."""
+    """TEST_019_04 — POST /onboarding/{symbol}/backtest-jobs executa job e atualiza sessão."""
 
     def test_backtest_transiciona_para_backtested(self) -> None:
         from datetime import UTC, datetime
@@ -226,9 +254,10 @@ class TestBacktestTransiciona:
             mock_engine_inst.run = AsyncMock(return_value=mock_result)
             MockEngine.return_value = mock_engine_inst
 
-            resp = client.post("/onboarding/ATOMUSDT/backtest", json={"limit": 35000})
+            resp = client.post("/onboarding/ATOMUSDT/backtest-jobs", json={"limit": 35000})
 
-        assert resp.status_code == 200
+        assert resp.status_code == 202
+        assert resp.json()["status"] == "succeeded"
         assert store["ATOMUSDT"]["status"] == "BACKTESTED"
         assert store["ATOMUSDT"]["backtest_result"] is not None
 
@@ -264,9 +293,10 @@ class TestBacktestTransiciona:
             mock_engine_inst.run = AsyncMock(return_value=mock_result)
             MockEngine.return_value = mock_engine_inst
 
-            resp = client.post("/onboarding/ATOMUSDT/backtest", json={"limit": 35000})
+            resp = client.post("/onboarding/ATOMUSDT/backtest-jobs", json={"limit": 35000})
 
-        assert resp.status_code == 200
+        assert resp.status_code == 202
+        assert resp.json()["status"] == "succeeded"
         assert store["ATOMUSDT"]["status"] == "APPROVED"
         assert store["ATOMUSDT"]["backtest_result"] is not None
 
@@ -391,9 +421,66 @@ class TestBacktestSessaoInexistente:
         app, _ = _make_app()
         client = TestClient(app)
 
-        resp = client.post("/onboarding/NAOEXISTE/backtest", json={})
+        resp = client.post("/onboarding/NAOEXISTE/backtest-jobs", json={})
 
         assert resp.status_code == 404
+
+
+class TestBacktestLegadoDesativado:
+    """Endpoint legado síncrono deve retornar 410 com instrução de migração."""
+
+    def test_backtest_legado_retorna_410_com_migration(self) -> None:
+        app, _ = _make_app(sessions=[_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        resp = client.post("/onboarding/ATOMUSDT/backtest", json={"limit": 35000})
+
+        assert resp.status_code == 410
+        payload = resp.json()
+        assert payload["error_code"] == "legacy_endpoint_deprecated"
+        assert "/onboarding/ATOMUSDT/backtest-jobs" == payload["migration"]["create_job"]
+        assert "/onboarding/backtest-jobs/{job_id}" == payload["migration"]["get_job"]
+
+
+class TestBacktestJobs:
+    def test_consulta_job_por_id(self) -> None:
+        from src.backtest.models import BacktestResult
+
+        app, _ = _make_app(sessions=[_session("ATOMUSDT")])
+        client = TestClient(app)
+
+        mock_result = BacktestResult(
+            symbol="ATOMUSDT",
+            timeframe="15m",
+            candles_used=1000,
+            total_trades=10,
+            win_rate_pct=50.0,
+            profit_factor=1.2,
+            max_drawdown_usdt=-10.0,
+            total_pnl_usdt=12.0,
+            avg_rrr=1.0,
+            generated_at=datetime.now(UTC),
+        )
+
+        with (
+            patch("src.exchange.binance_client.BinanceClient") as MockClient,
+            patch("src.backtest.engine.BacktestEngine") as MockEngine,
+            patch("src.config.settings.get_settings"),
+        ):
+            mock_client_inst = AsyncMock()
+            MockClient.return_value = mock_client_inst
+            mock_engine_inst = MagicMock()
+            mock_engine_inst.run = AsyncMock(return_value=mock_result)
+            MockEngine.return_value = mock_engine_inst
+            create_resp = client.post("/onboarding/ATOMUSDT/backtest-jobs", json={"limit": 35000})
+
+        assert create_resp.status_code == 202
+        job_id = create_resp.json()["job_id"]
+        get_resp = client.get(f"/onboarding/backtest-jobs/{job_id}")
+        assert get_resp.status_code == 200
+        payload = get_resp.json()
+        assert payload["status"] == "succeeded"
+        assert payload["backtest_result"]["symbol"] == "ATOMUSDT"
 
 
 # ─── Validações de entrada ────────────────────────────────────────────────────
