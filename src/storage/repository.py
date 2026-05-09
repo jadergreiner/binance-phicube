@@ -27,6 +27,7 @@ _TRADES_COLLECTION = "trades"
 _SIGNALS_COLLECTION = "signals"
 _AUDIT_COLLECTION = "audit"
 _ONBOARDING_COLLECTION = "symbol_onboarding"
+_BACKTEST_JOBS_COLLECTION = "onboarding_backtest_jobs"
 _AUDIT_RETENTION_EVENTS = [
     "signal_detected",
     "trade_opened",
@@ -171,6 +172,23 @@ class MongoRepository:
             [
                 IndexModel([("symbol", ASCENDING)], unique=True),
                 IndexModel([("status", ASCENDING), ("created_at", DESCENDING)]),
+            ]
+        )
+
+        backtest_jobs = self._db[_BACKTEST_JOBS_COLLECTION]
+        await backtest_jobs.create_indexes(
+            [
+                IndexModel([("job_id", ASCENDING)], unique=True),
+                IndexModel([("status", ASCENDING), ("created_at", DESCENDING)]),
+                IndexModel([("idempotency_key", ASCENDING), ("status", ASCENDING)]),
+                IndexModel(
+                    [("completed_at", ASCENDING)],
+                    expireAfterSeconds=15 * 86400,
+                    partialFilterExpression={
+                        "status": {"$in": ["succeeded", "failed", "canceled"]},
+                    },
+                    name="onboarding_backtest_jobs_retention_ttl",
+                ),
             ]
         )
 
@@ -448,6 +466,33 @@ class MongoRepository:
     async def delete_onboarding_session(self, symbol: str) -> bool:
         result = await self._db[_ONBOARDING_COLLECTION].delete_one({"symbol": symbol})
         return result.deleted_count > 0
+
+    # ─── Onboarding Backtest Jobs ────────────────────────────────────────────
+
+    async def create_backtest_job(self, doc: dict[str, Any]) -> None:
+        await self._db[_BACKTEST_JOBS_COLLECTION].insert_one(doc)
+
+    async def get_backtest_job(self, job_id: str) -> dict[str, Any] | None:
+        return await self._db[_BACKTEST_JOBS_COLLECTION].find_one({"job_id": job_id}, {"_id": 0})
+
+    async def get_active_backtest_job_by_key(self, idempotency_key: str) -> dict[str, Any] | None:
+        return await self._db[_BACKTEST_JOBS_COLLECTION].find_one(
+            {
+                "idempotency_key": idempotency_key,
+                "status": {"$in": ["queued", "running"]},
+            },
+            {"_id": 0},
+            sort=[("created_at", DESCENDING)],
+        )
+
+    async def update_backtest_job(self, job_id: str, update: dict[str, Any]) -> bool:
+        payload = dict(update)
+        payload["updated_at"] = datetime.now(UTC)
+        result = await self._db[_BACKTEST_JOBS_COLLECTION].update_one(
+            {"job_id": job_id},
+            {"$set": payload},
+        )
+        return result.matched_count > 0
 
     # ─── Signals ──────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 ---
-name: sdd-spec-driven-development
+name: sdd
 description: Workflow de Spec-Driven Development (SDD) para refinar, especificar e desenvolver itens com rastreabilidade fim a fim no Binance Phicube. Use quando criar feature, corrigir bug, alterar regra de negocio, refatorar modulo critico, revisar conformidade com SPEC/PRD, ou desenvolver com apoio de IA sem ambiguidade.
 argument-hint: ID da SPEC alvo e objetivo (ex: SPEC_028 + ajuste de risco no order_manager)
 ---
@@ -7,6 +7,11 @@ argument-hint: ID da SPEC alvo e objetivo (ex: SPEC_028 + ajuste de risco no ord
 # Spec-Driven Development (SDD) - Phicube
 
 Workflow operacional para transformar uma necessidade em implementação validada, mantendo a especificação como fonte de verdade.
+
+## Acionamento
+
+- Comando recomendado: `/sdd <SPEC + objetivo>`
+- Exemplo: `/sdd SPEC_019 + backtest assincrono no onboarding`
 
 ## Resultado Esperado
 
@@ -213,3 +218,4 @@ Se alterar fluxo de ordens, risco, persistência ou integração:
 - "Use a skill SDD para transformar este bug em spec + plano de implementação"
 - "Execute o workflow SDD para desenvolver nova regra de entrada no Signal Engine"
 - "Use a skill SDD no modo Superpowers para rodar brainstorm, plano, testes, implementação e review"
+

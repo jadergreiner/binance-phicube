@@ -1,3 +1,4 @@
 display_name: SDD Spec-Driven Development
 short_description: Refina demandas em SPEC executavel com rastreabilidade PRD->SPEC->teste->codigo.
-default_prompt: Use /sdd-spec-driven-development em modo Superpowers e execute obrigatoriamente brainstorm -> plano -> testes -> implementacao -> review. Leia no inicio e atualize ao final os arquivos .ai/memory/project.md, .ai/memory/decisions.md, .ai/memory/corrections.md e .ai/memory/prompts.md, alem de gerar os artefatos da SPEC alvo.
+default_prompt: Use /sdd em modo Superpowers e execute obrigatoriamente brainstorm -> plano -> testes -> implementacao -> review. Leia no inicio e atualize ao final os arquivos .ai/memory/project.md, .ai/memory/decisions.md, .ai/memory/corrections.md e .ai/memory/prompts.md, alem de gerar os artefatos da SPEC alvo.
+
