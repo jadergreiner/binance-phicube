@@ -45,6 +45,8 @@ def test_build_market_analysis_sem_posicoes_retorna_bias_neutral() -> None:
     assert len(analysis.opportunities) == 1
     assert analysis.opportunities[0].action == "HOLD"
     assert analysis.opportunities[0].direction == "NEUTRAL"
+    assert analysis.bias_views.active == "allocation"
+    assert len(analysis.bias_views.views) == 3
 
 
 def test_build_market_analysis_identifica_bias_long_e_oportunidade_add() -> None:
@@ -70,6 +72,8 @@ def test_build_market_analysis_identifica_bias_long_e_oportunidade_add() -> None
     assert analysis.opportunities[0].symbol == "BTCUSDT"
     assert analysis.opportunities[0].action == "ADD"
     assert analysis.opportunities[0].direction == "LONG"
+    assert analysis.bias_views.views[0].id == "allocation"
+    assert analysis.bias_views.views[0].direction == "LONG"
 
 
 def test_build_market_analysis_bias_short_reduz_long_exposicao() -> None:
@@ -177,3 +181,34 @@ def test_build_market_analysis_ignora_exposicao_invalida() -> None:
     assert analysis.bias.score == 1.0
     assert analysis.opportunities[0].symbol == "BTCUSDT"
     assert analysis.opportunities[0].action == "ADD"
+
+
+def test_build_market_analysis_sinaliza_divergencia_entre_visoes() -> None:
+    positions = [
+        _make_position(
+            symbol="LONGPOS",
+            side="LONG",
+            quantity=1.0,
+            leverage=10,
+            entry_price=100.0,
+            mark_price=95.0,
+            unrealized_pnl_usdt=-50.0,
+            margin_used_usdt=10.0,
+            updated_at=datetime(2026, 5, 1, 12, 30, tzinfo=UTC),
+        ),
+        _make_position(
+            symbol="SHORTPOS",
+            side="SHORT",
+            quantity=-1.0,
+            leverage=10,
+            entry_price=100.0,
+            mark_price=110.0,
+            unrealized_pnl_usdt=50.0,
+            margin_used_usdt=10.0,
+            updated_at=datetime(2026, 5, 1, 12, 31, tzinfo=UTC),
+        ),
+    ]
+    analysis = build_market_analysis(positions)
+    assert analysis.bias.direction == "NEUTRAL"
+    assert analysis.bias_views.divergence.has_divergence is True
+    assert "allocation=NEUTRAL" in analysis.bias_views.divergence.summary

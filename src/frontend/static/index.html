@@ -34,9 +34,15 @@
       <section class="analysis-grid">
         <article class="analysis-card">
           <p>Bias de mercado</p>
+          <label class="analysis-view-label" for="analysis-bias-view">Visão</label>
+          <select id="analysis-bias-view" class="analysis-view-select">
+            <option value="allocation">allocation</option>
+          </select>
           <strong id="analysis-bias-direction">—</strong>
           <span id="analysis-bias-confidence" class="analysis-badge">—</span>
           <p id="analysis-bias-reason" class="analysis-text">Aguardando dados para calcular bias e oportunidades.</p>
+          <p id="analysis-bias-divergence" class="analysis-text">Sem divergência entre visões.</p>
+          <pre id="analysis-bias-metrics" class="analysis-metrics">—</pre>
         </article>
         <article class="analysis-card">
           <p>Oportunidades de trade</p>

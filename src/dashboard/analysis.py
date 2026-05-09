@@ -30,59 +30,211 @@ class TradeOpportunity:
 
 
 @dataclass(slots=True, frozen=True)
+class BiasView:
+    id: str
+    direction: MarketBiasDirection
+    confidence: MarketBiasConfidence
+    score: float
+    reason: str
+    metrics: dict[str, float | str | None]
+
+
+@dataclass(slots=True, frozen=True)
+class BiasDivergence:
+    has_divergence: bool
+    summary: str
+
+
+@dataclass(slots=True, frozen=True)
+class BiasViews:
+    active: str
+    views: list[BiasView]
+    divergence: BiasDivergence
+
+
+@dataclass(slots=True, frozen=True)
 class MarketAnalysis:
     bias: MarketBias
     opportunities: list[TradeOpportunity]
+    bias_views: BiasViews
 
 
 def build_market_analysis(positions: list[PositionView]) -> MarketAnalysis:
     """Analisa o cenário atual das posições abertas e sugere oportunidades."""
+    allocation_view = _build_allocation_view(positions)
+    pnl_weighted_view = _build_pnl_weighted_view(positions)
+    concentration_view = _build_concentration_view(positions)
+    bias_views = _build_bias_views([allocation_view, pnl_weighted_view, concentration_view])
+
+    bias = MarketBias(
+        direction=allocation_view.direction,
+        confidence=allocation_view.confidence,
+        score=allocation_view.score,
+        reason=allocation_view.reason,
+    )
+    long_exposure = float(allocation_view.metrics.get("long_exposure") or 0.0)
+    short_exposure = float(allocation_view.metrics.get("short_exposure") or 0.0)
+    opportunities = _build_opportunities(positions, bias, long_exposure, short_exposure)
+    return MarketAnalysis(bias=bias, opportunities=opportunities, bias_views=bias_views)
+
+
+def _build_allocation_view(positions: list[PositionView]) -> BiasView:
     long_exposure, short_exposure = _compute_exposure_by_side(positions)
     total_exposure = long_exposure + short_exposure
     net_exposure = long_exposure - short_exposure
+    relative_balance = abs(net_exposure) / total_exposure if total_exposure > 0 else 0.0
+    direction = _resolve_direction_from_net(
+        net_exposure=net_exposure, relative_balance=relative_balance
+    )
+    confidence = _resolve_confidence(relative_balance, direction)
+    if total_exposure <= 0:
+        reason = "Sem posicoes abertas ou dados insuficientes para definir bias."
+    else:
+        reason = _build_bias_reason(
+            direction=direction,
+            long_exposure=long_exposure,
+            short_exposure=short_exposure,
+            relative_balance=relative_balance,
+        )
+    return BiasView(
+        id="allocation",
+        direction=direction,
+        confidence=confidence,
+        score=float(relative_balance),
+        reason=reason,
+        metrics={
+            "long_exposure": long_exposure,
+            "short_exposure": short_exposure,
+            "relative_balance": relative_balance,
+            "net_exposure": net_exposure,
+            "total_exposure": total_exposure,
+        },
+    )
+
+
+def _build_pnl_weighted_view(positions: list[PositionView]) -> BiasView:
+    long_exposure, short_exposure = _compute_exposure_by_side(positions)
+    long_pnl = 0.0
+    short_pnl = 0.0
+    for position in positions:
+        pnl = float(getattr(position, "unrealized_pnl_usdt", 0.0) or 0.0)
+        side = getattr(position, "side", None)
+        if side == "LONG":
+            long_pnl += pnl
+        elif side == "SHORT":
+            short_pnl += pnl
+
+    long_ratio = (long_pnl / long_exposure) if long_exposure > 0 else 0.0
+    short_ratio = (short_pnl / short_exposure) if short_exposure > 0 else 0.0
+    net_ratio = long_ratio - short_ratio
+    score = min(abs(net_ratio), 1.0)
+    direction = _resolve_direction_from_net(net_exposure=net_ratio, relative_balance=score)
+    confidence = _resolve_confidence(score, direction)
+    if direction == "NEUTRAL":
+        reason = "PnL ajustado por exposicao sem dominancia clara entre LONG e SHORT."
+    else:
+        reason = (
+            f"PnL ponderado favorece {direction}: LONG={long_ratio:.4f} vs SHORT={short_ratio:.4f}."
+        )
+    return BiasView(
+        id="pnl_weighted",
+        direction=direction,
+        confidence=confidence,
+        score=score,
+        reason=reason,
+        metrics={
+            "long_pnl": long_pnl,
+            "short_pnl": short_pnl,
+            "long_pnl_ratio": long_ratio,
+            "short_pnl_ratio": short_ratio,
+            "net_pnl_ratio": net_ratio,
+        },
+    )
+
+
+def _build_concentration_view(positions: list[PositionView]) -> BiasView:
+    total_exposure = 0.0
+    top_symbol = ""
+    top_side: MarketBiasDirection = "NEUTRAL"
+    top_exposure = 0.0
+    for position in positions:
+        exposure = _extract_position_exposure(position)
+        if exposure is None or exposure <= 0:
+            continue
+        total_exposure += exposure
+        if exposure > top_exposure:
+            top_exposure = exposure
+            top_symbol = str(getattr(position, "symbol", ""))
+            candidate_side = str(getattr(position, "side", "NEUTRAL"))
+            top_side = (
+                "LONG"
+                if candidate_side == "LONG"
+                else "SHORT"
+                if candidate_side == "SHORT"
+                else "NEUTRAL"
+            )
 
     if total_exposure <= 0:
-        bias = MarketBias(
+        return BiasView(
+            id="concentration",
             direction="NEUTRAL",
             confidence="low",
             score=0.0,
-            reason="Sem posicoes abertas ou dados insuficientes para definir bias.",
+            reason="Sem posicoes abertas para medir concentracao de risco.",
+            metrics={
+                "top_symbol": None,
+                "top_share": 0.0,
+                "top_exposure": 0.0,
+                "total_exposure": 0.0,
+            },
         )
-        opportunities = [
-            TradeOpportunity(
-                symbol=None,
-                direction="NEUTRAL",
-                action="HOLD",
-                rationale=(
-                    "Nenhuma oportunidade definida: o painel nao apresenta posicoes abertas "
-                    "para gerar bias de mercado."
-                ),
-                exposure_usdt=None,
-            )
-        ]
-        return MarketAnalysis(bias=bias, opportunities=opportunities)
 
-    relative_balance = abs(net_exposure) / total_exposure
-    direction = (
-        "LONG"
-        if net_exposure > 0 and relative_balance >= 0.1
-        else "SHORT"
-        if net_exposure < 0 and relative_balance >= 0.1
-        else "NEUTRAL"
-    )
-
-    confidence = _resolve_confidence(relative_balance, direction)
-    score = float(abs(net_exposure) / total_exposure)
-    reason = _build_bias_reason(
+    top_share = top_exposure / total_exposure
+    direction = top_side if top_share >= 0.1 else "NEUTRAL"
+    confidence = _resolve_confidence(top_share, direction)
+    if direction == "NEUTRAL":
+        reason = "Concentracao difusa sem simbolo dominante relevante."
+    else:
+        reason = (
+            f"Concentracao em {top_symbol}: {top_share:.0%} da exposicao total no lado {direction}."
+        )
+    return BiasView(
+        id="concentration",
         direction=direction,
-        long_exposure=long_exposure,
-        short_exposure=short_exposure,
-        relative_balance=relative_balance,
+        confidence=confidence,
+        score=top_share,
+        reason=reason,
+        metrics={
+            "top_symbol": top_symbol or None,
+            "top_share": top_share,
+            "top_exposure": top_exposure,
+            "total_exposure": total_exposure,
+        },
     )
 
-    bias = MarketBias(direction=direction, confidence=confidence, score=score, reason=reason)
-    opportunities = _build_opportunities(positions, bias, long_exposure, short_exposure)
-    return MarketAnalysis(bias=bias, opportunities=opportunities)
+
+def _build_bias_views(views: list[BiasView]) -> BiasViews:
+    unique_directions = {view.direction for view in views}
+    has_divergence = len(unique_directions) > 1
+    if has_divergence:
+        summary = " ; ".join(f"{view.id}={view.direction}" for view in views)
+    else:
+        summary = f"Sem divergencia: todas as visoes em {views[0].direction}."
+    return BiasViews(
+        active="allocation",
+        views=views,
+        divergence=BiasDivergence(has_divergence=has_divergence, summary=summary),
+    )
+
+
+def _resolve_direction_from_net(
+    *, net_exposure: float, relative_balance: float
+) -> MarketBiasDirection:
+    if net_exposure > 0 and relative_balance >= 0.1:
+        return "LONG"
+    if net_exposure < 0 and relative_balance >= 0.1:
+        return "SHORT"
+    return "NEUTRAL"
 
 
 def _compute_exposure_by_side(positions: list[PositionView]) -> tuple[float, float]:

@@ -19,6 +19,8 @@
     filterDirection: "",
     onboardingSessionsMap: {},
     managedSymbol: null,
+    biasViews: [],
+    activeBiasView: "allocation",
   };
 
   const elements = {
@@ -27,6 +29,9 @@
     analysisBiasDirection: document.getElementById("analysis-bias-direction"),
     analysisBiasConfidence: document.getElementById("analysis-bias-confidence"),
     analysisBiasReason: document.getElementById("analysis-bias-reason"),
+    analysisBiasView: document.getElementById("analysis-bias-view"),
+    analysisBiasDivergence: document.getElementById("analysis-bias-divergence"),
+    analysisBiasMetrics: document.getElementById("analysis-bias-metrics"),
     analysisOpportunities: document.getElementById("analysis-opportunities"),
     signalDiagnosticBody: document.getElementById("signal-diagnostic-body"),
     banner: document.getElementById("banner"),
@@ -338,14 +343,76 @@
       elements.analysisBiasDirection.textContent = "—";
       elements.analysisBiasConfidence.textContent = "—";
       elements.analysisBiasReason.textContent = "Aguardando dados para calcular bias e oportunidades.";
+      if (elements.analysisBiasDivergence) {
+        elements.analysisBiasDivergence.textContent = "Sem divergência entre visões.";
+      }
+      if (elements.analysisBiasMetrics) {
+        elements.analysisBiasMetrics.textContent = "—";
+      }
       elements.analysisOpportunities.innerHTML = "<li>Nenhuma oportunidade detectada.</li>";
       return;
     }
-
-    elements.analysisBiasDirection.textContent = analysis.bias.direction;
-    elements.analysisBiasConfidence.textContent = analysis.bias.confidence;
-    elements.analysisBiasReason.textContent = analysis.bias.reason;
+    renderBiasViews(analysis);
     elements.analysisOpportunities.innerHTML = renderOpportunities(analysis.opportunities);
+  }
+
+  function populateBiasViewSelector(views, activeId) {
+    if (!elements.analysisBiasView) {
+      return;
+    }
+    const validViews = Array.isArray(views) ? views : [];
+    if (validViews.length === 0) {
+      elements.analysisBiasView.innerHTML = '<option value="allocation">allocation</option>';
+      elements.analysisBiasView.value = "allocation";
+      state.activeBiasView = "allocation";
+      return;
+    }
+    elements.analysisBiasView.innerHTML = validViews
+      .map((view) => `<option value="${view.id}">${view.id}</option>`)
+      .join("");
+    state.activeBiasView = activeId || validViews[0].id;
+    elements.analysisBiasView.value = state.activeBiasView;
+  }
+
+  function renderBiasDetails(selectedView, divergence) {
+    if (!selectedView) {
+      return;
+    }
+    elements.analysisBiasDirection.textContent = selectedView.direction;
+    elements.analysisBiasConfidence.textContent = selectedView.confidence;
+    elements.analysisBiasReason.textContent = selectedView.reason;
+    if (elements.analysisBiasDivergence) {
+      const divergenceSummary = divergence?.summary || "Sem divergência entre visões.";
+      elements.analysisBiasDivergence.textContent = divergenceSummary;
+    }
+    if (elements.analysisBiasMetrics) {
+      elements.analysisBiasMetrics.textContent = JSON.stringify(selectedView.metrics || {}, null, 2);
+    }
+  }
+
+  function renderBiasViews(analysis) {
+    const fallbackBias = analysis?.bias || {
+      direction: "NEUTRAL",
+      confidence: "low",
+      score: 0,
+      reason: "Sem dados de bias.",
+    };
+    const biasViewsPayload = analysis?.bias_views;
+    const views = Array.isArray(biasViewsPayload?.views) && biasViewsPayload.views.length > 0
+      ? biasViewsPayload.views
+      : [{
+          id: "allocation",
+          direction: fallbackBias.direction,
+          confidence: fallbackBias.confidence,
+          score: fallbackBias.score,
+          reason: fallbackBias.reason,
+          metrics: {},
+        }];
+    const activeId = biasViewsPayload?.active || "allocation";
+    state.biasViews = views;
+    populateBiasViewSelector(views, activeId);
+    const selectedView = views.find((view) => view.id === state.activeBiasView) || views[0];
+    renderBiasDetails(selectedView, biasViewsPayload?.divergence);
   }
 
   function renderOpportunities(opportunities) {
@@ -492,6 +559,22 @@
         });
         applyPositionFilters();
       });
+    });
+  }
+
+  function bindAnalysisViewEvents() {
+    if (!elements.analysisBiasView) {
+      return;
+    }
+    elements.analysisBiasView.addEventListener("change", (event) => {
+      state.activeBiasView = event.target.value;
+      const selectedView = state.biasViews.find((view) => view.id === state.activeBiasView);
+      if (!selectedView) {
+        return;
+      }
+      const fallbackDivergence = { summary: "Sem divergência entre visões." };
+      const divergence = state.lastSnapshot?.analysis?.bias_views?.divergence || fallbackDivergence;
+      renderBiasDetails(selectedView, divergence);
     });
   }
 
@@ -1177,7 +1260,8 @@
     renderOpenTrades([]);
     renderTradeHistory([]);
     renderSignalHistory([]);
-    bindPositionFilterEvents();
+  bindPositionFilterEvents();
+  bindAnalysisViewEvents();
     bindOnboardingForm();
     setStatus("offline");
     setBanner({ visible: false });

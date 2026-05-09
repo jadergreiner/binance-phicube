@@ -75,6 +75,27 @@ def _serialize_summary(summary: AccountSummary) -> dict[str, Any]:
 
 
 def _serialize_market_analysis(analysis: Any) -> dict[str, Any]:
+    raw_bias_views = getattr(analysis, "bias_views", None)
+    serialized_bias_views: dict[str, Any] | None = None
+    if raw_bias_views is not None:
+        serialized_bias_views = {
+            "active": raw_bias_views.active,
+            "views": [
+                {
+                    "id": view.id,
+                    "direction": view.direction,
+                    "confidence": view.confidence,
+                    "score": view.score,
+                    "reason": view.reason,
+                    "metrics": view.metrics,
+                }
+                for view in raw_bias_views.views
+            ],
+            "divergence": {
+                "has_divergence": raw_bias_views.divergence.has_divergence,
+                "summary": raw_bias_views.divergence.summary,
+            },
+        }
     return {
         "bias": {
             "direction": analysis.bias.direction,
@@ -82,6 +103,7 @@ def _serialize_market_analysis(analysis: Any) -> dict[str, Any]:
             "score": analysis.bias.score,
             "reason": analysis.bias.reason,
         },
+        "bias_views": serialized_bias_views,
         "opportunities": [
             {
                 "symbol": opportunity.symbol,

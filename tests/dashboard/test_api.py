@@ -193,6 +193,61 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
                     "exposure_usdt": 24000.0,
                 }
             ],
+            "bias_views": {
+                "active": "allocation",
+                "views": [
+                    {
+                        "id": "allocation",
+                        "direction": "LONG",
+                        "confidence": "high",
+                        "score": 1.0,
+                        "reason": (
+                            "Bias LONG: exposicao LONG de 24000.00 contra 0.00 do lado oposto. "
+                            "Forca do bias: 100%."
+                        ),
+                        "metrics": {
+                            "long_exposure": 24000.0,
+                            "short_exposure": 0.0,
+                            "relative_balance": 1.0,
+                            "net_exposure": 24000.0,
+                            "total_exposure": 24000.0,
+                        },
+                    },
+                    {
+                        "id": "pnl_weighted",
+                        "direction": "NEUTRAL",
+                        "confidence": "low",
+                        "score": 0.010416666666666666,
+                        "reason": (
+                            "PnL ajustado por exposicao sem dominancia clara entre LONG e SHORT."
+                        ),
+                        "metrics": {
+                            "long_pnl": 250.0,
+                            "short_pnl": 0.0,
+                            "long_pnl_ratio": 0.010416666666666666,
+                            "short_pnl_ratio": 0.0,
+                            "net_pnl_ratio": 0.010416666666666666,
+                        },
+                    },
+                    {
+                        "id": "concentration",
+                        "direction": "LONG",
+                        "confidence": "high",
+                        "score": 1.0,
+                        "reason": "Concentracao em BTCUSDT: 100% da exposicao total no lado LONG.",
+                        "metrics": {
+                            "top_symbol": "BTCUSDT",
+                            "top_share": 1.0,
+                            "top_exposure": 24000.0,
+                            "total_exposure": 24000.0,
+                        },
+                    },
+                ],
+                "divergence": {
+                    "has_divergence": True,
+                    "summary": "allocation=LONG ; pnl_weighted=NEUTRAL ; concentration=LONG",
+                },
+            },
         },
     }
     assert response.json() == expected, response.json()
@@ -324,6 +379,7 @@ def test_websocket_positions_emite_snapshot_inicial(monkeypatch) -> None:
     assert "signal_telemetry" in payload
     assert payload["positions"][0]["symbol"] == "BTCUSDT"
     assert payload["analysis"]["bias"]["direction"] == "LONG"
+    assert payload["analysis"]["bias_views"]["active"] == "allocation"
     assert payload["analysis"]["opportunities"][0]["action"] == "ADD"
 
 
@@ -349,6 +405,7 @@ def test_websocket_positions_inclui_analysis_no_snapshot_inicial(monkeypatch) ->
     assert payload["timezone"] == "America/Sao_Paulo"
     assert "signal_telemetry" in payload
     assert payload["analysis"]["bias"]["confidence"] == "high"
+    assert payload["analysis"]["bias_views"]["divergence"]["has_divergence"] is True
     assert payload["analysis"]["opportunities"][0]["action"] == "ADD"
 
 

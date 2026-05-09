@@ -51,6 +51,14 @@ class SLMissingState:
     renotify_interval_seconds: int
 
 
+@dataclass
+class ManualClosePendingState:
+    """Estado transitório para confirmação de fechamento manual."""
+
+    missing_position_cycles: int = 0
+    order_not_found_seen: bool = False
+
+
 # Erros fatais que não entram em retry (padrão SPEC_007)
 _FATAL_ERRORS = (
     ccxt.AuthenticationError,
@@ -85,6 +93,9 @@ class OrderMonitor:
         # (DD-001): em restart, um segundo primeiro-alerta é enviado — comportamento
         # aceitável e documentado (CE-003).
         self._sl_missing_state: dict[str, SLMissingState] = {}
+        # Confirmação de ausência de posição para evitar CLOSED_MANUAL prematuro.
+        self._manual_close_pending: dict[str, ManualClosePendingState] = {}
+        self._last_fetch_order_not_found: bool = False
 
     async def run(self) -> None:
         """Loop infinito com intervalo configurável.
@@ -143,8 +154,10 @@ class OrderMonitor:
             3. Se position = 0 e ordens ainda abertas → fechamento manual
         """
         symbol = trade.get("symbol", "")
+        entry_order_id = trade.get("entry_order_id", "")
         sl_order_id = trade.get("sl_order_id")
         tp_order_id = trade.get("tp_order_id")
+        order_not_found_seen = False
 
         # ─── Verifica SL ─────────────────────────────────────────────────────
         if sl_order_id:
@@ -174,6 +187,8 @@ class OrderMonitor:
                             await self._handle_sl_missing(trade, current_price)
                     # Se posição não existe mais, não alerta — já encerrada
                     return
+            elif self._last_fetch_order_not_found:
+                order_not_found_seen = True
 
         # ─── Verifica TP ─────────────────────────────────────────────────────
         if tp_order_id:
@@ -186,12 +201,41 @@ class OrderMonitor:
                     # TP executado — registrar fechamento com PnL real
                     await self._handle_tp_executed(trade, tp_order)
                     return
+            elif self._last_fetch_order_not_found:
+                order_not_found_seen = True
 
         # ─── Verifica fechamento manual ───────────────────────────────────────
         position_open = await self._is_position_open(symbol)
-        if not position_open:
-            # Posição = 0, mas trade ainda OPEN no MongoDB → fechamento manual
-            await self._handle_manual_close(trade)
+        if position_open:
+            self._manual_close_pending.pop(entry_order_id, None)
+            return
+
+        pending = self._manual_close_pending.get(entry_order_id, ManualClosePendingState())
+        pending.missing_position_cycles += 1
+        pending.order_not_found_seen = pending.order_not_found_seen or order_not_found_seen
+        self._manual_close_pending[entry_order_id] = pending
+        if pending.missing_position_cycles < 2:
+            await self._repository.audit(
+                "manual_close_confirmation_pending",
+                {
+                    "entry_order_id": entry_order_id,
+                    "symbol": symbol,
+                    "missing_position_cycles": pending.missing_position_cycles,
+                    "order_not_found_seen": pending.order_not_found_seen,
+                },
+            )
+            logger.info(
+                "manual_close_confirmation_pending",
+                symbol=symbol,
+                entry_order_id=entry_order_id,
+                missing_position_cycles=pending.missing_position_cycles,
+                order_not_found_seen=pending.order_not_found_seen,
+            )
+            return
+
+        # Posição ausente por 2 ciclos consecutivos -> fechamento manual confirmado.
+        await self._handle_manual_close(trade)
+        self._manual_close_pending.pop(entry_order_id, None)
 
     async def _handle_tp_executed(self, trade: dict, order: dict) -> None:
         """Registra encerramento por TP com exit_price real."""
@@ -507,6 +551,7 @@ class OrderMonitor:
                 "exit_price": exit_price,
                 "pnl_usdt": pnl_usdt,
                 "is_estimated": True,
+                "manual_close_confirmed_cycles": 2,
             },
         )
 
@@ -535,6 +580,7 @@ class OrderMonitor:
 
         for attempt in range(1, retries + 1):
             try:
+                self._last_fetch_order_not_found = False
                 return await self._client.fetch_order(order_id, symbol)
             except ccxt.OrderNotFound:
                 # Ordem pode já ter saído da janela de consulta da exchange.
@@ -545,6 +591,7 @@ class OrderMonitor:
                     order_id=order_id,
                     symbol=symbol,
                 )
+                self._last_fetch_order_not_found = True
                 return None
             except _FATAL_ERRORS:
                 raise
@@ -576,9 +623,10 @@ class OrderMonitor:
     async def _is_position_open(self, symbol: str) -> bool:
         """Verifica se existe posição aberta na exchange para o símbolo."""
         try:
+            target = self._normalize_symbol(symbol)
             positions = await self._client.fetch_open_positions()
             for pos in positions:
-                if pos.get("symbol") == symbol:
+                if self._normalize_symbol(str(pos.get("symbol", ""))) == target:
                     return True
             return False
         except Exception as exc:
@@ -589,6 +637,14 @@ class OrderMonitor:
             )
             # Em caso de dúvida, assume que a posição existe (conservador)
             return True
+
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        """Normaliza símbolo para comparação semântica (ex: ATOMUSDT == ATOM/USDT:USDT)."""
+        normalized = symbol.upper().replace("/", "").replace(":", "")
+        if normalized.endswith("USDTUSDT"):
+            return normalized[:-4]
+        return normalized
 
     async def _get_current_price(self, symbol: str) -> float | None:
         """Obtém o preço atual do símbolo via fetch_ticker."""

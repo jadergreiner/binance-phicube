@@ -98,6 +98,18 @@ def test_frontend_expoe_diagnostico_de_sinais_em_tempo_real() -> None:
     assert "snapshot.signal_telemetry" in javascript
 
 
+def test_frontend_expoe_comparativo_de_bias_views() -> None:
+    """Dashboard deve exibir seletor, divergência e métricas das visões de bias."""
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert 'id="analysis-bias-view"' in html
+    assert 'id="analysis-bias-divergence"' in html
+    assert 'id="analysis-bias-metrics"' in html
+    assert "renderBiasViews" in javascript
+    assert "analysis?.bias_views" in javascript
+
+
 def test_frontend_prioriza_campos_br_com_fallback_legado() -> None:
     """SPEC_026 — horários devem priorizar *_br com fallback para campos ISO antigos."""
     javascript = APP_JS.read_text(encoding="utf-8")

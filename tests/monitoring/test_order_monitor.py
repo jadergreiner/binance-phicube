@@ -265,6 +265,10 @@ async def test_012_05_fechamento_manual_cancel_all_closed_manual_is_estimated():
     mock_client.fetch_order = AsyncMock(return_value=_make_order(status="open", average=0.0))
 
     await monitor._check_trade(trade)
+    # 1º ciclo: apenas pendência de confirmação
+    mock_repo.update_trade_status.assert_not_called()
+
+    await monitor._check_trade(trade)
 
     # Deve cancelar todas as ordens
     mock_client.cancel_all_orders.assert_called_once_with("BTCUSDT")
@@ -328,7 +332,7 @@ async def test_012_07_fetch_order_esgota_retries_retorna_none():
 
 @pytest.mark.asyncio
 async def test_012_07b_order_not_found_nao_aborta_e_permite_fechamento_manual():
-    """OrderNotFound deve seguir fluxo e fechar manualmente se posição já estiver zerada."""
+    """OrderNotFound não deve fechar no 1º ciclo; fecha após confirmação em 2 ciclos."""
     trade = _make_trade()
 
     monitor, mock_client, mock_repo, _ = _make_monitor(
@@ -340,10 +344,36 @@ async def test_012_07b_order_not_found_nao_aborta_e_permite_fechamento_manual():
     mock_client.fetch_order = AsyncMock(side_effect=ccxt.OrderNotFound("missing"))
 
     await monitor._check_trade(trade)
+    mock_repo.update_trade_status.assert_not_called()
+
+    await monitor._check_trade(trade)
 
     call_kwargs = mock_repo.update_trade_status.call_args.kwargs
     assert call_kwargs["status"] == TradeStatus.CLOSED_MANUAL
     assert call_kwargs["close_reason"] == "manual_close"
+
+
+@pytest.mark.asyncio
+async def test_012_07c_order_not_found_com_posicao_aberta_mantem_trade_open():
+    """OrderNotFound com posição ainda aberta não pode fechar trade manualmente."""
+    trade = _make_trade(symbol="ATOMUSDT")
+
+    monitor, mock_client, mock_repo, _ = _make_monitor(
+        get_open_trades=[trade],
+        fetch_positions=[{"symbol": "ATOM/USDT:USDT", "contracts": 1.0}],
+        fetch_ticker_price=1.90,
+    )
+    mock_client.fetch_order = AsyncMock(side_effect=ccxt.OrderNotFound("missing"))
+
+    await monitor._check_trade(trade)
+    await monitor._check_trade(trade)
+
+    mock_repo.update_trade_status.assert_not_called()
+
+
+def test_012_14_normaliza_simbolos_equivalentes():
+    monitor, _, _, _ = _make_monitor()
+    assert monitor._normalize_symbol("ATOMUSDT") == monitor._normalize_symbol("ATOM/USDT:USDT")
 
 
 # ─── TEST_012_08: falha em um símbolo não afeta outros ───────────────────────
