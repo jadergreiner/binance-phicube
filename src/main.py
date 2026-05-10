@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.config.settings import SymbolConfig, get_settings
-from src.exchange.binance_client import BinanceClient
+from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
 from src.monitoring.logger import configure_logging, get_logger
 from src.monitoring.order_monitor import OrderMonitor
 from src.notifications import Notifier, NullNotifier, TelegramNotifier
@@ -142,7 +142,18 @@ class RuntimeMonitorRegistry:
             else:
                 return
 
-        await self._client.validate_market_liquidity(cfg.symbol)
+        try:
+            await self._client.validate_market_liquidity(cfg.symbol)
+        except InsufficientLiquidityError as exc:
+            logger.warning(
+                "runtime_monitor_skipped_insufficient_liquidity",
+                symbol=cfg.symbol,
+                timeframe=cfg.timeframe,
+                leverage=cfg.leverage,
+                reason=str(exc),
+            )
+            return
+
         await self._client.set_leverage(cfg.symbol, cfg.leverage)
         monitor = self._build_monitor(cfg)
         task = asyncio.create_task(monitor.run())
@@ -186,10 +197,7 @@ class RuntimeMonitorRegistry:
             await self.remove(symbol, timeframe)
 
     def active_pairs(self) -> list[tuple[str, str, int]]:
-        return [
-            (cfg.symbol, cfg.timeframe, cfg.leverage)
-            for cfg in self._configs.values()
-        ]
+        return [(cfg.symbol, cfg.timeframe, cfg.leverage) for cfg in self._configs.values()]
 
 
 class RuntimeMonitorSyncTask:
