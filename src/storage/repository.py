@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 _TRADES_COLLECTION = "trades"
 _SIGNALS_COLLECTION = "signals"
 _AUDIT_COLLECTION = "audit"
+_CUSTOMERS_COLLECTION = "customers"
 _ONBOARDING_COLLECTION = "symbol_onboarding"
 _BACKTEST_JOBS_COLLECTION = "onboarding_backtest_jobs"
 _AUDIT_RETENTION_EVENTS = [
@@ -189,6 +190,15 @@ class MongoRepository:
                     },
                     name="onboarding_backtest_jobs_retention_ttl",
                 ),
+            ]
+        )
+
+        customers = self._db[_CUSTOMERS_COLLECTION]
+        await customers.create_indexes(
+            [
+                IndexModel([("id", ASCENDING)], unique=True),
+                IndexModel([("status", ASCENDING), ("created_at", DESCENDING)]),
+                IndexModel([("name", ASCENDING)]),
             ]
         )
 
@@ -476,6 +486,41 @@ class MongoRepository:
             projection,
         )
         return await cursor.to_list(length=None)
+
+    # ─── MCP-PoS Customers ──────────────────────────────────────────────────
+
+    async def list_customers(self, limit: int = 50, skip: int = 0) -> list[dict[str, Any]]:
+        cursor = (
+            self._db[_CUSTOMERS_COLLECTION]
+            .find({}, {"_id": 0})
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        return await cursor.to_list(length=limit)
+
+    async def get_customer(self, customer_id: str) -> dict[str, Any] | None:
+        return await self._db[_CUSTOMERS_COLLECTION].find_one(
+            {"id": customer_id}, {"_id": 0}
+        )
+
+    async def create_customer(self, customer: dict[str, Any]) -> str | None:
+        result = await self._db[_CUSTOMERS_COLLECTION].insert_one(customer)
+        return str(result.inserted_id)
+
+    async def update_customer(self, customer_id: str, update: dict[str, Any]) -> bool:
+        update["updated_at"] = datetime.now(UTC)
+        result = await self._db[_CUSTOMERS_COLLECTION].update_one(
+            {"id": customer_id}, {"$set": update}
+        )
+        return result.matched_count > 0
+
+    async def delete_customer(self, customer_id: str) -> bool:
+        result = await self._db[_CUSTOMERS_COLLECTION].delete_one({"id": customer_id})
+        return result.deleted_count > 0
+
+    async def count_customers(self) -> int:
+        return await self._db[_CUSTOMERS_COLLECTION].count_documents({})
 
     # ─── Onboarding ───────────────────────────────────────────────────────────
 

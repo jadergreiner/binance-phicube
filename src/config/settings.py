@@ -105,6 +105,23 @@ class Settings(BaseSettings):
     runtime_monitor_auto_sync: bool = False
     runtime_monitor_auto_sync_interval_seconds: Annotated[int, Field(ge=5)] = 30
 
+    # MCP-PoS (Point-of-Sale) — Customer table config (spec-driven)
+    mcp_pos_customer_fields: str = Field(
+        default="name,email,phone,document,status,notes",
+        description="Campos do Cliente MCP-PoS separados por virgula (spec-driven)",
+    )
+
+    # MCP Serena execution context
+    mcp_serena_context: dict[str, str | None] = Field(
+        default_factory=lambda: {
+            "version": "1.0",
+            "spec_path": "docs/SDD/SPEC.md",
+            "module": "MCP-PoS Customer",
+            "execution_status": "active",
+        },
+        description="Contexto de execucao do fluxo MCP Serena",
+    )
+
     # Dashboard (API Key READ_ONLY — sem permissão de trade)
     dashboard_api_key: str = Field(..., description="Dashboard API Key (READ_ONLY)")
     dashboard_api_secret: str = Field(..., description="Dashboard API Secret (READ_ONLY)")

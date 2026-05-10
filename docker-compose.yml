@@ -1,6 +1,6 @@
 services:
 
-  # ─── Bot ──────────────────────────────────────────────────────────────────
+  # ─── Bot (robô de trading) ────────────────────────────────────────────────
   phicube:
     build:
       context: .
@@ -26,7 +26,7 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  # ─── Dashboard API ────────────────────────────────────────────────────────
+  # ─── Dashboard API (FastAPI + frontend) ──────────────────────────────────
   dashboard-api:
     build:
       context: .
@@ -46,13 +46,19 @@ services:
         condition: service_healthy
     networks:
       - phicube-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
 
-  # ─── MongoDB ──────────────────────────────────────────────────────────────
+  # ─── MongoDB (banco de dados) ────────────────────────────────────────────
   mongo:
     image: mongo:7
     container_name: phicube-mongo
@@ -94,7 +100,7 @@ services:
     networks:
       - phicube-net
     profiles:
-      - dev   # só sobe com: docker compose --profile dev up
+      - dev   # só ativa com: docker compose --profile dev up
 
 volumes:
   mongo_data:
