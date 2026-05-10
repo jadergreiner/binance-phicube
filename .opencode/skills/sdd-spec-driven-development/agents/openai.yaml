@@ -1,0 +1,3 @@
+display_name: SDD
+short_description: Spec-Driven Development com fluxo Superpowers (brainstorm, plano, testes, implementacao, review)
+default_prompt: /sdd SPEC_019 + objetivo claro
