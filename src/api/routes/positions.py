@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisco
 from fastapi.responses import JSONResponse
 
 from src.api.datetime_utils import BRAZIL_TIMEZONE, to_brazil_datetime_str, to_iso8601_utc
+from src.common.decorators import safe_async
 from src.dashboard.analysis import build_market_analysis
 from src.dashboard.models import AccountSummary, PositionView, build_account_summary
 from src.monitoring.logger import get_logger
@@ -131,18 +132,12 @@ def _get_repository(app: Any) -> Any:
     return getattr(app.state, "repository", None)
 
 
+@safe_async(log_event="dashboard_positions_sl_tp_enrichment_failed", fallback={})
 async def _load_open_trade_sl_tp(app: Any) -> dict[str, dict[str, float | None]]:
     repo = _get_repository(app)
     if repo is None:
         return {}
-    try:
-        return await repo.get_open_trade_sl_tp()
-    except Exception as exc:
-        logger.warning(
-            "dashboard_positions_sl_tp_enrichment_failed",
-            error_type=type(exc).__name__,
-        )
-        return {}
+    return await repo.get_open_trade_sl_tp()
 
 
 def _normalize_signal_diag_time(value: Any) -> str | None:
@@ -169,6 +164,7 @@ def _serialize_signal_telemetry_row(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+@safe_async(log_event="dashboard_signal_telemetry_load_failed", fallback=[])
 async def _load_signal_telemetry(app: Any) -> list[dict[str, Any]]:
     repo = _get_repository(app)
     if repo is None:
@@ -176,14 +172,7 @@ async def _load_signal_telemetry(app: Any) -> list[dict[str, Any]]:
     get_latest = getattr(repo, "get_latest_signal_diagnostics", None)
     if not callable(get_latest):
         return []
-    try:
-        rows = await get_latest(limit=10)
-    except Exception as exc:
-        logger.warning(
-            "dashboard_signal_telemetry_load_failed",
-            error_type=type(exc).__name__,
-        )
-        return []
+    rows = await get_latest(limit=10)
     return [_serialize_signal_telemetry_row(row) for row in rows if isinstance(row, dict)]
 
 

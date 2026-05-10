@@ -4,18 +4,27 @@ Implementação de notificações via Telegram Bot API.
 Inclui TelegramNotifier para envio real e NullNotifier para quando
 as notificações estão desabilitadas.
 """
+
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Any
 
 import aiohttp
 
+from src.common.decorators import retry
+from src.monitoring.logger import get_logger
+
 from .events import NotificationEvent
 from .notifier import Notifier
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+
+class TelegramApiError(Exception):
+    """Exceção levantada quando a API do Telegram retorna erro não-200 ou ok=False."""
+
+    pass
 
 
 class TelegramNotifier(Notifier):
@@ -48,8 +57,19 @@ class TelegramNotifier(Notifier):
         # Fallback para eventos não estruturados
         return f"**{event.value.upper()}**\n\n{payload}"
 
+    @retry(
+        max_attempts=3,
+        initial_delay=1.0,
+        backoff_factor=2.0,
+        exc_types=(asyncio.TimeoutError, aiohttp.ClientError, TelegramApiError),
+        log_event_prefix="telegram_send",
+    )
     async def _send_message(self, message: str) -> bool:
-        """Envia mensagem via HTTP para Telegram Bot API."""
+        """Envia mensagem via HTTP para Telegram Bot API.
+
+        Usa @retry decorator com backoff exponencial (1s, 2s, 4s).
+        Levanta exceção após 3 tentativas falhas (capturada por send()).
+        """
         url = f"{self._base_url}/sendMessage"
         data = {
             "chat_id": self._chat_id,
@@ -58,39 +78,20 @@ class TelegramNotifier(Notifier):
             "disable_web_page_preview": True,
         }
 
-        # Retry com backoff exponencial (máximo 3 tentativas)
-        for attempt in range(3):
-            try:
-                async with aiohttp.ClientSession(timeout=self._timeout) as session:
-                    async with session.post(url, json=data) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            if result.get("ok"):
-                                logger.debug("telegram_message_sent", attempt=attempt + 1)
-                                return True
-                            else:
-                                logger.warning(
-                                    f"telegram_api_error attempt={attempt + 1}: "
-                                    f"{result.get('description', 'unknown')}"
-                                )
-                        else:
-                            logger.warning(
-                                f"telegram_http_error attempt={attempt + 1}: "
-                                f"status={response.status}"
-                            )
-
-            except asyncio.TimeoutError:
-                logger.warning(f"telegram_timeout attempt={attempt + 1}")
-            except aiohttp.ClientError as exc:
-                logger.warning(
-                    f"telegram_network_error attempt={attempt + 1}: {type(exc).__name__}"
-                )
-
-            # Backoff exponencial: 1s, 2s, 4s
-            if attempt < 2:
-                await asyncio.sleep(2**attempt)
-
-        return False
+        async with aiohttp.ClientSession(timeout=self._timeout) as session:
+            async with session.post(url, json=data) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    if result.get("ok"):
+                        logger.debug("telegram_message_sent")
+                        return True
+                    else:
+                        description = result.get("description", "unknown")
+                        logger.warning(f"telegram_api_error: {description}")
+                        raise TelegramApiError(f"API returned ok=False: {description}")
+                else:
+                    logger.warning(f"telegram_http_error: status={response.status}")
+                    raise TelegramApiError(f"HTTP status {response.status}")
 
 
 class NullNotifier(Notifier):
@@ -98,5 +99,5 @@ class NullNotifier(Notifier):
 
     async def send(self, event: NotificationEvent, payload: Any) -> bool:
         """Sempre retorna True (sucesso) sem fazer nada."""
-        logger.debug("null_notifier_ignored", event=event.value)
+        logger.debug("null_notifier_ignored", event_value=event.value)
         return True

@@ -8,6 +8,8 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
+from src.common.decorators import _safe_call
+
 FastAPI = import_module("fastapi").FastAPI
 get_settings = import_module("src.config.settings").get_settings
 DashboardModule = import_module("src.dashboard")
@@ -46,15 +48,6 @@ class _OfflinePositionStream:
 
     async def stop(self, *, status: str = "offline") -> None:
         return None
-
-
-async def _safe_call(coro: Any, *, warning_message: str) -> bool:
-    try:
-        await coro
-        return True
-    except Exception as exc:
-        logger.warning(warning_message, error_type=type(exc).__name__)
-        return False
 
 
 @asynccontextmanager

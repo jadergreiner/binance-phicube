@@ -19,6 +19,10 @@ LIQUIDITY_MIN_OPEN_INTEREST: float = 200_000.0
 class InsufficientLiquidityError(Exception):
     """Levantada quando um par não atinge os mínimos de liquidez exigidos."""
 
+    def __init__(self, message: str, reason_code: str) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+
 
 # Mapping from simple notation (15m) to ccxt timeframe string
 _TIMEFRAME_MAP: dict[str, str] = {
@@ -150,7 +154,8 @@ class BinanceClient:
         volume_24h = float(ticker.get("quoteVolume") or 0.0)
         if volume_24h < min_volume:
             raise InsufficientLiquidityError(
-                f"{symbol}: volume_24h={volume_24h:.0f} USDT < mínimo {min_volume:.0f}"
+                f"{symbol}: volume_24h={volume_24h:.0f} USDT < mínimo {min_volume:.0f}",
+                reason_code="insufficient_volume",
             )
 
         reference_price = float(
@@ -172,7 +177,8 @@ class BinanceClient:
             oi = 0.0
         if oi < min_oi:
             raise InsufficientLiquidityError(
-                f"{symbol}: open_interest={oi:.0f} USDT < mínimo {min_oi:.0f}"
+                f"{symbol}: open_interest={oi:.0f} USDT < mínimo {min_oi:.0f}",
+                reason_code="insufficient_open_interest",
             )
         logger.info("market_liquidity_ok", symbol=symbol, volume_24h=volume_24h, oi=oi)
 

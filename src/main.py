@@ -150,7 +150,8 @@ class RuntimeMonitorRegistry:
                 symbol=cfg.symbol,
                 timeframe=cfg.timeframe,
                 leverage=cfg.leverage,
-                reason=str(exc),
+                reason_code=exc.reason_code,
+                error_type=type(exc).__name__,
             )
             return
 
