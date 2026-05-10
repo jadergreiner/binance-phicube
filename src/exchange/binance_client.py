@@ -128,7 +128,7 @@ class BinanceClient:
             if "/" not in symbol:
                 market_symbol = f"{symbol[:-4]}/USDT:USDT" if symbol.endswith("USDT") else symbol
             params["symbol"] = self._exchange.market_id(market_symbol)
-        method = getattr(self._exchange, "fapiPrivateGetPositionRisk", None)
+        method = getattr(self._exchange, "fapiPrivateV3GetPositionRisk", None)
         if callable(method):
             raw = await method(params)
             if isinstance(raw, list):

@@ -370,6 +370,38 @@ class MongoRepository:
         rows = await cursor.to_list(length=None)
         return round(sum(float(row.get("pnl_usdt") or 0.0) for row in rows), 4)
 
+    async def get_trade_by_entry_order_id(self, entry_order_id: str) -> dict | None:
+        """Retorna um trade pelo entry_order_id."""
+        return await self._db[_TRADES_COLLECTION].find_one(
+            {"entry_order_id": entry_order_id}, {"_id": 0}
+        )
+
+    async def update_trade_orders(
+        self,
+        entry_order_id: str,
+        *,
+        sl_order_id: str | None = None,
+        tp_order_id: str | None = None,
+    ) -> None:
+        """Atualiza IDs de SL/TP de um trade (reconciliação com a exchange)."""
+        update: dict[str, Any] = {}
+        if sl_order_id is not None:
+            update["sl_order_id"] = sl_order_id
+        if tp_order_id is not None:
+            update["tp_order_id"] = tp_order_id
+        if not update:
+            return
+        await self._db[_TRADES_COLLECTION].update_one(
+            {"entry_order_id": entry_order_id},
+            {"$set": update},
+        )
+        logger.info(
+            "trade_orders_updated",
+            entry_order_id=entry_order_id,
+            sl_order_id=sl_order_id,
+            tp_order_id=tp_order_id,
+        )
+
     async def get_open_trade_sl_tp(self) -> dict[str, dict[str, float | None]]:
         """Retorna {symbol: {sl_price, tp_price}} para trades OPEN."""
         cursor = self._db[_TRADES_COLLECTION].find(

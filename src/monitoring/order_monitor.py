@@ -219,6 +219,27 @@ class OrderMonitor:
                 },
             )
 
+            # ─── Reconciliação com a exchange ─────────────────────────────────
+            # IDs armazenados falharam mas as ordens podem existir na exchange
+            # com IDs diferentes (ex: API key rotacionada). Buscar ordens abertas
+            # e reconciliar os IDs no MongoDB.
+            reconciled = await self._reconcile_orders(trade, symbol)
+            if reconciled:
+                # Re-verificar trade com IDs reconciliados (1 nível apenas)
+                await self._check_trade(reconciled)
+                return
+
+            # Reconciliação falhou — ordens de proteção não existem na exchange.
+            # Se a posição ainda está aberta, alertar operador sobre SL ausente.
+            # _handle_sl_missing gerencia renotificação internamente.
+            if sl_order_id:
+                current_price = await self._get_current_price(symbol)
+                if current_price is not None:
+                    position_open = await self._is_position_open(symbol)
+                    if position_open:
+                        await self._handle_sl_missing(trade, current_price)
+                        return
+
         # ─── Verifica fechamento manual ───────────────────────────────────────
         position_open_source_a = await self._is_position_open(symbol)
         position_open_source_b = await self._is_position_open_risk(symbol)
@@ -568,6 +589,98 @@ class OrderMonitor:
                 error_type=type(exc).__name__,
             )
             return False
+
+    async def _reconcile_orders(self, trade: dict, symbol: str) -> dict | None:
+        """Reconcilia ordens SL/TP via fetch_open_orders quando IDs armazenados
+        falham (OrderNotFound). A fonte da verdade é a exchange — atualiza o
+        MongoDB com os IDs reais das ordens abertas.
+
+        Retorna o trade atualizado ou None se não conseguir reconciliar.
+        """
+        entry_order_id = trade.get("entry_order_id", "")
+        direction = trade.get("direction", "long")
+        is_long = direction == "long"
+        exit_side = "sell" if is_long else "buy"
+
+        try:
+            open_orders = await self._client.fetch_open_orders(symbol)
+        except Exception as exc:
+            logger.warning(
+                "reconcile_open_orders_failed",
+                symbol=symbol,
+                error_type=type(exc).__name__,
+            )
+            return None
+
+        if not open_orders:
+            return None
+
+        new_sl_order_id: str | None = None
+        new_tp_order_id: str | None = None
+
+        for order in open_orders:
+            o_type = str(order.get("type", "")).lower()
+            o_side = str(order.get("side", "")).lower()
+
+            if o_side != exit_side:
+                continue
+
+            if o_type in ("stop_market", "stop", "stop_loss"):
+                if new_sl_order_id is None:
+                    new_sl_order_id = str(order.get("id", ""))
+            elif o_type in ("take_profit_market", "take_profit"):
+                if new_tp_order_id is None:
+                    new_tp_order_id = str(order.get("id", ""))
+
+        if new_sl_order_id is None and new_tp_order_id is None:
+            return None
+
+        original_sl = trade.get("sl_order_id")
+        original_tp = trade.get("tp_order_id")
+
+        if (new_sl_order_id and new_sl_order_id != original_sl) or (
+            new_tp_order_id and new_tp_order_id != original_tp
+        ):
+            sl_to_update = (
+                new_sl_order_id
+                if new_sl_order_id and new_sl_order_id != original_sl
+                else None
+            )
+            tp_to_update = (
+                new_tp_order_id
+                if new_tp_order_id and new_tp_order_id != original_tp
+                else None
+            )
+
+            await self._repository.update_trade_orders(
+                entry_order_id=entry_order_id,
+                sl_order_id=sl_to_update,
+                tp_order_id=tp_to_update,
+            )
+
+            logger.info(
+                "trade_orders_reconciled",
+                symbol=symbol,
+                entry_order_id=entry_order_id,
+                sl_order_id=new_sl_order_id,
+                tp_order_id=new_tp_order_id,
+            )
+
+            await self._repository.audit(
+                "trade_orders_reconciled",
+                {
+                    "entry_order_id": entry_order_id,
+                    "symbol": symbol,
+                    "previous_sl_order_id": original_sl,
+                    "new_sl_order_id": new_sl_order_id,
+                    "previous_tp_order_id": original_tp,
+                    "new_tp_order_id": new_tp_order_id,
+                },
+            )
+
+        trade["sl_order_id"] = new_sl_order_id or original_sl
+        trade["tp_order_id"] = new_tp_order_id or original_tp
+        return trade
 
     async def _handle_manual_close(self, trade: dict) -> None:
         """Trata fechamento manual: cancela ordens remanescentes e registra CLOSED_MANUAL.
