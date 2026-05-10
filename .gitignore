@@ -1,5 +1,13 @@
 # Segredos
 .env
+.env.mainnet.bak
+.env.simulation
+
+# Logs de runtime (Docker / simulação)
+logs/
+
+# Artefatos Windows
+nul
 
 # Cache Python
 *.pyc
