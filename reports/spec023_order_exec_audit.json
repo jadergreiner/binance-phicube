@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-07T20:29:26.661242+00:00",
+  "generated_at": "2026-05-10T19:54:23.928959+00:00",
   "batch_size_requested": 50,
-  "total_records": 0,
-  "success_count": 0,
-  "failure_count": 0,
-  "success_rate": 0.0,
+  "total_records": 45,
+  "success_count": 28,
+  "failure_count": 17,
+  "success_rate": 62.2222,
   "failure_causes": {
-    "mongo_query_failed": 1
+    "missing_sl_order": 7,
+    "status_failed": 10
   },
-  "status": "fail",
-  "error": "ServerSelectionTimeoutError"
+  "status": "fail"
 }

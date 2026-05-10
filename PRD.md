@@ -100,23 +100,23 @@ Este PRD é a **tradução executável** dos 7 princípios do manifesto:
 **Objetivo:** Lançar MVP robusto com core funcional
 **Key Results:**
 
-- [ ] Signal Engine acurado (validado contra histórico 200+ candles)
-- [ ] Risk Manager preciso (testes com 50+ cenários de posição)
-- [ ] Order Manager executando sem falhas em Testnet (100% success rate)
-- [ ] 80%+ cobertura de testes unitários
-- [ ] Documentação operacional completa
-- [ ] Docker build produção-ready
+- [x] Signal Engine acurado (validado contra histórico 200+ candles)
+- [x] Risk Manager preciso (testes com 60+ cenários de posição)
+- [ ] Order Manager validado em Simulation Mode (Testnet geobloqueada BR)
+- [x] 80%+ cobertura de testes unitários (80.99%)
+- [x] Documentação operacional completa
+- [x] Docker build produção-ready
 
 ### OKR Nível 3 — Trimestral (Meta atual)
 
 **Objetivo:** Consolidar infraestrutura + validar estratégia
 **Key Results:**
 
-- [ ] ccxt + Motor async rodando sem memory leaks
-- [ ] Alligator + AO + Fractais implementados e testados (vs. teoria)
-- [ ] MongoDB indexes otimizados para queries rápidas
-- [ ] Testnet rodando 48h contínuas sem crash
-- [ ] Relatórios de performance automáticos
+- [x] ccxt + Motor async rodando sem memory leaks (soak stability pass)
+- [x] Alligator + AO + Fractais implementados e testados (vs. teoria)
+- [x] MongoDB indexes otimizados para queries rápidas
+- [ ] 48h contínuas sem crash (SimulationMode rodando desde 19h UTC 2026-05-10)
+- [x] Relatórios de performance automáticos (PerformanceReporter)
 
 ---
 

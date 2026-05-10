@@ -1,20 +1,23 @@
 {
   "status": "fail",
   "mode": "full",
-  "checked_at": "2026-05-07T20:29:50.590156+00:00",
+  "checked_at": "2026-05-10T19:57:16.599600+00:00",
   "checks": {
-    "coverage_gate_status": "pass",
+    "coverage_gate_status": "fail",
     "order_audit_status": "fail",
     "runtime_stability_status": "pass",
     "soak_result": "reproved",
     "soak_validator_exit": 1
   },
   "failures": [
+    "coverage_gate_not_pass",
+    "coverage_percent_not_strictly_above_80",
     "order_audit_not_pass",
     "order_audit_total_records_below_50",
     "order_audit_success_rate_not_100",
     "soak_result_not_approved",
+    "soak_duration_below_48h",
     "soak_evidence_validation_failed"
   ],
-  "soak_validator_output": "{\n  \"status\": \"fail\",\n  \"failures\": [\n    \"result must be `approved`\",\n    \"mandatory event not satisfied: startup_success\",\n    \"mandatory event not satisfied: monitoring_loop_per_symbol\",\n    \"mandatory event not satisfied: health_checks_recorded\",\n    \"mandatory event not satisfied: shutdown_recorded\"\n  ],\n  \"path\": \"docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/evidence/soak_evidence.json\"\n}"
+  "soak_validator_output": "{\n  \"status\": \"fail\",\n  \"failures\": [\n    \"result must be `approved`\",\n    \"duration_hours must be >= 48.0 (got 1.9167)\",\n    \"mandatory event not satisfied: startup_success\",\n    \"mandatory event not satisfied: monitoring_loop_per_symbol\",\n    \"mandatory event not satisfied: shutdown_recorded\"\n  ],\n  \"path\": \"docs/SDD/SPEC_021_VALIDACAO_OPERACIONAL_RESILIENCIA/evidence/soak_evidence.json\"\n}"
 }

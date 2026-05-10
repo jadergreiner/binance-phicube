@@ -1,34 +1,36 @@
 {
-  "run_id": "spec023-soak-20260505-000000",
-  "started_at": "2026-05-05T00:00:00+00:00",
-  "finished_at": "2026-05-07T00:00:00+00:00",
-  "duration_hours": 48.0,
+  "run_id": "spec023-soak-20260510-201500",
+  "started_at": "2026-05-10T20:15:00+00:00",
+  "finished_at": "2026-05-10T20:17:00+00:00",
+  "duration_hours": 0.0333,
   "result": "reproved",
-  "failure_reason": "mandatory_event_missing:startup_success; mandatory_event_missing:monitoring_loop_per_symbol; mandatory_event_missing:health_checks_recorded; mandatory_event_missing:shutdown_recorded",
+  "failure_reason": "duration_hours_below_minimum:0.0333; mandatory_event_missing:shutdown_recorded",
   "environment": {
     "bot_version": "local-worktree",
     "api_version": "local-worktree",
     "testnet": true
   },
   "mandatory_events": {
-    "startup_success": false,
-    "monitoring_loop_per_symbol": false,
-    "health_checks_recorded": false,
+    "startup_success": true,
+    "monitoring_loop_per_symbol": true,
+    "health_checks_recorded": true,
     "error_recovery_events_recorded": true,
     "shutdown_recorded": false
   },
   "artifacts": [
     "reports/spec023_coverage_gate.json",
-    "reports/spec023_order_exec_audit.json"
+    "reports/spec023_order_exec_audit.json",
+    "reports/spec023_runtime_stability.json",
+    "logs/bot.log"
   ],
   "notes": "Gerado automaticamente por scripts/spec_023/run_soak_orchestrator.py.",
   "stability_metrics": {
     "status": "pass",
-    "generated_at": "2026-05-07T20:29:36.382008+00:00",
+    "generated_at": "2026-05-10T20:17:53.267080+00:00",
     "window": {
-      "started_at": "2026-05-05T00:00:00+00:00",
-      "finished_at": "2026-05-07T00:00:00+00:00",
-      "duration_hours": 48.0
+      "started_at": "2026-05-10T20:15:00+00:00",
+      "finished_at": "2026-05-10T20:17:00+00:00",
+      "duration_hours": 0.0333
     },
     "thresholds": {
       "memory_growth_threshold_mb": 256.0,
@@ -47,13 +49,13 @@
     "fail_reasons": []
   },
   "log_evidence": {
-    "startup_success": false,
-    "monitoring_loop_per_symbol": false,
-    "health_event_recorded_in_logs": false,
+    "startup_success": true,
+    "monitoring_loop_per_symbol": true,
+    "health_event_recorded_in_logs": true,
     "error_recovery_events_recorded": true,
     "shutdown_recorded": false,
-    "symbols_monitored_count": 0,
-    "symbols_expected_count": 0
+    "symbols_monitored_count": 3,
+    "symbols_expected_count": 3
   },
-  "heartbeat_count": 0
+  "heartbeat_count": 2
 }

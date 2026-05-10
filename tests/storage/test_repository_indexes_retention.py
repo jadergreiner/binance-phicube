@@ -7,6 +7,7 @@ import pytest
 from src.storage.repository import (
     _AUDIT_COLLECTION,
     _AUDIT_RETENTION_EVENTS,
+    _BACKTEST_JOBS_COLLECTION,
     _ONBOARDING_COLLECTION,
     _SIGNALS_COLLECTION,
     _TRADES_COLLECTION,
@@ -32,12 +33,15 @@ async def test_setup_indexes_respeita_retencao_minima_90_dias() -> None:
     audit_col = AsyncMock()
     onboarding_col = AsyncMock()
 
+    backtest_jobs_col = AsyncMock()
+
     repo._db = MagicMock()
     repo._db.__getitem__.side_effect = lambda name: {
         _TRADES_COLLECTION: trades_col,
         _SIGNALS_COLLECTION: signals_col,
         _AUDIT_COLLECTION: audit_col,
         _ONBOARDING_COLLECTION: onboarding_col,
+        _BACKTEST_JOBS_COLLECTION: backtest_jobs_col,
     }[name]
 
     await repo.setup_indexes()

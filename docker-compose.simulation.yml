@@ -1,0 +1,12 @@
+# Override para Simulation Mode — troca o env_file do phicube para .env.simulation
+# expõe MongoDB no host e monta volume de logs para scripts de evidência
+services:
+  phicube:
+    env_file:
+      - .env.simulation
+    volumes:
+      - ./logs:/app/logs
+
+  mongo:
+    ports:
+      - "127.0.0.1:27017:27017"

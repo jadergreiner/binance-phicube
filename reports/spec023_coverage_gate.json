@@ -1,8 +1,8 @@
 {
   "status": "pass",
   "threshold": 80.0,
-  "actual_percent": 81.13821138211382,
-  "covered_lines": 2495,
-  "num_statements": 3075,
+  "actual_percent": 80.98687188773201,
+  "covered_lines": 3578,
+  "num_statements": 4418,
   "coverage_path": "reports/coverage.json"
 }

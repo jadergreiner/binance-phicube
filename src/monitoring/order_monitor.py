@@ -85,7 +85,7 @@ class OrderMonitor:
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: Any,
         repository: MongoRepository,
         notifier: Notifier,
         interval_seconds: int = 60,

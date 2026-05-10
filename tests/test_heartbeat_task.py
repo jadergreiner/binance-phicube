@@ -8,7 +8,7 @@ Cobre:
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -54,8 +54,7 @@ async def test_run_nao_propaga_excecao_de_audit() -> None:
     repo = MagicMock()
     repo.audit = AsyncMock(side_effect=RuntimeError("mongo down"))
     task = HeartbeatTask(repo=repo, monitor_count=1)
-    # Força intervalo 0 para que beats ocorram rapidamente no teste
-    task.__class__ = type("HeartbeatTaskFast", (HeartbeatTask,), {"INTERVAL_SECONDS": 0})
+    task.INTERVAL_SECONDS = 0.01  # type: ignore[assignment]
 
     t = asyncio.create_task(task.run())
     await asyncio.sleep(0.05)

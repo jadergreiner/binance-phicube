@@ -51,6 +51,16 @@ class Settings(BaseSettings):
     binance_api_secret: str = Field(..., description="Binance API Secret")
     binance_testnet: bool = Field(default=True)
 
+    # Simulation / Paper Trading
+    simulation_mode: bool = Field(
+        default=False,
+        description="Ativa modo simulacao (paper trading) sem ordens reais na exchange",
+    )
+    simulation_initial_balance: Annotated[float, Field(ge=100)] = Field(
+        default=10_000.0,
+        description="Saldo inicial simulado em USDT para paper trading",
+    )
+
     # Symbols, timeframes e leverage — triplets explícitos (SPEC_018)
     # Substitui SYMBOLS × TIMEFRAMES × LEVERAGE (produto cartesiano)
     # Formato: "SYMBOL:TIMEFRAME:LEVERAGE,..." ex: "BTCUSDT:15m:5,XPTUSDT:1h:3"

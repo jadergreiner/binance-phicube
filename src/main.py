@@ -20,6 +20,7 @@ from typing import Any
 
 from src.config.settings import SymbolConfig, get_settings
 from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
+from src.exchange.simulated_client import SimulatedBinanceClient
 from src.monitoring.logger import configure_logging, get_logger
 from src.monitoring.order_monitor import OrderMonitor
 from src.notifications import Notifier, NullNotifier, TelegramNotifier
@@ -69,11 +70,11 @@ class HeartbeatTask:
         while True:
             try:
                 await self._beat()
-                await asyncio.sleep(self.INTERVAL_SECONDS)
             except asyncio.CancelledError:
                 return
             except Exception as exc:
                 logger.debug("heartbeat_failed", error_type=type(exc).__name__)
+            await asyncio.sleep(self.INTERVAL_SECONDS)
 
     async def _beat(self) -> None:
         uptime = int((datetime.now(UTC) - self._started_at).total_seconds())
@@ -98,7 +99,7 @@ class RuntimeMonitorRegistry:
         self,
         *,
         settings: Any,
-        client: BinanceClient,
+        client: Any,
         repo: MongoRepository,
         signal_engine: SignalEngine,
         notifier: Notifier,
@@ -322,7 +323,7 @@ class TradingMonitor:
     def __init__(
         self,
         config: SymbolConfig,
-        client: BinanceClient,
+        client: Any,
         repo: MongoRepository,
         signal_engine: SignalEngine,
         risk_manager: RiskManager,
@@ -547,7 +548,10 @@ class TradingMonitor:
 
 async def _main() -> None:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(
+        settings.log_level,
+        log_file="logs/bot.log" if settings.simulation_mode else None,
+    )
 
     configs = settings.symbol_timeframes
 
@@ -558,7 +562,14 @@ async def _main() -> None:
         risk_pct=settings.risk_per_trade_pct,
     )
 
-    client = BinanceClient(settings)
+    real_client = BinanceClient(settings)
+    if settings.simulation_mode:
+        client: BinanceClient | SimulatedBinanceClient = SimulatedBinanceClient(
+            real_client,
+            initial_balance_usdt=settings.simulation_initial_balance,
+        )
+    else:
+        client = real_client
     await client.connect()
 
     repo = MongoRepository(
@@ -641,7 +652,7 @@ async def _main() -> None:
 
 def _shutdown(
     tasks: list[asyncio.Task],
-    client: BinanceClient,
+    client: Any,
     repo: MongoRepository,
 ) -> None:
     logger.info("shutdown_signal_received")

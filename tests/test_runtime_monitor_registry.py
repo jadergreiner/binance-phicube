@@ -12,7 +12,9 @@ from src.main import RuntimeMonitorRegistry
 async def test_runtime_monitor_skips_symbol_with_insufficient_liquidity():
     client = Mock()
     client.validate_market_liquidity = AsyncMock(
-        side_effect=InsufficientLiquidityError("XPDUSDT: volume_24h baixo")
+        side_effect=InsufficientLiquidityError(
+            "XPDUSDT: volume_24h baixo", reason_code="insufficient_volume"
+        )
     )
     client.set_leverage = AsyncMock()
 

@@ -1,10 +1,10 @@
 {
   "status": "pass",
-  "generated_at": "2026-05-07T20:29:36.382008+00:00",
+  "generated_at": "2026-05-10T20:17:53.267080+00:00",
   "window": {
-    "started_at": "2026-05-05T00:00:00+00:00",
-    "finished_at": "2026-05-07T00:00:00+00:00",
-    "duration_hours": 48.0
+    "started_at": "2026-05-10T20:15:00+00:00",
+    "finished_at": "2026-05-10T20:17:00+00:00",
+    "duration_hours": 0.0333
   },
   "thresholds": {
     "memory_growth_threshold_mb": 256.0,
