@@ -1,76 +1,59 @@
 # AGENTS.md
 
-Guia operacional para agentes neste repositorio.
+Guia operacional para agentes no repositório Binance Phicube.
 
-## Escopo e objetivo
+Projeto: bot de auto trade Binance Futures USDT-M.
+Idioma: pt-BR em código, comentários e logs; commits em inglês (Conventional Commits).
 
-- Projeto: bot de auto trade Binance Futures USDT-M.
-- Objetivo de cada tarefa: entregar mudanca pequena, verificavel e segura.
-- Idioma padrao de documentacao e mensagens: pt-BR.
+## Comandos
 
-## Estrutura relevante do repo
+```bash
+pip install -e ".[dev]"           # instalar dev deps
+pytest                             # suite completa
+pytest tests/<path> -v            # arquivo ou teste específico
+ruff check src/ tests/             # lint (line-length=100, seleção E/F/I/UP)
+ruff format src/ tests/            # formatação
+python -m src.main                 # bot (entrypoint: src/main.py)
+phicube                            # mesmo que acima (CLI installável)
+uvicorn src.api.main:app          # dashboard API (porta 8080)
+docker compose up -d               # full stack: bot + dashboard-api + mongo
+docker compose logs -f phicube     # logs do bot
+docker compose down                # derruba tudo
+python tools/phicube_ops_cli.py doctor --json   # diagnóstico operacional
+```
 
-- `src/`: codigo de aplicacao.
-- `tests/`: testes unitarios e de integracao.
-- `docs/SDD/`: SPECs e fluxo oficial Serena.
-- `.codex/skills/`: skills locais do projeto.
-- `tools/phicube_ops_cli.py`: CLI operacional reutilizavel.
+Cobertura mínima: 80%. Gate CI em `.github/workflows/spec023-validation.yml`.
 
-## Comandos principais
+## Arquitetura
 
-- Instalar dev deps: `pip install -e ".[dev]"`.
-- Rodar testes: `pytest`.
-- Lint: `ruff check .`.
-- Format: `ruff format .`.
-- Doctor de operacao: `python tools/phicube_ops_cli.py doctor --json`.
-- Validacao de skills/adocao: `python scripts/skills/validate_skills_adoption.py`.
+Dois processos independentes, ambos `asyncio`:
 
-## Regras de execucao
+1. **Bot** (`src/main.py`) — loops de 5 min por par (symbol+timeframe). Fluxo: candles → SignalEngine → RiskManager → OrderManager → MongoRepository + Notifier.
+2. **Dashboard API** (`src/api/main.py`) — FastAPI read-only. `DashboardClient` próprio (credencial separada). Fallback `OfflinePositionStream` se falhar.
 
-- Em mudancas complexas, planejar antes de codar (modo plano ou `PLANS.md`).
-- Em mudancas simples e locais, implementar direto e validar rapidamente.
-- Sempre explicitar criterio de pronto (done when) antes de concluir.
-- Nunca assumir acesso irrestrito: manter sandbox/aprovacoes no menor privilegio necessario.
-- Nao expor segredos em logs, docs, commits ou testes.
+Componentes-chave: `src/exchange/binance_client.py` (CCXT async), `src/strategy/signal_engine.py` (BO Williams), `src/trading/order_manager.py` (execução), `src/storage/repository.py` (MongoDB motor), `src/notifications/` (Telegram ou Null).
 
-## Higiene de sessao
+## Convenções e segurança
 
-- Uma thread por tarefa coerente; evitar thread unica para o projeto inteiro.
-- Se a tarefa divergir de escopo, usar fork da thread e preservar historico.
-- Evitar execucao paralela em cima dos mesmos arquivos sem worktree dedicado.
-- Ao repetir um fluxo manual com baixa variacao, empacotar em skill antes de automatizar.
+- **Async-first**: nunca misturar sync e async. `asyncio.run()` só nos entrypoints.
+- **Logging**: `structlog`. Nunca usar `print` ou `logging.basicConfig`.
+- **Telegram token**: nunca logar `str(exc)` de `aiohttp.ClientError` (a URL com token vem na mensagem). Usar `type(exc).__name__`.
+- **Risk-first**: nenhuma posição abre sem stop-loss já enviado. SL nunca é recolocado automaticamente (DD-002).
+- **Testnet default**: `BINANCE_TESTNET=True` em desenvolvimento.
+- **Spec-driven**: novas features seguem `docs/SDD/` → ver `docs/SDD/SPEC.md` e `docs/SDD/MCP_SERENA_FLOW.md`.
 
-## Puxao de orelha operacional
+## Skills do projeto
 
-- Pedido sem `Goal/Context/Constraints/Done when`: pausar e pedir esse minimo.
-- Mudanca multi-modulo sem plano: exigir `/plan` ou `PLANS.md` antes de codar.
-- Regra recorrente repetida em prompt: mover para `AGENTS.md` ou skill.
-- Pedido de permissao ampla sem necessidade: manter menor privilegio e justificar excecao.
+- `skills/` — 7 skills legadas (git-commit-push, lint-on-edit, qa-review, etc.)
+- `.opencode/skills/` — 28 skills replicadas do codex (versionadas no repo)
+- `docs/SKILLS_ADOPTION_PLAYBOOK.md` — governança de skills
 
-## Regras de skills
+## Fontes de verdade
 
-- Cada skill deve resolver um trabalho especifico; evitar skill "faz tudo".
-- `description` precisa dizer quando usar e quando nao usar, com gatilho objetivo.
-- Preferir instrucoes em `SKILL.md`; script somente quando adicionar determinismo real.
-- Se a skill for reutilizada por outros repos/time, planejar empacotamento como plugin.
-
-## Definicao de pronto
-
-- Codigo compila/executa no contexto esperado.
-- Testes relevantes passam.
-- Lint/format relevantes passam.
-- Diff revisado com checklist de [code_review.md](./code_review.md).
-- Risco residual e limites documentados quando houver.
-
-## Checklists e templates
-
-- Prompt de tarefa: [docs/CODEX_TASK_TEMPLATE.md](./docs/CODEX_TASK_TEMPLATE.md)
-- Review padrao: [code_review.md](./code_review.md)
-- Plano para tarefas longas: [PLANS.md](./PLANS.md)
-- Skills operacionais: [docs/SKILLS_ADOPTION_PLAYBOOK.md](./docs/SKILLS_ADOPTION_PLAYBOOK.md)
-- Adocao das melhores praticas: [docs/CODEX_BEST_PRACTICES_ADOPTION.md](./docs/CODEX_BEST_PRACTICES_ADOPTION.md)
-
-## Melhoria continua
-
-- Se o agente repetir o mesmo erro duas vezes, registrar retrospectiva e atualizar este arquivo.
-- Preferir regras curtas e testaveis; mover detalhes grandes para documentos referenciados.
+- Config: `.env.example` → `src/config/settings.py` (Pydantic BaseSettings + lru_cache)
+- SPEC: `docs/SDD/SPEC.md` (especificação técnica)
+- PRD: `PRD.md` (requisitos de produto)
+- Manisfesto: `MANIFESTO.md` (princípios)
+- Revisão de diff: `code_review.md`
+- Rotação de segredos: `docs/OPERATIONS.md`
+- Governance CLI (canônico): `openspec new change`, `openspec validate`, `openspec archive`
