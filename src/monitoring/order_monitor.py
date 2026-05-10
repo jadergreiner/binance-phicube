@@ -15,6 +15,7 @@ decide se e quando recolocar a proteção.
 Ciclo: 60 segundos (configurável via parâmetro `interval_seconds`).
 Padrão de loop: igual ao PerformanceReporter (SPEC_008).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ from typing import Any
 
 import ccxt.async_support as ccxt
 
+from src.common.decorators import retry
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import get_logger
 from src.notifications.events import (
@@ -38,6 +40,11 @@ from src.trading.order_manager import TradeStatus
 logger = get_logger(__name__)
 
 _DEFAULT_RENOTIFY_INTERVAL_SECONDS = 15 * 60  # 15 minutos
+
+# Padrões para retry de fetch_order
+_DEFAULT_ORDER_RETRIES: int = 3
+_DEFAULT_ORDER_INITIAL_DELAY: float = 1.0
+_DEFAULT_ORDER_BACKOFF_FACTOR: float = 2.0
 
 
 @dataclass
@@ -642,14 +649,10 @@ class OrderMonitor:
             new_tp_order_id and new_tp_order_id != original_tp
         ):
             sl_to_update = (
-                new_sl_order_id
-                if new_sl_order_id and new_sl_order_id != original_sl
-                else None
+                new_sl_order_id if new_sl_order_id and new_sl_order_id != original_sl else None
             )
             tp_to_update = (
-                new_tp_order_id
-                if new_tp_order_id and new_tp_order_id != original_tp
-                else None
+                new_tp_order_id if new_tp_order_id and new_tp_order_id != original_tp else None
             )
 
             await self._repository.update_trade_orders(
@@ -745,62 +748,83 @@ class OrderMonitor:
             pnl_usdt=pnl_usdt,
         )
 
+    @retry(
+        max_attempts=_DEFAULT_ORDER_RETRIES,
+        initial_delay=_DEFAULT_ORDER_INITIAL_DELAY,
+        backoff_factor=_DEFAULT_ORDER_BACKOFF_FACTOR,
+        exc_types=(Exception,),
+        fatal_exc_types=_FATAL_ERRORS,
+        fallback=None,
+        log_event_prefix="fetch_order",
+    )
+    async def _fetch_order_core(
+        self,
+        order_id: str,
+        symbol: str,
+    ) -> dict[str, Any] | None:
+        """Método interno decorado com @retry para fetch_order.
+
+        Trata ccxt.OrderNotFound internamente com side effects (log + estado).
+        Não use diretamente — use _fetch_order_with_retry() para compatibilidade.
+        """
+        try:
+            self._last_fetch_order_not_found = False
+            return await self._client.fetch_order(order_id, symbol)
+        except ccxt.OrderNotFound:
+            # Ordem pode já ter saído da janela de consulta da exchange.
+            # Não é erro fatal para o monitor: seguimos com fallback
+            # de reconciliação por posição aberta/fechada.
+            logger.info(
+                "fetch_order_not_found",
+                order_id=order_id,
+                symbol=symbol,
+            )
+            self._last_fetch_order_not_found = True
+            return None
+
     async def _fetch_order_with_retry(
         self,
         order_id: str,
         symbol: str,
-        retries: int = 3,
-        base_delay: float = 1.0,
+        retries: int | None = None,
+        base_delay: float | None = None,
     ) -> dict[str, Any] | None:
         """Busca ordem com retry e backoff exponencial (padrão SPEC_007).
 
-        Retorna None se esgotar todas as tentativas ou erro não recuperável.
-        Nunca loga str(exc) — usa type(exc).__name__ (RF-011).
-        Delays: base_delay * 2^(attempt-1) → 1s, 2s, 4s com base_delay=1.0.
+        Usa @retry decorador centralizado de src.common.decorators.
+
+        Parâmetros DEPRECADOS (mantidos para compatibilidade):
+        - retries: Ignorado — usa padrão {_DEFAULT_ORDER_RETRIES} tentativas
+        - base_delay: Ignorado — usa padrão {_DEFAULT_ORDER_INITIAL_DELAY}s
+
+        Comportamento:
+        - Backoff exponencial: 1s, 2s, 4s
+        - ccxt.OrderNotFound: retorna None com log INFO (não é erro)
+        - Erros fatais (AuthenticationError, InsufficientFunds, etc): raise imediato
+        - Outros erros: retry até esgotar, depois retorna None
+        - Nunca loga str(exc) — usa error_type=type(exc).__name__
+
+        Args:
+            order_id: ID da ordem para buscar
+            symbol: Par de trading
+            retries: DEPRECATED — ignorado
+            base_delay: DEPRECATED — ignorado
+
+        Returns:
+            Dict com dados da ordem, ou None se não encontrada ou retries esgotados
+
+        Raises:
+            ccxt.AuthenticationError, ccxt.InsufficientFunds, etc: Erros fatais
         """
-        last_exc: Exception | None = None
+        # Aviso se parâmetros deprecated forem usados
+        if retries is not None or base_delay is not None:
+            logger.debug(
+                "fetch_order_deprecated_params_ignored",
+                retries=retries,
+                base_delay=base_delay,
+            )
 
-        for attempt in range(1, retries + 1):
-            try:
-                self._last_fetch_order_not_found = False
-                return await self._client.fetch_order(order_id, symbol)
-            except ccxt.OrderNotFound:
-                # Ordem pode já ter saído da janela de consulta da exchange.
-                # Não é erro fatal para o monitor: seguimos com fallback
-                # de reconciliação por posição aberta/fechada.
-                logger.info(
-                    "fetch_order_not_found",
-                    order_id=order_id,
-                    symbol=symbol,
-                )
-                self._last_fetch_order_not_found = True
-                return None
-            except _FATAL_ERRORS:
-                raise
-            except Exception as exc:
-                last_exc = exc
-                next_delay = base_delay * (2 ** (attempt - 1))
-                logger.warning(
-                    "fetch_order_retry",
-                    order_id=order_id,
-                    symbol=symbol,
-                    attempt=attempt,
-                    retries=retries,
-                    error_type=type(exc).__name__,
-                    next_wait_s=next_delay,
-                )
-                if attempt < retries:
-                    await asyncio.sleep(next_delay)
-
-        # RF-007: retries esgotados — log e retorna None para não afetar outros trades
-        logger.warning(
-            "fetch_order_retries_exhausted",
-            order_id=order_id,
-            symbol=symbol,
-            retries=retries,
-            error_type=type(last_exc).__name__ if last_exc else "unknown",
-        )
-        return None
+        return await self._fetch_order_core(order_id, symbol)
 
     async def _is_position_open(self, symbol: str) -> bool:
         """Verifica se existe posição aberta na exchange para o símbolo."""

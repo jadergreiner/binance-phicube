@@ -7,6 +7,7 @@ from typing import Any
 import ccxt.async_support as ccxt
 import pandas as pd
 
+from src.common.decorators import retry
 from src.config.settings import Settings
 from src.monitoring.logger import get_logger
 
@@ -14,6 +15,36 @@ logger = get_logger(__name__)
 
 LIQUIDITY_MIN_VOLUME_24H: float = 500_000.0
 LIQUIDITY_MIN_OPEN_INTEREST: float = 200_000.0
+
+# Erros fatais para fetch_ohlcv — re-raise imediato sem retry
+_FATAL_OHLCV_EXC_TYPES: tuple[type[BaseException], ...] = (
+    ccxt.AuthenticationError,
+    ccxt.InsufficientFunds,
+    ccxt.BadSymbol,
+    ccxt.InvalidOrder,
+)
+
+# Número padrão de tentativas para fetch_ohlcv
+_DEFAULT_OHLCV_RETRIES: int = 3
+_DEFAULT_OHLCV_INITIAL_DELAY: float = 1.0
+_DEFAULT_OHLCV_BACKOFF_FACTOR: float = 2.0
+
+
+def _ohlcv_exception_wrapper(
+    exc: BaseException,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    bound_args: dict[str, Any],
+) -> Exception:
+    """Wrapper para exceção final do fetch_ohlcv.
+
+    Usa bound_args para acessar symbol e timeframe da chamada original.
+    """
+    symbol = bound_args.get("symbol", "unknown")
+    timeframe = bound_args.get("timeframe", "unknown")
+    return RuntimeError(
+        f"Failed to fetch OHLCV for {symbol}/{timeframe} after {_DEFAULT_OHLCV_RETRIES} retries"
+    )
 
 
 class InsufficientLiquidityError(Exception):
@@ -347,46 +378,69 @@ class BinanceClient:
 
     # ─── Retry helper ─────────────────────────────────────────────────────────
 
+    @retry(
+        max_attempts=_DEFAULT_OHLCV_RETRIES,
+        initial_delay=_DEFAULT_OHLCV_INITIAL_DELAY,
+        backoff_factor=_DEFAULT_OHLCV_BACKOFF_FACTOR,
+        exc_types=(Exception,),
+        fatal_exc_types=_FATAL_OHLCV_EXC_TYPES,
+        exception_wrapper=_ohlcv_exception_wrapper,
+        log_event_prefix="fetch_ohlcv",
+    )
+    async def _fetch_ohlcv_core(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 200,
+    ) -> pd.DataFrame:
+        """Método interno decorado com @retry para fetch_ohlcv.
+
+        Não use diretamente — use fetch_ohlcv_with_retry() para compatibilidade.
+        """
+        return await self.fetch_ohlcv(symbol, timeframe, limit)
+
     async def fetch_ohlcv_with_retry(
         self,
         symbol: str,
         timeframe: str,
         limit: int = 200,
-        retries: int = 3,
-        base_delay: float = 1.0,
+        retries: int | None = None,
+        base_delay: float | None = None,
     ) -> pd.DataFrame:
-        """Retry com backoff exponencial apenas para erros recuperáveis.
+        """Retry com backoff exponencial para erros recuperáveis.
 
-        Delays: base_delay * 2^(attempt-1) → 1s, 2s, 4s com base_delay=1.0.
-        Erros fatais (AuthenticationError, InsufficientFunds, BadSymbol,
-        InvalidOrder) falham imediatamente sem retry.
-        Nunca loga str(exc) — usa type(exc).__name__ para evitar vazar credenciais.
+        Usa @retry decorador centralizado de src.common.decorators.
+
+        Parâmetros DEPRECADOS (mantidos para compatibilidade):
+        - retries: Ignorado — usa padrão {_DEFAULT_OHLCV_RETRIES} tentativas
+        - base_delay: Ignorado — usa padrão {_DEFAULT_OHLCV_INITIAL_DELAY}s
+
+        Comportamento:
+        - Backoff exponencial: 1s, 2s, 4s
+        - Erros fatais (AuthenticationError, InsufficientFunds, BadSymbol,
+          InvalidOrder) falham imediatamente sem retry
+        - Nunca loga str(exc) — usa error_type=type(exc).__name__
+
+        Args:
+            symbol: Par de trading (ex: BTCUSDT)
+            timeframe: Período (ex: 4h, 15m)
+            limit: Número de candles para buscar
+            retries: DEPRECATED — ignorado
+            base_delay: DEPRECATED — ignorado
+
+        Returns:
+            DataFrame com candles OHLCV
+
+        Raises:
+            RuntimeError: Quando tentativas se esgotam
+            ccxt.AuthenticationError, ccxt.InsufficientFunds, etc: Erros fatais
         """
-        _FATAL = (
-            ccxt.AuthenticationError,
-            ccxt.InsufficientFunds,
-            ccxt.BadSymbol,
-            ccxt.InvalidOrder,
-        )
-        last_exc: Exception | None = None
-        for attempt in range(1, retries + 1):
-            try:
-                return await self.fetch_ohlcv(symbol, timeframe, limit)
-            except _FATAL:
-                raise
-            except Exception as exc:
-                last_exc = exc
-                next_delay = base_delay * (2 ** (attempt - 1))
-                logger.warning(
-                    "fetch_ohlcv_retry",
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    attempt=attempt,
-                    retries=retries,
-                    error_type=type(exc).__name__,
-                    next_wait_s=next_delay,
-                )
-                await asyncio.sleep(next_delay)
-        raise RuntimeError(
-            f"Failed to fetch OHLCV for {symbol}/{timeframe} after {retries} retries"
-        ) from last_exc
+        # Aviso se parâmetros deprecated forem usados
+        if retries is not None or base_delay is not None:
+            logger.debug(
+                "fetch_ohlcv_deprecated_params_ignored",
+                retries=retries,
+                base_delay=base_delay,
+            )
+
+        return await self._fetch_ohlcv_core(symbol, timeframe, limit)
