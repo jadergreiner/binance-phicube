@@ -35,10 +35,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    environment:
-      BINANCE_TESTNET: "False"
-      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY}
-      DASHBOARD_API_SECRET: ${DASHBOARD_API_SECRET}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -100,7 +96,7 @@ services:
     networks:
       - phicube-net
     profiles:
-      - dev   # só ativa com: docker compose --profile dev up
+      - dev
 
 volumes:
   mongo_data:

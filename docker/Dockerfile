@@ -1,45 +1,29 @@
-# ─── Estágio de build ─────────────────────────────────────────────────────────
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Instala dependências de compilação
 RUN apt-get update && apt-get install -y --no-install-recommends gcc && \
     rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir build && \
-    pip install --no-cache-dir \
-        ccxt \
-        pandas \
-        numpy \
-        motor \
-        pymongo \
-        pydantic \
-        pydantic-settings \
-        python-dotenv \
-        structlog \
-        aiohttp \
-        asyncio-throttle
+COPY pyproject.toml .
+COPY src/ ./src/
 
-# ─── Estágio de execução ──────────────────────────────────────────────────────
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -e .
+
 FROM python:3.11-slim AS runtime
 
-# Usuário não-root para segurança
 RUN useradd --create-home --shell /bin/bash phicube
 WORKDIR /app
 
-# Copia pacotes instalados do builder
 COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
 COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /app /app/
 
-# Copia código-fonte
-COPY src/ ./src/
+RUN mkdir -p /app/logs && chown phicube:phicube /app/logs
 
 USER phicube
 
-# Healthcheck — verifica se o processo está vivo
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import src.config.settings" || exit 1
 
