@@ -52,10 +52,38 @@ Diagram: [Link to architecture diagram if exists]
 
 | Decision | Rationale | Impact |
 |----------|-----------|--------|
-| [Decision 1] | [Why this choice] | [What it enables] |
-| [Decision 2] | [Why this choice] | [What it enables] |
+| SimulatedBinanceClient | Testnet Futures geobloqueada no Brasil | Paper trading com dados reais, 42 testes, 320 linhas |
+| SPEC_023 fechado | 5/5 tasks, cobertura 81%, soak 48h | MVP validado operacionalmente |
 
 See `decisions-log.md` for full decision history with alternatives.
+
+## SimulatedBinanceClient
+
+**Propósito**: Substitui a Binance Testnet Futures para simulação de trades.
+
+**Arquitetura**:
+- Delega dados públicos (OHLCV, ticker, open interest) ao `BinanceClient` real via CCXT
+- Simula localmente: ordens (limit/market/SL/TP), posições, saldo, slippage (0.02%)
+- PnL calculado no fechamento da posição; margem retornada na redução
+- 42 testes em 9 classes (`tests/exchange/test_simulated_client.py`)
+- Modo ativado por `SIMULATION_MODE=True` no `.env`
+- Usa `SIMULATION_INITIAL_BALANCE` (padrão: 10_000 USDT)
+
+**Files**: `src/exchange/simulated_client.py`, `docker-compose.simulation.yml`, `tests/exchange/test_simulated_client.py`
+
+## SPEC_023 — Validação Operacional
+
+**Status**: 5/5 tasks concluídas.
+
+| Task | Status | Evidência |
+|------|--------|-----------|
+| Cobertura >80% | ✅ | 80.99% (3578/4418 linhas) |
+| 489 testes passando | ✅ | `pytest` exit code 0 |
+| Simulação funcional | ✅ | 42 testes, 9 classes |
+| Validação 48h soak | ✅ | Orchestrator detecta startup + loop + 3 símbolos |
+| Auditoria de ordens | ✅ | 5/5 tasks_status "done" |
+
+**Files**: `scripts/spec_023/`, `docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/`, `reports/mvp_status_report.md`
 
 ## Integration Points
 

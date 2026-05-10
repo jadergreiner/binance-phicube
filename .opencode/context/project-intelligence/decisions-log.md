@@ -78,32 +78,41 @@
 
 ---
 
-## Decision: [Title]
+## Decision: Simulation Mode > Binance Testnet
 
-**Date**: YYYY-MM-DD
-**Status**: [Status]
-**Owner**: [Owner]
+**Date**: 2026-05-10
+**Status**: Decided
+**Owner**: Time dev
 
 ### Context
-[What was happening?]
+Binance Testnet Futures é geobloqueado no Brasil — conexões retornam erro de região. O projeto precisava de um ambiente de validação operacional (SPEC_023) que exigia 50+ trades simulados e 48h de soak.
 
 ### Decision
-[What we decided]
+Criar `SimulatedBinanceClient` que substitui a Testnet: delega dados públicos (OHLCV, ticker, open interest) ao `BinanceClient` real via CCXT, mas simula ordens, posições, SL/TP, saldo e slippage localmente. Nenhuma ordem real é enviada.
 
 ### Rationale
-[Why this was right]
+- Testnet geobloqueada sem previsão de liberação
+- Solução de paper trading própria elimina dependência externa
+- Usa dados reais de mercado (preço, volume, OI) → simulação realista
+- MongoDB continua recebendo dados → scripts de auditoria funcionam
+- Código 100% versionado, sem chaves de testnet
 
 ### Alternatives Considered
 | Alternative | Pros | Cons | Why Rejected? |
 |-------------|------|------|---------------|
-| [Option A] | [Good things] | [Bad things] | [Reason] |
+| VPN para Testnet | Acesso imediato | Latência, dependência externa, custo | Complexidade operacional desnecessária |
+| Only-read Binance + cálculos manuais | Simples | Sem validação de execução | Não atende SPEC_023 |
+| Mock completo (sem dados reais) | Isolamento total | Preços irreais, sem validade | Dados sintéticos não validam estratégia real |
 
 ### Impact
-- **Positive**: [What we gain]
-- **Negative**: [What we trade off]
+- **Positive**: Ambiente de simulação completo, reprodutível, versionado. Qualquer dev roda `docker compose -f docker-compose.simulation.yml up` e tem o ecossistema completo.
+- **Negative**: Slippage fixo (0.02%) não captura variações de liquidez. Sem latência de rede simulada.
+- **Risk**: Se `SIMULATION_MODE=True` for acidentalmente usado em produção, ordens reais não são enviadas (seguro por design).
 
 ### Related
-- [Link]
+- `src/exchange/simulated_client.py` — 320 linhas, 42 testes
+- `docker-compose.simulation.yml` — override Docker
+- `docs/SDD/SPEC_023_FECHAMENTO_GAPS_PRD_MVP_OKR/` — SPEC original
 
 ---
 

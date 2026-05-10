@@ -69,8 +69,9 @@
 - [Area for improvement 2] - [Why it's a problem]
 
 ### Lessons Learned
-- [Lesson 1] - [Context and implication]
-- [Lesson 2] - [Context and implication]
+- **Blocos bloqueantes dentro de try/except viram loop infinito** — `sleep()` dentro de `try/except Exception` no `HeartbeatTask` fazia o heartbeat disparar sem pausa se o MongoDB desconectasse. Fix: mover `sleep` para fora do bloco try.
+- **Logs de bibliotecas terceiras podem dominar o output** — pymongo produziu 94k linhas em 37min em modo WARNING. Fix: `setLevel(logging.WARNING)` no logger do pymongo.
+- **Simulação > Testnet quando geobloqueada** — paper trading com dados reais de mercado via `SimulatedBinanceClient` é mais controlável e igualmente válido para validação.
 
 ## Patterns & Conventions
 
@@ -79,14 +80,15 @@
 - [Pattern 2] - [Where it lives, why it's good]
 
 ### Gotchas for Maintainers
-- [Gotcha 1] - [What to watch out for]
-- [Gotcha 2] - [What to watch out for]
+- **Nunca colocar `sleep()`/`await` dentro de `try/except` genérico** — se a exceção for capturada, o loop continua infinitamente sem pausa, causando CPU 100% e log flood. Exemplo (fixo): `heartbeat_task.py` — `sleep` foi movido para fora do `try/except`.
+- **Pymongo loga 94k+ linhas em 37min em WARNING** — sempre configurar `logging.getLogger("pymongo").setLevel(logging.WARNING)` após conectar. Feito em `src/monitoring/logger.py`.
+- **MongoDB port exposta** em `docker-compose.simulation.yml` (`127.0.0.1:27017`) — só acessível localmente, mas nunca expor em produção.
 
 ## Active Projects
 
 | Project | Goal | Owner | Timeline |
 |---------|------|-------|----------|
-| [Project] | [What we're doing] | [Who owns it] | [When it matters] |
+| MVP Simulation + SPEC_023 | Paper trading funcional, cobertura >80%, 48h soak | Time dev | Concluído (2026-05-10) |
 
 ## Archive (Resolved Items)
 
