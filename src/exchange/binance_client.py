@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio  # Needed as patch target for tests: src.exchange.binance_client.asyncio.sleep
+import asyncio  # noqa: F401 — patch target for tests: src.exchange.binance_client.asyncio.sleep
 import math
 from typing import Any
 

@@ -331,6 +331,6 @@ def test_dashboard_client_nao_compartilha_instancia_com_binance_client(
     bot_client = BinanceClient(settings)
     dash_client = DashboardClient(settings)
 
-    assert (
-        bot_client._exchange is not dash_client._exchange
-    ), "BinanceClient e DashboardClient não devem compartilhar a mesma instância ccxt"
+    assert bot_client._exchange is not dash_client._exchange, (
+        "BinanceClient e DashboardClient não devem compartilhar a mesma instância ccxt"
+    )

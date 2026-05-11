@@ -1,4 +1,5 @@
 """Testes unitários do dataclass Trade — campos RF-11 (SPEC_006 task_001)."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

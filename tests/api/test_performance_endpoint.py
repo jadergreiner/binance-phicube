@@ -1,4 +1,5 @@
 """Testes do endpoint GET /performance (SPEC_006 task_004)."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch

@@ -8,6 +8,7 @@ Se ausente, a suite e pulada graciosamente (nao falha no CI).
 Execucao:
     pytest tests/strategy/test_signal_engine_corpus.py -v
 """
+
 from __future__ import annotations
 
 import json
@@ -110,9 +111,7 @@ def _reconstruct_df(ohlcv_snapshot: list[list]) -> pd.DataFrame:
         columns=["open_time", "open", "high", "low", "close", "volume"],
     )
     df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
-    df = df.astype(
-        {"open": float, "high": float, "low": float, "close": float, "volume": float}
-    )
+    df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": float})
     return df.reset_index(drop=True)
 
 

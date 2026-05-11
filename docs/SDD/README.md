@@ -93,7 +93,7 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_026_NORMALIZACAO_HORARIO_BR_PAINEL_API/](SPEC_026_NORMALIZACAO_HORARIO_BR_PAINEL_API/SPEC.md) | SPEC_026 | Normalização de Horário Brasileiro no Painel e APIs | Concluída |
 | [SPEC_027_TELEMETRIA_NO_SIGNAL_DASHBOARD/](SPEC_027_TELEMETRIA_NO_SIGNAL_DASHBOARD/SPEC.md) | SPEC_027 | Telemetria de No-Signal no Dashboard | Concluída |
 | [SPEC_028_REALISMO_BACKTEST/](SPEC_028_REALISMO_BACKTEST/SPEC.md) | SPEC_028 | Realismo em Backtest: Slippage, Taxas e Sizing | Concluída |
-| [SPEC_029_POSITION_SIZING_ATR/](SPEC_029_POSITION_SIZING_ATR/SPEC.md) | SPEC_029 | Position Sizing por ATR | Rascunho |
+| [SPEC_029_POSITION_SIZING_ATR/](SPEC_029_POSITION_SIZING_ATR/SPEC.md) | SPEC_029 | Position Sizing por ATR | Em Refinamento |
 | [SPEC_030_SAIDA_DINAMICA/](SPEC_030_SAIDA_DINAMICA/SPEC.md) | SPEC_030 | Saída Dinâmica: Trailing Stop e TP Parcial | Rascunho |
 | [SPEC_031_BACKUP_MONGODB/](SPEC_031_BACKUP_MONGODB/SPEC.md) | SPEC_031 | Backup Automático MongoDB | Rascunho |
 | [SPEC_032_OBSERVABILIDADE_PROMETHEUS/](SPEC_032_OBSERVABILIDADE_PROMETHEUS/SPEC.md) | SPEC_032 | Observabilidade com Prometheus + Grafana | Rascunho |

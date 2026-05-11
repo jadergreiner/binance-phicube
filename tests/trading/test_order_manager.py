@@ -75,4 +75,3 @@ async def test_execute_rolls_back_when_take_profit_creation_fails() -> None:
     assert trade is not None
     assert trade.status == TradeStatus.FAILED
     client.cancel_all_orders.assert_called_once_with("BTCUSDT")
-

@@ -5,10 +5,11 @@ Cobre:
 - TEST_017_01: _beat() chama repo.audit com event "heartbeat" e campos corretos
 - TEST_017_02: falha ao gravar não propaga exceção (INV-017-01)
 """
+
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

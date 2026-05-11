@@ -9,6 +9,7 @@ Cobre:
 - fetch_quantity_precision_map: retorna precisão por símbolo
 - fetch_quantity_precision_map: símbolo não encontrado ignorado
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch

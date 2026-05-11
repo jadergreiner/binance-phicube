@@ -2,6 +2,7 @@
 
 Verifica que o runner grava um arquivo JSON válido com as chaves esperadas de BacktestResult.
 """
+
 from __future__ import annotations
 
 import asyncio

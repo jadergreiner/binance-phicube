@@ -12,15 +12,25 @@ Fórmula do position size:
     margin_required = notional / leverage
 
 Se margin_required > max_capital_allocation, a operação é bloqueada.
+
+SPEC_029 — Position Sizing por ATR:
+    Adiciona modo "atr" que calcula position size usando ATR (Average True Range)
+    com guarda de segurança: effective_stop = max(fractal_sl_distance, atr * multiplier).
+    Risco fixo em USDT independente do par.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+import pandas as pd
+
+from src.config.settings import SizingMode
 from src.monitoring.logger import get_logger
+from src.strategy.indicators import atr as atr_func
 from src.strategy.signal_engine import Direction, Signal
 
 logger = get_logger(__name__)
@@ -69,6 +79,14 @@ class RiskManager:
         max_capital_allocation_pct: float,
         min_notional: float = 5.0,  # mínimo nocional aceito pela Binance Futures
         intraday_loss_limit_pct: float = 10.0,
+        # SPEC_029 — Position Sizing por ATR
+        sizing_mode: SizingMode = SizingMode.FIXED,
+        risk_per_trade_usdt: float = 5.0,
+        atr_period: int = 14,
+        atr_multiplier: float = 1.5,
+        min_position_usdt: float = 10.0,
+        max_position_usdt: float = 500.0,
+        get_atr_multiplier_override: Callable[[str], float | None] | None = None,
     ) -> None:
         self._risk_pct = risk_per_trade_pct
         self._leverage = leverage
@@ -78,6 +96,14 @@ class RiskManager:
         self._last_rejection: RiskRejection | None = None
         self._daily_reference_capital: float | None = None
         self._daily_reference_day: datetime.date | None = None
+        # SPEC_029
+        self._sizing_mode = sizing_mode
+        self._risk_per_trade_usdt = risk_per_trade_usdt
+        self._atr_period = atr_period
+        self._atr_multiplier = atr_multiplier
+        self._min_position_usdt = min_position_usdt
+        self._max_position_usdt = max_position_usdt
+        self._get_atr_multiplier_override = get_atr_multiplier_override
 
     @property
     def last_rejection(self) -> RiskRejection | None:
@@ -98,10 +124,25 @@ class RiskManager:
         quantity_precision: int = 3,
         intraday_realized_pnl_usdt: float = 0.0,
         now_utc: datetime | None = None,
+        df: pd.DataFrame | None = None,
     ) -> PositionSize | None:
         """Calculate position size for a given signal and available balance.
 
-        Returns None if the trade would violate any risk constraint.
+        Args:
+            signal: Sinal de trading com entry/stop/take_profit.
+            available_balance: Saldo disponível em USDT.
+            quantity_precision: Precisão de quantidade da exchange.
+            intraday_realized_pnl_usdt: PnL realizado intraday.
+            now_utc: Timestamp UTC atual.
+            df: OHLCV DataFrame (obrigatório para SIZING_MODE=atr).
+
+        Returns:
+            PositionSize ou None se violar constraints de risco.
+
+        Modo ATR (SPEC_029):
+            Se SIZING_MODE=atr e df for fornecido, calcula position size
+            com effective_stop = max(fractal_sl_distance, atr * atr_multiplier).
+            Se ATR indisponível, faz fallback silencioso para fixed.
         """
         self._last_rejection = None
         now = now_utc.astimezone(UTC) if now_utc else datetime.now(UTC)
@@ -142,12 +183,173 @@ class RiskManager:
             logger.warning("zero_stop_distance", symbol=signal.symbol)
             return None
 
+        # ── SPEC_029 — ATR mode ─────────────────────────────────────────────
+        if self._sizing_mode == SizingMode.ATR and df is not None:
+            result = self._calculate_atr(
+                signal=signal,
+                stop_distance=stop_distance,
+                quantity_precision=quantity_precision,
+                df=df,
+            )
+            if result is not None:
+                return result
+            # Fallback silencioso: se ATR falhou, tenta fixed
+            logger.info(
+                "atr_fallback_to_fixed",
+                symbol=signal.symbol,
+            )
+
+        return self._calculate_fixed(
+            symbol=signal.symbol,
+            direction=signal.direction,
+            entry_price=signal.entry_price,
+            stop_price=signal.stop_loss,
+            take_profit=signal.take_profit,
+            available_balance=available_balance,
+            quantity_precision=quantity_precision,
+        )
+
+    def _get_effective_multiplier(self, symbol: str) -> float:
+        """Retorna atr_multiplier considerando override por par."""
+        if self._get_atr_multiplier_override is not None:
+            override = self._get_atr_multiplier_override(symbol)
+            if override is not None:
+                return override
+        return self._atr_multiplier
+
+    def _calculate_atr(
+        self,
+        signal: Signal,
+        stop_distance: float,
+        quantity_precision: int,
+        df: pd.DataFrame,
+    ) -> PositionSize | None:
+        """Calculate position size using ATR mode (SPEC_029).
+
+        effective_stop = max(fractal_sl_distance, atr_value * atr_multiplier)
+        position_usdt = risk_per_trade_usdt * entry_price / effective_stop
+        """
+        # Calculate ATR
+        atr_series = atr_func(
+            df["close"],
+            df["high"],
+            df["low"],
+            self._atr_period,
+        )
+        atr_value = atr_series.iloc[-1]
+
+        # Fallback se ATR inválido
+        if pd.isna(atr_value) or atr_value <= 0:
+            logger.warning(
+                "atr_value_invalid_fallback_to_fixed",
+                symbol=signal.symbol,
+                atr_value=atr_value,
+                atr_period=self._atr_period,
+                df_len=len(df),
+            )
+            return None
+
+        # Effective stop com guard
+        multiplier = self._get_effective_multiplier(signal.symbol)
+        fractal_sl_distance = stop_distance
+        effective_stop = max(fractal_sl_distance, atr_value * multiplier)
+
+        # Position size em USDT
+        position_usdt = self._risk_per_trade_usdt * signal.entry_price / effective_stop
+        position_usdt = max(
+            self._min_position_usdt,
+            min(position_usdt, self._max_position_usdt),
+        )
+
+        # Quantidade do ativo
+        raw_qty = position_usdt / signal.entry_price
+        qty = round(raw_qty, quantity_precision)
+
+        if qty <= 0:
+            self._set_rejection(
+                code="QTY_ZERO_AFTER_ROUNDING",
+                reason="quantity_zero_after_rounding",
+                details={"quantity_precision": quantity_precision},
+            )
+            logger.warning(
+                "position_size_zero_after_rounding_atr",
+                symbol=signal.symbol,
+                position_usdt=round(position_usdt, 2),
+            )
+            return None
+
+        # INV-029-05: risco real não excede 1.05x configurado
+        actual_risk_usdt = qty * effective_stop
+        max_risk_usdt = self._risk_per_trade_usdt * 1.05
+        if actual_risk_usdt > max_risk_usdt:
+            self._set_rejection(
+                code="INV_029_05_RISK_EXCEEDED",
+                reason="actual_risk_exceeds_tolerance",
+                details={
+                    "actual_risk_usdt": round(actual_risk_usdt, 4),
+                    "max_risk_usdt": round(max_risk_usdt, 4),
+                    "effective_stop": round(effective_stop, 4),
+                    "atr_value": round(atr_value, 4),
+                    "multiplier": multiplier,
+                },
+            )
+            logger.error(
+                "atr_sizing_risk_violation",
+                symbol=signal.symbol,
+                actual_risk_usdt=round(actual_risk_usdt, 2),
+                max_risk_usdt=round(max_risk_usdt, 2),
+                effective_stop=round(effective_stop, 2),
+                atr_value=round(atr_value, 4),
+                multiplier=multiplier,
+            )
+            return None
+
+        # Log estruturado para auditoria
+        logger.info(
+            "atr_sizing_calculated",
+            symbol=signal.symbol,
+            direction=signal.direction.value,
+            atr_value=round(atr_value, 4),
+            fractal_sl_distance=round(fractal_sl_distance, 2),
+            effective_stop=round(effective_stop, 2),
+            position_usdt=round(position_usdt, 2),
+            quantity=qty,
+            risk_per_trade_usdt=self._risk_per_trade_usdt,
+            multiplier=multiplier,
+            sizing_mode="atr",
+        )
+
+        return PositionSize(
+            symbol=signal.symbol,
+            direction=signal.direction,
+            quantity=qty,
+            notional=round(qty * signal.entry_price, 4),
+            margin_required=round(qty * signal.entry_price / self._leverage, 4),
+            entry_price=signal.entry_price,
+            stop_loss=signal.stop_loss,
+            take_profit=signal.take_profit,
+            risk_amount=self._risk_per_trade_usdt,
+        )
+
+    def _calculate_fixed(
+        self,
+        symbol: str,
+        direction: Direction,
+        entry_price: float,
+        stop_price: float,
+        take_profit: float,
+        available_balance: float,
+        quantity_precision: int = 3,
+    ) -> PositionSize | None:
+        """Comportamento legado: position sizing por % do saldo (risk_per_trade_pct)."""
+        stop_distance = abs(entry_price - stop_price)
+
         # Raw position size based on fixed-risk formula
         risk_amount = available_balance * (self._risk_pct / 100.0)
         raw_qty = risk_amount / stop_distance
 
         # Notional and margin check
-        notional = raw_qty * signal.entry_price
+        notional = raw_qty * entry_price
         margin_required = notional / self._leverage
         max_allowed_margin = available_balance * (self._max_alloc_pct / 100.0)
 
@@ -162,7 +364,7 @@ class RiskManager:
             )
             logger.warning(
                 "position_rejected",
-                symbol=signal.symbol,
+                symbol=symbol,
                 reason="max_capital_allocation_exceeded",
                 margin_required=round(margin_required, 4),
                 max_allowed_margin=round(max_allowed_margin, 4),
@@ -178,36 +380,36 @@ class RiskManager:
                 reason="quantity_zero_after_rounding",
                 details={"quantity_precision": quantity_precision},
             )
-            logger.warning("position_size_zero_after_rounding", symbol=signal.symbol)
+            logger.warning("position_size_zero_after_rounding", symbol=symbol)
             return None
 
         # Enforce minimum notional
-        if qty * signal.entry_price < self._min_notional:
+        if qty * entry_price < self._min_notional:
             self._set_rejection(
                 code="MIN_NOTIONAL_NOT_MET",
                 reason="below_min_notional",
                 details={
-                    "notional": round(qty * signal.entry_price, 2),
+                    "notional": round(qty * entry_price, 2),
                     "min_notional": self._min_notional,
                 },
             )
             logger.warning(
                 "below_min_notional",
-                symbol=signal.symbol,
-                notional=round(qty * signal.entry_price, 2),
+                symbol=symbol,
+                notional=round(qty * entry_price, 2),
                 min_notional=self._min_notional,
             )
             return None
 
         pos = PositionSize(
-            symbol=signal.symbol,
-            direction=signal.direction,
+            symbol=symbol,
+            direction=direction,
             quantity=qty,
-            notional=round(qty * signal.entry_price, 4),
+            notional=round(qty * entry_price, 4),
             margin_required=round(margin_required, 4),
-            entry_price=signal.entry_price,
-            stop_loss=signal.stop_loss,
-            take_profit=signal.take_profit,
+            entry_price=entry_price,
+            stop_loss=stop_price,
+            take_profit=take_profit,
             risk_amount=round(risk_amount, 4),
         )
 

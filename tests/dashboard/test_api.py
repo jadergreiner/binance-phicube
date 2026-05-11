@@ -331,7 +331,7 @@ def test_get_positions_retorna_snapshot_com_fallback_de_calculo(monkeypatch) -> 
 
 
 def test_get_positions_calcula_exposure_to_equity_ratio_quando_equity_disponivel(
-    monkeypatch
+    monkeypatch,
 ) -> None:
     """GET /positions calcula exposure_to_equity_ratio quando há equity no stream."""
     _patch_lifespan(monkeypatch)

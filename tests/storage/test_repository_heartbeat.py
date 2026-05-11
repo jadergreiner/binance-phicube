@@ -5,6 +5,7 @@ Cobre:
 - TEST_017_08: retorna datetime correto quando heartbeat existe
 - TEST_017_09: retorna None quando collection vazia ou sem heartbeats
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

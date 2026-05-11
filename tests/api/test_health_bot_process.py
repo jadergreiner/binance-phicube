@@ -9,6 +9,7 @@ Cobre:
 - TEST_017_07: campos originais (status, mongodb, timestamp) preservados
 - TEST_017_10: _health_server responde 200
 """
+
 from __future__ import annotations
 
 import asyncio

@@ -11,6 +11,7 @@ Cobre:
 - Settings invalidos: intervalo < 5 minutos levanta erro (CE-004)
 - SL restaurado manualmente enquanto posicao aberta (CE-001)
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

@@ -1,6 +1,7 @@
 """
 Testes unitários — Indicadores técnicos (Alligator, AO, Fractais).
 """
+
 from __future__ import annotations
 
 import numpy as np

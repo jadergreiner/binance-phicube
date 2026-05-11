@@ -1,6 +1,7 @@
 """
 Testes de integração para notificações no fluxo completo do bot.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock

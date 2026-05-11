@@ -16,6 +16,7 @@ Cobre os 13 cenários obrigatórios:
     TEST_012_12: PnL sem fees
     TEST_012_13: slippage no SL (exit_price = average, não stop_price)
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -142,9 +143,11 @@ async def test_012_01_sl_cancelado_notificacao_critical():
 
     # SL cancelado
     mock_client.fetch_order = AsyncMock(
-        side_effect=lambda order_id, symbol: _make_order(status="canceled", average=0.0)
-        if order_id == "sl-001"
-        else _make_order(status="open", average=0.0)
+        side_effect=lambda order_id, symbol: (
+            _make_order(status="canceled", average=0.0)
+            if order_id == "sl-001"
+            else _make_order(status="open", average=0.0)
+        )
     )
 
     await monitor._check_trade(trade)
@@ -201,9 +204,11 @@ async def test_012_03_tp_executado_pnl_correto():
     )
 
     mock_client.fetch_order = AsyncMock(
-        side_effect=lambda order_id, symbol: _make_order(status="open", average=0.0)
-        if order_id == "sl-001"
-        else _make_order(status="closed", average=42000.0)
+        side_effect=lambda order_id, symbol: (
+            _make_order(status="open", average=0.0)
+            if order_id == "sl-001"
+            else _make_order(status="closed", average=42000.0)
+        )
     )
 
     await monitor._check_trade(trade)

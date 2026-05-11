@@ -135,6 +135,67 @@ def compute_all(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+# ─── ATR (Average True Range) — SPEC_029 ──────────────────────────────────────
+
+
+def _true_range(high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
+    """True Range: max(high - low, abs(high - prev_close), abs(low - prev_close)).
+
+    O primeiro TR é sempre NaN (não há prev_close para o candle 0).
+    """
+    prev_close = close.shift(1)
+    return pd.concat(
+        [
+            high - low,
+            (high - prev_close).abs(),
+            (low - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1, skipna=False)
+
+
+def atr(
+    close: pd.Series,
+    high: pd.Series,
+    low: pd.Series,
+    period: int = 14,
+) -> pd.Series:
+    """Average True Range — Wilder's smoothed ATR (SMMA of True Range).
+
+    Implementação: SMMA do True Range (média móvel suavizada de Wilder).
+    Diferente de SMA porque o primeiro valor é SMA e os seguintes são
+    atualizados recursivamente:
+        atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period
+
+    Retorna pd.Series mesmo comprimento que entrada.
+    NaN nos primeiros ``period`` candles.
+
+    Args:
+        close: Série de preços de fechamento.
+        high: Série de preços máximos.
+        low: Série de preços mínimos.
+        period: Período do ATR (default 14).
+
+    Returns:
+        pd.Series com valores ATR.
+    """
+    tr = _true_range(high, low, close)
+    atr_values = pd.Series(index=close.index, dtype=float)
+
+    if len(tr) <= period:
+        return atr_values  # todos NaN
+
+    # Primeiro ATR: SMA dos primeiros `period` TRs (índices 1..period)
+    first_idx = period
+    atr_values.iloc[first_idx] = tr.iloc[1 : period + 1].mean()
+
+    # Demais valores: SMMA recursivo de Wilder
+    for i in range(first_idx + 1, len(tr)):
+        atr_values.iloc[i] = (atr_values.iloc[i - 1] * (period - 1) + tr.iloc[i]) / period
+
+    return atr_values
+
+
 # ─── Helper utilities ─────────────────────────────────────────────────────────
 
 

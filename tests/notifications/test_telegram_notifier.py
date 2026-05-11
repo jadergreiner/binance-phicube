@@ -1,6 +1,7 @@
 """
 Testes para TelegramNotifier e NullNotifier.
 """
+
 from __future__ import annotations
 
 import asyncio

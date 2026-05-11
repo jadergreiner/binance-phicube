@@ -3,6 +3,7 @@
 TEST_010_01 e TEST_010_02 validam que o endpoint global continua sem regressão
 após as adições de frontend da SPEC_010.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch

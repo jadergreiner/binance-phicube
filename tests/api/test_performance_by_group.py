@@ -1,4 +1,5 @@
 """Testes para GET /performance/by-symbol e GET /performance/by-timeframe (SPEC_009)."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch

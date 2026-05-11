@@ -1,6 +1,7 @@
 """
 Testes para PerformanceReporter — TEST_008_01 a TEST_008_05.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock

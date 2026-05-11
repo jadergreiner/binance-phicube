@@ -10,6 +10,7 @@ Cobre:
 - Gate de commodities: OK com backtest validado
 - TradingMonitor._interval derivado do timeframe
 """
+
 from __future__ import annotations
 
 import pytest

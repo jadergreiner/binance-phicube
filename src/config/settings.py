@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from functools import lru_cache
 from typing import Annotated, Any, cast
 
@@ -35,6 +36,13 @@ class SymbolConfig:
                 f"Leverage inválida em triplet: {triplet!r}. Valor permitido: inteiro entre 1 e 20."
             )
         return cls(symbol=symbol.upper(), timeframe=timeframe, leverage=leverage)
+
+
+class SizingMode(StrEnum):
+    """Modo de position sizing — SPEC_029."""
+
+    FIXED = "fixed"
+    ATR = "atr"
 
 
 class Settings(BaseSettings):
@@ -75,6 +83,18 @@ class Settings(BaseSettings):
     risk_reward_ratio: Annotated[float, Field(ge=1.0)] = 2.0
     max_capital_allocation_pct: Annotated[float, Field(gt=0, le=100)] = 20.0
     max_open_positions: Annotated[int, Field(ge=1)] = 3
+
+    # SPEC_029 — Position Sizing por ATR
+    sizing_mode: SizingMode = SizingMode.FIXED
+    risk_per_trade_usdt: Annotated[float, Field(gt=0)] = 5.0
+    atr_period: Annotated[int, Field(ge=2, le=100)] = 14
+    atr_multiplier: Annotated[float, Field(ge=0.5, le=10.0)] = 1.5
+    min_position_usdt: Annotated[float, Field(ge=1.0)] = 10.0
+    max_position_usdt: Annotated[float, Field(ge=1.0)] = 500.0
+    atr_multiplier_overrides: dict[str, float] = Field(
+        default_factory=dict,
+        description="Override de atr_multiplier por par. Ex: {'BTCUSDT': 2.0, 'BROCCOLI714': 3.0}",
+    )
 
     # Commodities — gate de segurança: ativar apenas após backtest aprovado (INV-018-01)
     commodities_backtest_validated: bool = False
@@ -241,6 +261,17 @@ class Settings(BaseSettings):
                 data["dashboard_api_secret"] = testnet_api_secret
 
         return data
+
+    def get_atr_multiplier(self, symbol: str) -> float:
+        """Retorna atr_multiplier com suporte a override por par.
+
+        Se existir override em atr_multiplier_overrides para o símbolo,
+        usa o valor dele. Caso contrário, usa o atr_multiplier global.
+        """
+        override_val = self.atr_multiplier_overrides.get(symbol.upper())
+        if override_val is not None:
+            return float(override_val)
+        return self.atr_multiplier
 
     @model_validator(mode="after")
     def validate_commodities_gate(self) -> Settings:

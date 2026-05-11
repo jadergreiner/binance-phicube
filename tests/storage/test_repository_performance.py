@@ -1,4 +1,5 @@
 """Testes para get_performance_by_symbol e get_performance_by_timeframe (SPEC_009)."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

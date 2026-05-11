@@ -6,6 +6,7 @@ TEST_011_03: 1 trade SL → win_rate=0%, pnl < 0
 TEST_011_04: warmup respeitado — candles antes do warmup não geram trades
 TEST_011_05: max_drawdown calculado corretamente (pior pico→vale)
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -273,10 +274,7 @@ class TestBacktestEnginePaginacao:
             # Mock retorna timestamps iniciando a partir do since recebido
             assert since is not None
             sinces_received.append(since)
-            times = [
-                pd.Timestamp((since + i * candle_ms) * 1_000_000)
-                for i in range(limit)
-            ]
+            times = [pd.Timestamp((since + i * candle_ms) * 1_000_000) for i in range(limit)]
             return pd.DataFrame(
                 {
                     "open_time": times,
@@ -311,11 +309,7 @@ class TestBacktestEnginePaginacao:
             calls += 1
             assert since is not None
             # Batch 2 começa 1 candle antes do fim do batch 1 — cria sobreposição
-            offset = (calls - 1) * limit - (calls - 1)
-            times = [
-                pd.Timestamp((since + i * candle_ms) * 1_000_000)
-                for i in range(limit)
-            ]
+            times = [pd.Timestamp((since + i * candle_ms) * 1_000_000) for i in range(limit)]
             return pd.DataFrame(
                 {
                     "open_time": times,

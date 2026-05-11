@@ -11,6 +11,7 @@ TEST_019_08: deletar sessão remove do banco
 TEST_019_09: aprovar sessão não-BACKTESTED retorna 409
 TEST_019_10: backtest em sessão inexistente retorna 404
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

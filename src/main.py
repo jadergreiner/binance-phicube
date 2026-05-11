@@ -422,6 +422,7 @@ class TradingMonitor:
             balance,
             qty_precision,
             intraday_realized_pnl_usdt=intraday_realized_pnl_usdt,
+            df=df,
         )
         if position is None:
             rejection = self._risk_manager.consume_last_rejection()

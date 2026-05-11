@@ -1,4 +1,5 @@
 """Testes de update_trade_status ampliado e get_performance_metrics (SPEC_006 tasks 002-003)."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
