@@ -22,11 +22,12 @@ Stop Loss:
     - Long: fractal_low imediatamente anterior à entrada (suporte mais recente)
     - Short: fractal_high imediatamente anterior à entrada (resistência mais recente)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 import pandas as pd
 
@@ -40,7 +41,7 @@ from src.strategy.indicators import (
 logger = get_logger(__name__)
 
 
-class Direction(str, Enum):
+class Direction(StrEnum):
     LONG = "LONG"
     SHORT = "SHORT"
 
@@ -302,8 +303,7 @@ class SignalEngine:
             decision="NO_SIGNAL",
             signal_generated=False,
             reason=(
-                f"long_missing:{','.join(missing_long)};"
-                f"short_missing:{','.join(missing_short)}"
+                f"long_missing:{','.join(missing_long)};short_missing:{','.join(missing_short)}"
             ),
             candle_open_time=last.get("open_time"),
             long_conditions=long_conditions,

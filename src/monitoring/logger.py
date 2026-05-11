@@ -4,6 +4,7 @@ Logger estruturado usando structlog.
 Produz logs em JSON (produção) ou formato colorido legível (desenvolvimento).
 Todos os módulos devem obter seu logger via get_logger(__name__).
 """
+
 from __future__ import annotations
 
 import logging
@@ -15,7 +16,7 @@ import structlog
 
 def configure_logging(log_level: str = "INFO", log_file: str | None = None) -> None:
     """Configure structlog and stdlib logging. Call once at startup.
-    
+
     Args:
         log_level: Logging level string (DEBUG, INFO, WARNING, etc.)
         log_file: Optional file path for JSON log output (e.g. "logs/bot.log").

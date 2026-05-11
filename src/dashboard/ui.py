@@ -60,7 +60,7 @@ _BANNER_CONTENT: dict[ConnectionStatus, dict[str, str]] = {
         "level": "warning",
         "title": "Snapshot em cache",
         "message": (
-            "Dados nao confiaveis: exibicao baseada em cache ate sincronizar com a " "Binance."
+            "Dados nao confiaveis: exibicao baseada em cache ate sincronizar com a Binance."
         ),
     },
 }

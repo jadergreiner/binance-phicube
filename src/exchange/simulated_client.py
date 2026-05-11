@@ -9,9 +9,9 @@ Ideal para:
 - Testes de integração sem depender de API keys de trade
 - Soak test e auditoria de execuções (SPEC_023)
 """
+
 from __future__ import annotations
 
-import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,7 +20,6 @@ import pandas as pd
 
 from src.exchange.binance_client import (
     BinanceClient,
-    InsufficientLiquidityError,
 )
 from src.monitoring.logger import get_logger
 
@@ -106,7 +105,11 @@ class SimulatedBinanceClient:
     ) -> pd.DataFrame:
         """Delega ao cliente real com retry."""
         return await self._real.fetch_ohlcv_with_retry(
-            symbol, timeframe, limit, retries, base_delay,
+            symbol,
+            timeframe,
+            limit,
+            retries,
+            base_delay,
         )
 
     async def fetch_ticker(self, symbol: str) -> dict[str, Any]:
@@ -123,7 +126,8 @@ class SimulatedBinanceClient:
         await self._real.validate_market_liquidity(symbol, min_volume, min_oi)
 
     async def fetch_quantity_precision_map(
-        self, symbols: list[str],
+        self,
+        symbols: list[str],
     ) -> dict[str, int]:
         return await self._real.fetch_quantity_precision_map(symbols)
 
@@ -157,7 +161,9 @@ class SimulatedBinanceClient:
         return list(self._positions.values())
 
     async def fetch_position_risk(
-        self, *, symbol: str | None = None,
+        self,
+        *,
+        symbol: str | None = None,
     ) -> list[dict[str, Any]]:
         positions = list(self._positions.values())
         if symbol:
@@ -165,8 +171,7 @@ class SimulatedBinanceClient:
             positions = [
                 p
                 for p in positions
-                if p.get("symbol", "").upper().replace("/", "").replace(":", "")
-                == target
+                if p.get("symbol", "").upper().replace("/", "").replace(":", "") == target
             ]
         return positions
 
@@ -181,7 +186,9 @@ class SimulatedBinanceClient:
         )
 
     async def set_margin_mode(
-        self, symbol: str, mode: str = "isolated",
+        self,
+        symbol: str,
+        mode: str = "isolated",
     ) -> None:
         logger.debug(
             "simulated_margin_mode_set",
@@ -218,9 +225,8 @@ class SimulatedBinanceClient:
         existing_pos = self._positions.get(pos_key)
         if existing_pos:
             existing_side = existing_pos.get("side")
-            is_reducing = (
-                (side == "sell" and existing_side == "long")
-                or (side == "buy" and existing_side == "short")
+            is_reducing = (side == "sell" and existing_side == "long") or (
+                side == "buy" and existing_side == "short"
             )
             if is_reducing:
                 existing_qty = float(existing_pos.get("contracts", 0))
@@ -305,7 +311,8 @@ class SimulatedBinanceClient:
                 "entryPrice": round(avg_entry, 2),
                 "currentPrice": current_price,
                 "unrealizedPnl": round(
-                    (current_price - avg_entry) * abs(new_qty) * (1 if new_qty > 0 else -1), 2,
+                    (current_price - avg_entry) * abs(new_qty) * (1 if new_qty > 0 else -1),
+                    2,
                 ),
                 "leverage": leverage,
                 "side": "long" if new_qty > 0 else "short",
@@ -420,7 +427,9 @@ class SimulatedBinanceClient:
         ]
 
     async def fetch_order(
-        self, order_id: str, symbol: str,
+        self,
+        order_id: str,
+        symbol: str,
     ) -> dict[str, Any]:
         """Retorna ordem simulada pelo ID.
 

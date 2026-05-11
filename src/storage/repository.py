@@ -500,9 +500,7 @@ class MongoRepository:
         return await cursor.to_list(length=limit)
 
     async def get_customer(self, customer_id: str) -> dict[str, Any] | None:
-        return await self._db[_CUSTOMERS_COLLECTION].find_one(
-            {"id": customer_id}, {"_id": 0}
-        )
+        return await self._db[_CUSTOMERS_COLLECTION].find_one({"id": customer_id}, {"_id": 0})
 
     async def create_customer(self, customer: dict[str, Any]) -> str | None:
         result = await self._db[_CUSTOMERS_COLLECTION].insert_one(customer)

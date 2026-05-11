@@ -10,6 +10,7 @@ Controles de segurança:
     - Respeita o limite global de posições abertas (max_open_positions)
     - Ignora a última candle (possivelmente incompleta) na avaliação de sinais
 """
+
 from __future__ import annotations
 
 import asyncio

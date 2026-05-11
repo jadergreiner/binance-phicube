@@ -1,6 +1,7 @@
 """
 Contrato base para notificadores — interface comum para envio de notificações.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

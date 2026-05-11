@@ -2,6 +2,7 @@
 Relatório periódico de performance — envia métricas agregadas via Telegram
 em intervalos configuráveis.
 """
+
 from __future__ import annotations
 
 import asyncio

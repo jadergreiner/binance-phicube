@@ -13,6 +13,7 @@ Fórmula do position size:
 
 Se margin_required > max_capital_allocation, a operação é bloqueada.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

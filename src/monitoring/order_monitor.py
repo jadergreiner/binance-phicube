@@ -26,7 +26,6 @@ from typing import Any
 import ccxt.async_support as ccxt
 
 from src.common.decorators import retry
-from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import get_logger
 from src.notifications.events import (
     NotificationEvent,

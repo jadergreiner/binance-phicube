@@ -9,6 +9,7 @@ Indicadores:
     - Awesome Oscillator (AO)
     - Fractais de Bill Williams (Bullish e Bearish)
 """
+
 from __future__ import annotations
 
 import numpy as np

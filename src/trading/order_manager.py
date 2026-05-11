@@ -10,11 +10,12 @@ Fluxo de execução:
 Em caso de falha ao colocar SL/TP, cancela todas as ordens abertas do símbolo
 e registra o erro — nunca deixa uma posição sem proteção.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from src.exchange.binance_client import BinanceClient
@@ -27,7 +28,7 @@ from src.trading.risk_manager import PositionSize
 logger = get_logger(__name__)
 
 
-class TradeStatus(str, Enum):
+class TradeStatus(StrEnum):
     OPEN = "OPEN"
     CLOSED_TP = "CLOSED_TP"
     CLOSED_SL = "CLOSED_SL"

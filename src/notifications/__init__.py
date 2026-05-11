@@ -8,6 +8,7 @@ Este módulo implementa notificações assíncronas para eventos críticos do bo
 
 As notificações são opcionais e não bloqueiam o funcionamento do bot.
 """
+
 from __future__ import annotations
 
 from .events import NotificationEvent, SLMissingEvent

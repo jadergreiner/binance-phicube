@@ -3,14 +3,15 @@ Eventos de notificação — contratos para alertas operacionais.
 
 Define os tipos de eventos que podem gerar notificações e seus payloads.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 
-class NotificationEvent(str, Enum):
+class NotificationEvent(StrEnum):
     """Tipos de eventos que geram notificações."""
 
     TRADE_OPENED = "trade_opened"
@@ -50,7 +51,7 @@ class TradeOpenedEvent:
 💎 **Take Profit:** ${self.take_profit:.2f}
 ⚠️ **Risco:** ${self.risk_amount:.2f}
 
-⏰ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"""
+⏰ {self.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")}"""
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,7 @@ class CriticalErrorEvent:
 ⚙️ **Operação:** {self.operation}{symbol_info}
 ❌ **Erro:** {self.error_message}
 
-⏰ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"""
+⏰ {self.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")}"""
 
 
 @dataclass(frozen=True)
@@ -96,7 +97,7 @@ class SLProtectionFailedEvent:
 
 **AÇÃO NECESSÁRIA:** Configure SL manualmente para proteger posição!
 
-⏰ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"""
+⏰ {self.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")}"""
 
 
 @dataclass(frozen=True)
