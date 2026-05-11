@@ -48,3 +48,7 @@ coverage.xml
 
 # Memoria local de agentes
 .ai/
+
+# Backtest artifacts
+backtest_runs.jsonl
+backtest_results/

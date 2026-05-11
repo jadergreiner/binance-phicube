@@ -32,8 +32,7 @@ class SymbolConfig:
         leverage = int(leverage_str)
         if leverage <= 0 or leverage > 20:
             raise ValueError(
-                f"Leverage inválida em triplet: {triplet!r}. "
-                "Valor permitido: inteiro entre 1 e 20."
+                f"Leverage inválida em triplet: {triplet!r}. Valor permitido: inteiro entre 1 e 20."
             )
         return cls(symbol=symbol.upper(), timeframe=timeframe, leverage=leverage)
 
@@ -122,6 +121,64 @@ class Settings(BaseSettings):
         description="Contexto de execucao do fluxo MCP Serena",
     )
 
+    # Backtest (SPEC_028) — Slippage por tier de liquidez
+    backtest_slippage_by_liq: dict[str, float] = Field(
+        default_factory=lambda: {
+            "high": 0.0003,
+            "medium": 0.0008,
+            "low": 0.0015,
+        },
+        description="Slippage percentual por tier de liquidez (high/medium/low)",
+    )
+    backtest_slippage_liq_map: dict[str, str] = Field(
+        default_factory=lambda: {
+            "BTCUSDT": "high",
+            "ETHUSDT": "high",
+            "SOLUSDT": "medium",
+            "LINKUSDT": "medium",
+            "AVAXUSDT": "medium",
+            "DOTUSDT": "medium",
+            "MATICUSDT": "medium",
+            "ATOMUSDT": "medium",
+            "UNIUSDT": "medium",
+            "LTCUSDT": "medium",
+            "BCHUSDT": "medium",
+            "ETCUSDT": "medium",
+            "FILUSDT": "medium",
+            "NEARUSDT": "medium",
+            "APTUSDT": "medium",
+            "ARBUSDT": "medium",
+            "OPUSDT": "medium",
+            "INJUSDT": "medium",
+            "RUNEUSDT": "medium",
+            "AAVEUSDT": "medium",
+            "MKRUSDT": "medium",
+            "ADAUSDT": "low",
+            "ALGOUSDT": "low",
+            "XRPUSDT": "low",
+            "DOGEUSDT": "low",
+            "TRXUSDT": "low",
+            "VETUSDT": "low",
+            "ICPUSDT": "low",
+            "XLMUSDT": "low",
+            "HBARUSDT": "low",
+            "EGLDUSDT": "low",
+            "SANDUSDT": "low",
+            "MANAUSDT": "low",
+            "THETAUSDT": "low",
+            "FTMUSDT": "low",
+        },
+        description="Mapeamento símbolo -> tier de liquidez (default: medium para não-listados)",
+    )
+    backtest_maker_fee: float = Field(
+        default=0.0002,
+        description="Taxa maker (padrão Binance VIP 0: 0.02%%)",
+    )
+    backtest_taker_fee: float = Field(
+        default=0.0005,
+        description="Taxa taker (padrão Binance VIP 0: 0.05%%)",
+    )
+
     # Dashboard (API Key READ_ONLY — sem permissão de trade)
     dashboard_api_key: str = Field(..., description="Dashboard API Key (READ_ONLY)")
     dashboard_api_secret: str = Field(..., description="Dashboard API Secret (READ_ONLY)")
@@ -196,8 +253,7 @@ class Settings(BaseSettings):
             )
         if self.dashboard_write_auth_required and not self.dashboard_write_auth_token:
             raise ValueError(
-                "DASHBOARD_WRITE_AUTH_TOKEN obrigatorio quando "
-                "DASHBOARD_WRITE_AUTH_REQUIRED=true."
+                "DASHBOARD_WRITE_AUTH_TOKEN obrigatorio quando DASHBOARD_WRITE_AUTH_REQUIRED=true."
             )
         return self
 
