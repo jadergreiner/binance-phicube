@@ -122,6 +122,13 @@ class RuntimeMonitorRegistry:
             risk_per_trade_pct=self._settings.risk_per_trade_pct,
             leverage=cfg.leverage,
             max_capital_allocation_pct=self._settings.max_capital_allocation_pct,
+            sizing_mode=self._settings.sizing_mode,
+            risk_per_trade_usdt=self._settings.risk_per_trade_usdt,
+            atr_period=self._settings.atr_period,
+            atr_multiplier=self._settings.atr_multiplier,
+            min_position_usdt=self._settings.min_position_usdt,
+            max_position_usdt=self._settings.max_position_usdt,
+            get_atr_multiplier_override=self._settings.atr_multiplier_overrides.get,
         )
         order_manager = OrderManager(self._client, leverage=cfg.leverage, notifier=self._notifier)
         return TradingMonitor(
