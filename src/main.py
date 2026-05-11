@@ -19,7 +19,7 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
-from src.config.settings import SymbolConfig, get_settings
+from src.config.settings import ExitStrategy, SymbolConfig, get_settings  # noqa: F401
 from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
 from src.exchange.simulated_client import SimulatedBinanceClient
 from src.monitoring.logger import configure_logging, get_logger
@@ -130,7 +130,15 @@ class RuntimeMonitorRegistry:
             max_position_usdt=self._settings.max_position_usdt,
             get_atr_multiplier_override=self._settings.atr_multiplier_overrides.get,
         )
-        order_manager = OrderManager(self._client, leverage=cfg.leverage, notifier=self._notifier)
+        order_manager = OrderManager(
+            self._client,
+            leverage=cfg.leverage,
+            notifier=self._notifier,
+            exit_strategy=self._settings.exit_strategy,
+            tp_levels=self._settings.tp_levels,
+            trailing_activation_pct=self._settings.trailing_activation_pct,
+            trailing_callback_rate=self._settings.trailing_callback_rate,
+        )
         return TradingMonitor(
             config=cfg,
             client=self._client,

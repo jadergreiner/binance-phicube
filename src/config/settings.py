@@ -45,6 +45,23 @@ class SizingMode(StrEnum):
     ATR = "atr"
 
 
+@dataclass(frozen=True)
+class TpLevel:
+    """Nível de Take-Profit parcial."""
+
+    qty_pct: float  # Percentual da posição (ex: 50.0 = 50%)
+    price_distance_pct: float  # Distância do TP em % a partir do entry (ex: 2.0 = 2%)
+
+
+class ExitStrategy(StrEnum):
+    """Estratégia de saída — SPEC_030."""
+
+    FIXED = "fixed"
+    PARTIAL = "partial"
+    TRAILING = "trailing"
+    # PARTIAL_TRAILING = "partial+trailing"  # postergado
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -94,6 +111,31 @@ class Settings(BaseSettings):
     atr_multiplier_overrides: dict[str, float] = Field(
         default_factory=dict,
         description="Override de atr_multiplier por par. Ex: {'BTCUSDT': 2.0, 'BROCCOLI714': 3.0}",
+    )
+
+    # Exit strategy (SPEC_030)
+    exit_strategy: ExitStrategy = ExitStrategy.FIXED
+    tp_levels: list[dict[str, float]] = Field(
+        default_factory=lambda: [
+            {"qty_pct": 50.0, "price_distance_pct": 2.0},
+            {"qty_pct": 50.0, "price_distance_pct": 4.0},
+        ],
+        description="Níveis de TP parcial: lista de {qty_pct, price_distance_pct}. "
+        "Mínimo 1, máximo 3 níveis. Soma de qty_pct <= 100.",
+    )
+    exit_strategy_overrides: dict[str, str] = Field(
+        default_factory=dict,
+        description="Override de exit_strategy por par. Ex: {'BTCUSDT': 'partial'}",
+    )
+
+    # Trailing Stop (SPEC_030 V2)
+    trailing_activation_pct: Annotated[float, Field(ge=0.1, le=20.0)] = Field(
+        default=1.0,
+        description="Percentual de lucro para ativar o trailing stop",
+    )
+    trailing_callback_rate: Annotated[float, Field(ge=0.1, le=10.0)] = Field(
+        default=0.5,
+        description="Callback rate do trailing stop em %% (0.1-10.0)",
     )
 
     # Commodities — gate de segurança: ativar apenas após backtest aprovado (INV-018-01)
@@ -287,6 +329,61 @@ class Settings(BaseSettings):
                 "DASHBOARD_WRITE_AUTH_TOKEN obrigatorio quando DASHBOARD_WRITE_AUTH_REQUIRED=true."
             )
         return self
+
+    @model_validator(mode="after")
+    def validate_exit_strategy(self) -> Settings:
+        """D-006: Valida configuração de saída dinâmica. Erro fatal no startup."""
+        # Validar tp_levels
+        levels = self.tp_levels
+        if not isinstance(levels, list) or not (1 <= len(levels) <= 3):
+            n_levels = len(levels) if isinstance(levels, list) else "tipo inválido"
+            raise ValueError(f"tp_levels deve ter entre 1 e 3 níveis, mas tem {n_levels}")
+
+        total_qty = 0.0
+        for i, level in enumerate(levels):
+            qty = level.get("qty_pct", 0)
+            price_dist = level.get("price_distance_pct", 0)
+            if not isinstance(qty, (int, float)) or qty <= 0:
+                raise ValueError(f"tp_levels[{i}].qty_pct deve ser > 0, recebeu {qty}")
+            if not isinstance(price_dist, (int, float)) or price_dist <= 0:
+                raise ValueError(
+                    f"tp_levels[{i}].price_distance_pct deve ser > 0, recebeu {price_dist}"
+                )
+            total_qty += qty
+
+        if total_qty > 100.0:
+            raise ValueError(f"Soma de tp_levels qty_pct é {total_qty}% — deve ser <= 100%")
+
+        # Validar exit_strategy
+        if self.exit_strategy == ExitStrategy.TRAILING:
+            if self.trailing_activation_pct <= self.trailing_callback_rate:
+                raise ValueError(
+                    f"trailing_activation_pct ({self.trailing_activation_pct}) deve ser maior "
+                    f"que trailing_callback_rate ({self.trailing_callback_rate})"
+                )
+
+        # Validar exit_strategy_overrides
+        valid_strategies = {"fixed", "partial", "trailing"}
+        for symbol, strategy in (self.exit_strategy_overrides or {}).items():
+            if strategy not in valid_strategies:
+                raise ValueError(
+                    f"exit_strategy_overrides[{symbol!r}] = {strategy!r} inválido. "
+                    f"Valores permitidos: {valid_strategies}"
+                )
+
+        return self
+
+    def log_exit_strategy_config(self) -> None:
+        """Loga configuração de saída no startup."""
+        from src.monitoring.logger import get_logger
+
+        log = get_logger(__name__)
+        log.info(
+            "exit_strategy_configured",
+            strategy=self.exit_strategy.value,
+            tp_levels=self.tp_levels,
+            overrides=self.exit_strategy_overrides,
+        )
 
 
 @lru_cache(maxsize=1)

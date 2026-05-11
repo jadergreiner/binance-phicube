@@ -402,6 +402,45 @@ class SimulatedBinanceClient:
         )
         return order
 
+    async def create_trailing_stop_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        activation_price: float,
+        callback_rate: float,
+    ) -> dict[str, Any]:
+        """Cria ordem TRAILING_STOP_MARKET simulada (status open)."""
+        self._order_counter += 1
+        order_id = f"sim_trailing_{self._order_counter}"
+        order: dict[str, Any] = {
+            "id": order_id,
+            "symbol": symbol,
+            "side": side,
+            "type": "TRAILING_STOP_MARKET",
+            "quantity": quantity,
+            "stopPrice": activation_price,
+            "price": activation_price,
+            "average": 0.0,
+            "filled": 0.0,
+            "remaining": quantity,
+            "status": "open",
+            "reduceOnly": True,
+            "callbackRate": callback_rate,
+            "activationPrice": activation_price,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "simulated": True,
+        }
+        self._orders[order_id] = order
+        logger.info(
+            "simulated_trailing_stop_order_created",
+            symbol=symbol,
+            activation_price=activation_price,
+            callback_rate=callback_rate,
+            order_id=order_id,
+        )
+        return order
+
     async def cancel_all_orders(self, symbol: str) -> None:
         """Cancela todas as ordens abertas simuladas do símbolo."""
         cancelled = [
@@ -439,6 +478,86 @@ class SimulatedBinanceClient:
         if order is None:
             raise ccxt.OrderNotFound(f"simulated order {order_id} not found")
         return order
+
+    # ─── Conditional Orders ──────────────────────────────────────────────────
+
+    async def check_and_execute_conditional_orders(
+        self,
+        symbol: str,
+        current_price: float,
+    ) -> list[dict[str, Any]]:
+        """Simula execução de ordens condicionais (SL/TP) quando preço atinge stopPrice.
+
+        Percorre ordens abertas do símbolo, verifica se o preço atual atingiu
+        o stopPrice de cada ordem condicional e, em caso positivo, executa a ordem
+        como uma ordem de mercado simulada.
+
+        Args:
+            symbol: Símbolo a verificar (ex: 'BTCUSDT')
+            current_price: Preço atual para comparação com stopPrice
+
+        Returns:
+            Lista de ordens executadas (dicts com dados da execução)
+        """
+        executed: list[dict[str, Any]] = []
+        open_orders = await self.fetch_open_orders(symbol)
+
+        for order in open_orders:
+            order_type = order.get("type", "")
+            if order_type not in ("STOP_MARKET", "TAKE_PROFIT_MARKET"):
+                continue
+
+            order_side = order.get("side", "")
+            stop_price = float(order.get("stopPrice", 0))
+            quantity = float(order.get("quantity", 0))
+
+            # Verificar condição de ativação
+            should_execute = False
+            if order_type == "STOP_MARKET":
+                # STOP_MARKET ativa quando preço cruza stopPrice na direção da perda
+                if order_side == "sell":  # Long position SL
+                    should_execute = current_price <= stop_price
+                else:  # Short position SL
+                    should_execute = current_price >= stop_price
+            elif order_type == "TAKE_PROFIT_MARKET":
+                # TAKE_PROFIT_MARKET ativa quando preço cruza stopPrice na direção do lucro
+                if order_side == "sell":  # Long position TP
+                    should_execute = current_price >= stop_price
+                else:  # Short position TP
+                    should_execute = current_price <= stop_price
+
+            if not should_execute:
+                continue
+
+            # Remover a ordem condicional da lista de abertas
+            order_id = str(order.get("id", ""))
+            if order_id in self._orders:
+                existing = self._orders[order_id]
+                existing["status"] = "closed"
+                existing["average"] = current_price
+                existing["filled"] = quantity
+                existing["remaining"] = 0.0
+
+            # Executar como ordem de mercado (reduceOnly)
+            exec_order = await self.create_market_order(
+                symbol=symbol,
+                side=order_side,
+                quantity=quantity,
+            )
+            executed.append(exec_order)
+
+            logger.info(
+                "simulated_conditional_executed",
+                symbol=symbol,
+                order_type=order_type,
+                side=order_side,
+                quantity=quantity,
+                stop_price=stop_price,
+                fill_price=current_price,
+                order_id=order_id,
+            )
+
+        return executed
 
     # ─── Resets ──────────────────────────────────────────────────────────────
 

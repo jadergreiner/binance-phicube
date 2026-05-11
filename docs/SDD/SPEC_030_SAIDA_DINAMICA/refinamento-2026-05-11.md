@@ -2,7 +2,8 @@
 
 **Data:** 2026-05-11
 **Sessão:** Time A (Refinamento) — Facilitador Externo + Tech Lead
-**Status:** Decisões Parciais — aguardando encerramento formal
+**Status:** Convergido — artefato final consolidado
+**Fases:** 1. Abertura ✅ · 2. Exploração Técnica ✅ · 3. Decisões ✅ · 4. Convergência ✅ · 5. Artefatos Finais ✅
 
 ---
 
@@ -32,6 +33,7 @@ Refinar o rascunho v1.0 da SPEC_030 (Saída Dinâmica: Trailing Stop e Take-Prof
 - ✅ SL original permanece intocado — DD-002 respeitado
 - ✅ Zero timing risk entre TP1 e reenvio de SL
 - ✅ Zero linhas de código para gerenciamento de estado pós-parcial
+- 🎯 **Nota (Convergência G-005):** TP usa `TAKE_PROFIT_MARKET` (não `TAKE_PROFIT_LIMIT` como no rascunho original). Decisão deliberada para eliminar risco de não-execução em gaps de mercado. TP parcial jamais usa LIMIT.
 - **Responsável Time B:** Backend Sênior + Quant Developer
 
 ### D-002: Trailing Stop via TRAILING_STOP_MARKET nativo (V2)
@@ -55,12 +57,22 @@ Refinar o rascunho v1.0 da SPEC_030 (Saída Dinâmica: Trailing Stop e Take-Prof
 
 ### D-006: Config validation no startup (padrão SPEC_022)
 **Decisão:** Validar configurações da estratégia de saída na inicialização, mesmo padrão do `LEVERAGE <= 20x`:
-- Se `exit_strategy` contém "partial": `sum(lvl.qty_pct) <= 100`
+- Se `exit_strategy` contém "partial":
+  - `1 <= len(tp_levels) <= 3` (pelo menos 1, no máximo 3)
+  - Cada `lvl.qty_pct > 0` (valores positivos)
+  - Cada `lvl.pct > 0` (preço alvo positivo)
+  - `sum(lvl.qty_pct) <= 100`
 - Se `exit_strategy` contém "trailing": `activation_threshold > trail_distance`
 - Erro fatal no startup (não warning)
+- **Nota (Convergência G-003):** Regras expandidas para cobrir `len(tp_levels) >= 1`, `qty_pct > 0` e `pct > 0` — gaps identificados na convergência.
 
 ### D-007: RRR médio ponderado para trades com saída parcial
 **Decisão:** Para trades com TP parcial, o RRR realizado é calculado como média ponderada pela quantidade de cada nível. Ex.: TP1 50% @ 2% (RRR=2.0) + TP2 50% @ 4% (RRR=4.0) → RRR médio = 3.0.
+
+### D-008: Logging de execução de saída
+**Decisão:** O logging deve capturar qual nível de TP executou, preço de execução, quantidade remanescente e condições de mercado (volatilidade, spread, volume) no momento da execução. Informações logadas via structlog, sem expor dados sensíveis.
+- Ancoragem: RF-030-05 e RF-030-06 (estavam órfãos — convergência G-004)
+- **Responsável Time B:** Backend Sênior + Quant Developer
 
 ---
 
@@ -84,6 +96,7 @@ Refinar o rascunho v1.0 da SPEC_030 (Saída Dinâmica: Trailing Stop e Take-Prof
 | RNF-030-01 | Config validation no startup com erro fatal | Alta |
 | RNF-030-02 | Intervenção zero do bot no SL original (DD-002) | Alta |
 | RNF-030-03 | Compatibilidade com modo simulation (SimulatedBinanceClient) | Alta |
+| RF-030-07 | SimulatedBinanceClient deve aceitar N ordens reduceOnly simultâneas | Alta |
 
 ---
 
@@ -109,13 +122,40 @@ Refinar o rascunho v1.0 da SPEC_030 (Saída Dinâmica: Trailing Stop e Take-Prof
 |----|-------|---------|-----------|
 | R-001 | ccxt versão desatualizada não suporta Algo Order API | Alto — V2 bloqueada | Usar chamada REST direta ao `/fapi/v1/algo` |
 | R-002 | Testnet não suporta TRAILING_STOP_MARKET | Médio — V2 não testável em Testnet | Validar na documentação; se não suportar, aceitar risco em produção |
-| R-003 | Config complexa confunde operador (5 modos de saída) | Baixo | Default = "fixed" (comportamento conhecido); documentação clara |
+| R-003 | Config complexa confunde operador (4 modos de saída) | Baixo | Default = "fixed" (comportamento conhecido); documentação clara |
 
 ---
 
-## Questões em Aberto
+## Análise de Convergência (Fase 4)
 
-- Nenhuma. Todas as decisões foram tomadas nesta sessão.
+### Cruzamento Decisões × Requisitos
+
+```
+D-001 ─┬─ D-004 (reenvio SL) ── conflito? ❌ → rejeitado ✅
+        ├─ D-006 (validation)  ── OK + G-003
+        ├─ D-007 (RRR médio)   ── OK
+        └─ RF-030-01 (3 níveis) ── G-001 → resolvido
+
+D-002 ─┬─ D-005 (adaptativo)  ── conflito? ❌ → rejeitado ✅
+        └─ RF-030-04 (trailing) ── OK (condicional)
+
+D-003 ─┬─ RF-030-02 (config símbolo) ── OK
+        └─ RF-030-03 (legacy) ── OK
+```
+
+### Gaps Identificados e Resolvidos
+
+| # | Gap | Severidade | Resolução |
+|---|-----|------------|-----------|
+| **G-001** | Algoritmo fixava TP1+TP2 (2 níveis), RF diz "até 3" | Média | Algoritmo refatorado para N níveis genérico (ver Direcionamento) |
+| **G-002** | SimulatedBinanceClient sem suporte a reduceOnly múltiplo | Média | Adicionado RF-030-07 — simulador deve aceitar N ordens reduceOnly |
+| **G-003** | Validação D-006 sem cobertura de `len >= 1`, `qty_pct > 0`, `pct > 0` | Baixa | Regras expandidas em D-006 |
+| **G-004** | RF-030-05 e RF-030-06 órfãos (sem decisão ancorada) | Baixa | D-008 criado |
+| **G-005** | Documento omite que TP mudou de LIMIT para MARKET | Informativo | Nota adicionada em D-001 |
+
+### Consistência Geral
+
+Nenhuma inconsistência grave entre decisões. Todos os 5 gaps eram expansões ou detalhamentos, não contradições. Conjunto coeso e implementável por Time B.
 
 ---
 
@@ -135,18 +175,19 @@ Refinar o rascunho v1.0 da SPEC_030 (Saída Dinâmica: Trailing Stop e Take-Prof
 | `src/main.py` | Passar `exit_strategy` e `tp_levels` para OrderManager |
 | `tests/trading/test_exit_strategies.py` | TEST_030_01 a 06 (criar) |
 
-**Algoritmo (definitivo):**
+**Algoritmo (definitivo — genérico para N níveis, G-001):**
 ```
 Na abertura (execute()):
-  1. Calcular SL fixo (fractal — como hoje)
-  2. Calcular qty_tp1 = total_qty * tp_levels[0].qty_pct / 100
-  3. Calcular qty_tp2 = total_qty * tp_levels[1].qty_pct / 100
-  4. Enviar ordem MARKET de entrada (como hoje)
-  5. Enviar STOP_MARKET (SL) com reduceOnly=true, qty = total_qty
-  6. Enviar TAKE_PROFIT_MARKET (TP1) com reduceOnly=true, qty = qty_tp1
-  7. Enviar TAKE_PROFIT_MARKET (TP2) com reduceOnly=true, qty = qty_tp2
-  ⚠️ NENHUMA lógica de pós-processamento
-  🔒 DD-002 respeitado: SL original permanece
+   1. Calcular SL fixo (fractal — como hoje)
+   2. Para cada level em tp_levels:
+        calcular qty_level = total_qty * level.qty_pct / 100
+   3. Enviar ordem MARKET de entrada (como hoje)
+   4. Enviar STOP_MARKET (SL) com reduceOnly=true, qty = total_qty
+   5. Para cada level em tp_levels:
+        Enviar TAKE_PROFIT_MARKET com reduceOnly=true, qty = qty_level
+   ⚠️ NENHUMA lógica de pós-processamento
+   🔒 DD-002 respeitado: SL original permanece
+   💡 Ordem dos TPs não importa — exchange gerencia corretamente
 ```
 
 **Config:**

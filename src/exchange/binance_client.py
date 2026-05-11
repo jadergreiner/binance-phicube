@@ -322,6 +322,42 @@ class BinanceClient:
         )
         return order
 
+    async def create_trailing_stop_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        activation_price: float,
+        callback_rate: float,
+    ) -> dict[str, Any]:
+        """Create a TRAILING_STOP_MARKET order via Algo Order API.
+
+        Uses ccxt's native trailingPercent support. ccxt routes to POST /fapi/v1/algo.
+        ⚠️ closePosition=True causes error -4136 — uses explicit quantity + reduceOnly.
+        """
+        params: dict[str, Any] = {
+            "trailingPercent": callback_rate,
+            "trailingTriggerPrice": activation_price,
+            "reduceOnly": True,
+        }
+        order = await self._exchange.create_order(
+            symbol=symbol,
+            type="TRAILING_STOP_MARKET",
+            side=side,
+            amount=quantity,
+            params=params,
+        )
+        logger.info(
+            "trailing_stop_order_created",
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            activation_price=activation_price,
+            callback_rate=callback_rate,
+            order_id=order.get("id"),
+        )
+        return order
+
     async def cancel_all_orders(self, symbol: str) -> None:
         try:
             await self._exchange.cancel_all_orders(symbol)

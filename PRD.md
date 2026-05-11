@@ -1,6 +1,6 @@
 # PRD — Product Requirement Document — Binance Phicube
 
-**Versão:** 1.1
+**Versão:** 1.2
 **Data de Criação:** 2026-05-01
 **Proprietário:** Equipe Phicube
 **Status:** Ativo — Refinamento Contínuo
@@ -223,6 +223,47 @@ TELEGRAM_CHAT_ID=         # Chat ID do operador
 - Análise de performance por símbolo e timeframe
 - Múltiplas estratégias
 - Suporte a mais timeframes (1m, 5m, 15m, etc.)
+- **Estratégia de saída avançada** (Trailing Stop + TP Parcial — SPEC_030)
+
+---
+
+#### Estratégia de Saída Avançada (SPEC_030)
+
+**Problema:** O método atual de saída (SL + TP fixos) não captura tendências prolongadas nem realiza lucro parcial. O operador precisa acompanhar manualmente para ajustar stops, reintroduzindo o componente emocional que o bot elimina na entrada.
+
+**Solução:** Dois mecanismos de saída dinâmica que o operador ativa por configuração:
+
+| Mecanismo | Descrição | Valor para o Operador |
+|-----------|-----------|-----------------------|
+| **TP Parcial (V1)** | Fecha a posição em lotes (ex.: 50% no TP1, 50% no TP2). Ordens enviadas na abertura — zero intervenção do bot depois. | Realiza lucro parcial sem timing risk. Saldo médio mais estável. SL original nunca é movido (DD-002). |
+| **Trailing Stop (V2)** | Stop que acompanha o preço automaticamente. Executado via ordem nativa TRAILING_STOP_MARKET da Binance — sem risco de gap. | Protege ganhos em tendências fortes sem intervenção manual. Zero risco de não-execução (ordem MARKET). |
+
+**Critérios de Sucesso:**
+
+| Critério | Métrica | Alvo |
+|----------|---------|------|
+| TP Parcial | Níveis executam na ordem correta, SL permanece | 100% das execuções em Testnet |
+| Trailing Stop | Stop ajusta automaticamente com o preço | Confirmado via Algo Order API em Testnet |
+| Zero Intervenção | Nenhum reenvio de ordem pós-abertura | Verificado em logs |
+| Modo Legado | `exit_strategy="fixed"` = comportamento atual inalterado | Testes comparativos |
+
+**Configuração do Operador:**
+
+```ini
+# .env — Opt-in por símbolo
+BTCUSDT:15m:5:partial  # exit_strategy=partial
+ETHUSDT:15m:5:fixed    # exit_strategy=fixed (default)
+
+# Níveis de TP (opcional — aplica se exit_strategy contém "partial")
+TP_LEVELS=[{"pct":2.0,"qty_pct":50},{"pct":4.0,"qty_pct":50}]
+
+# Trailing (opcional — aplica se exit_strategy contém "trailing")
+TRAILING_ACTIVATION_PCT=1.0
+TRAILING_CALLBACK_RATE=0.5
+```
+
+**Dependências:** SPEC_006 (métricas), SPEC_022 (DD-002 — SL nunca recolocado)
+**Prioridade:** V1 obrigatória no ciclo atual | V2 condicional à verificação técnica da Algo Order API na Testnet
 
 ### ❌ Out of Scope (v1)
 
@@ -390,6 +431,7 @@ TELEGRAM_CHAT_ID=         # Chat ID do operador
 
 | Versão | Data | Autor | Mudanças |
 |---|---|---|---|
+| 1.2 | 2026-05-11 | Time A | Adicionado Estratégia de Saída Avançada (SPEC_030) — TP Parcial (V1) + Trailing Stop Nativo (V2) |
 | 1.1 | 2026-05-07 | Time B | Alinhamento de critério de escalabilidade para limite operacional vigente e meta evolutiva |
 | 1.0 | 2026-05-01 | Time A | Documento inicial baseado em Manifesto |
 

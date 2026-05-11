@@ -8,6 +8,7 @@ from src.storage.repository import (
     _AUDIT_COLLECTION,
     _AUDIT_RETENTION_EVENTS,
     _BACKTEST_JOBS_COLLECTION,
+    _CUSTOMERS_COLLECTION,
     _ONBOARDING_COLLECTION,
     _SIGNALS_COLLECTION,
     _TRADES_COLLECTION,
@@ -34,6 +35,7 @@ async def test_setup_indexes_respeita_retencao_minima_90_dias() -> None:
     onboarding_col = AsyncMock()
 
     backtest_jobs_col = AsyncMock()
+    customers_col = AsyncMock()
 
     repo._db = MagicMock()
     repo._db.__getitem__.side_effect = lambda name: {
@@ -42,6 +44,7 @@ async def test_setup_indexes_respeita_retencao_minima_90_dias() -> None:
         _AUDIT_COLLECTION: audit_col,
         _ONBOARDING_COLLECTION: onboarding_col,
         _BACKTEST_JOBS_COLLECTION: backtest_jobs_col,
+        _CUSTOMERS_COLLECTION: customers_col,
     }[name]
 
     await repo.setup_indexes()

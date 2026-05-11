@@ -46,6 +46,9 @@ coverage.xml
 # Serena (assistente local — não deve ir para o repositório)
 .serena/
 
+# Task management artifacts
+.tmp/
+
 # Memoria local de agentes
 .ai/
 
