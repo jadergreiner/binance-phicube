@@ -138,6 +138,11 @@ class RuntimeMonitorRegistry:
             slippage_tolerance_reduced=self._settings.slippage_tolerance_reduced,
             liq_map=self._settings.backtest_slippage_liq_map,
             slippage_map=self._settings.backtest_slippage_by_liq,
+            get_portfolio_reduction=lambda: (
+                router.portfolio_risk_reduction_factor
+                if router.portfolio_breaker_active
+                else 1.0
+            ),
         )
         # Registrar no router
         router.register(cfg.symbol, risk_manager)

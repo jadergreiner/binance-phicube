@@ -36,6 +36,8 @@ from src.strategy.signal_engine import Direction, Signal
 
 logger = get_logger(__name__)
 
+DEAD_ZONE: float = 0.001  # D10: PnL abaixo deste valor não altera contadores CB
+
 
 @dataclass(frozen=True)
 class PositionSize:
@@ -89,6 +91,7 @@ class RiskManager:
         max_position_usdt: float = 500.0,
         get_atr_multiplier_override: Callable[[str], float | None] | None = None,
         # SPEC_043 — Slippage Protection e Circuit Breaker
+        get_portfolio_reduction: Callable[[], float] | None = None,
         max_position_pct: float = 0.0,
         consecutive_loss_threshold: int = 3,
         cb_risk_reduction_factor: float = 0.5,
@@ -134,6 +137,8 @@ class RiskManager:
         self._slippage_tolerance_reduced = slippage_tolerance_reduced
         self._liq_map = liq_map or {}
         self._slippage_map = slippage_map or {}
+        # SPEC_043 — Portfolio CB Observer
+        self._get_portfolio_reduction = get_portfolio_reduction
 
     @property
     def last_rejection(self) -> RiskRejection | None:
@@ -353,53 +358,16 @@ class RiskManager:
             )
             return None
 
-        # SPEC_043 — Slippage gate (Chain of Responsibility)
-        if self._slippage_validation_enabled:
-            slippage_estimate = self._estimate_slippage(
-                symbol=signal.symbol,
-                quantity=qty,
-                entry_price=signal.entry_price,
-                atr_value=atr_value,
-            )
-            total_risk = actual_risk_usdt + slippage_estimate
-            tolerance = (
-                self._slippage_tolerance_reduced
-                if self._circuit_breaker_active
-                else self._slippage_tolerance_multiplier
-            )
-            max_allowed_risk = self.effective_risk_per_trade_usdt * tolerance
-            if total_risk > max_allowed_risk:
-                self._set_rejection(
-                    code="SLIPPAGE_EXCEEDS_TOLERANCE",
-                    reason="slippage_estimate_exceeds_tolerance",
-                    details={
-                        "actual_risk_usdt": round(actual_risk_usdt, 4),
-                        "slippage_estimate_usdt": round(slippage_estimate, 4),
-                        "total_risk_usdt": round(total_risk, 4),
-                        "max_allowed_risk_usdt": round(max_allowed_risk, 4),
-                        "tolerance": tolerance,
-                        "circuit_breaker_active": self._circuit_breaker_active,
-                    },
-                )
-                logger.warning(
-                    "slippage_exceeds_tolerance",
-                    symbol=signal.symbol,
-                    actual_risk_usdt=round(actual_risk_usdt, 4),
-                    slippage_estimate_usdt=round(slippage_estimate, 4),
-                    total_risk_usdt=round(total_risk, 4),
-                    max_allowed_risk_usdt=round(max_allowed_risk, 4),
-                    tolerance=tolerance,
-                )
-                return None
-            logger.info(
-                "slippage_check_passed",
-                symbol=signal.symbol,
-                actual_risk_usdt=round(actual_risk_usdt, 4),
-                slippage_estimate_usdt=round(slippage_estimate, 4),
-                total_risk_usdt=round(total_risk, 4),
-                max_allowed_risk_usdt=round(max_allowed_risk, 4),
-                tolerance=tolerance,
-            )
+        # SPEC_043 — Slippage gate (Facade)
+        if not self._check_slippage_gate(
+            actual_risk_usdt=actual_risk_usdt,
+            base_risk_usdt=self.effective_risk_per_trade_usdt,
+            symbol=signal.symbol,
+            quantity=qty,
+            entry_price=signal.entry_price,
+            atr_value=atr_value,
+        ):
+            return None
 
         # Log estruturado para auditoria
         logger.info(
@@ -498,54 +466,16 @@ class RiskManager:
             )
             return None
 
-        # SPEC_043 — Slippage gate (Chain of Responsibility) para modo fixed
-        if self._slippage_validation_enabled:
-            actual_risk_usdt_fixed = qty * stop_distance
-            slippage_estimate = self._estimate_slippage(
-                symbol=symbol,
-                quantity=qty,
-                entry_price=entry_price,
-                atr_value=0.0,  # Apenas slippage estático no modo fixed
-            )
-            total_risk = actual_risk_usdt_fixed + slippage_estimate
-            tolerance = (
-                self._slippage_tolerance_reduced
-                if self._circuit_breaker_active
-                else self._slippage_tolerance_multiplier
-            )
-            max_allowed_risk = risk_amount * tolerance
-            if total_risk > max_allowed_risk:
-                self._set_rejection(
-                    code="SLIPPAGE_EXCEEDS_TOLERANCE",
-                    reason="slippage_estimate_exceeds_tolerance",
-                    details={
-                        "actual_risk_usdt": round(actual_risk_usdt_fixed, 4),
-                        "slippage_estimate_usdt": round(slippage_estimate, 4),
-                        "total_risk_usdt": round(total_risk, 4),
-                        "max_allowed_risk_usdt": round(max_allowed_risk, 4),
-                        "tolerance": tolerance,
-                        "circuit_breaker_active": self._circuit_breaker_active,
-                    },
-                )
-                logger.warning(
-                    "slippage_exceeds_tolerance",
-                    symbol=symbol,
-                    actual_risk_usdt=round(actual_risk_usdt_fixed, 4),
-                    slippage_estimate_usdt=round(slippage_estimate, 4),
-                    total_risk_usdt=round(total_risk, 4),
-                    max_allowed_risk_usdt=round(max_allowed_risk, 4),
-                    tolerance=tolerance,
-                )
-                return None
-            logger.info(
-                "slippage_check_passed",
-                symbol=symbol,
-                actual_risk_usdt=round(actual_risk_usdt_fixed, 4),
-                slippage_estimate_usdt=round(slippage_estimate, 4),
-                total_risk_usdt=round(total_risk, 4),
-                max_allowed_risk_usdt=round(max_allowed_risk, 4),
-                tolerance=tolerance,
-            )
+        # SPEC_043 — Slippage gate (Facade)
+        if not self._check_slippage_gate(
+            actual_risk_usdt=qty * stop_distance,
+            base_risk_usdt=risk_amount,
+            symbol=symbol,
+            quantity=qty,
+            entry_price=entry_price,
+            atr_value=0.0,
+        ):
+            return None
 
         pos = PositionSize(
             symbol=symbol,
@@ -559,7 +489,6 @@ class RiskManager:
             risk_amount=round(risk_amount, 4),
         )
 
-        self._last_rejection = None
         logger.info("position_size_calculated", **pos.to_dict())
         return pos
 
@@ -606,6 +535,80 @@ class RiskManager:
         )
         return slippage_usdt
 
+    def _check_slippage_gate(
+        self,
+        *,
+        actual_risk_usdt: float,
+        base_risk_usdt: float,
+        symbol: str,
+        quantity: float,
+        entry_price: float,
+        atr_value: float,
+    ) -> bool:
+        """Facade: valida slippage como fração do risco (SPEC_043).
+
+        Retorna True se o risco total (real + slippage) estiver dentro
+        da tolerância configurada. Retorna False e seta _last_rejection
+        se exceder.
+
+        A tolerância é reduzida quando o circuit breaker pair-level está
+        ativo (_slippage_tolerance_reduced vs _slippage_tolerance_multiplier).
+        """
+        if not self._slippage_validation_enabled:
+            return True
+
+        slippage_estimate = self._estimate_slippage(
+            symbol=symbol,
+            quantity=quantity,
+            entry_price=entry_price,
+            atr_value=atr_value,
+        )
+        total_risk = actual_risk_usdt + slippage_estimate
+        tolerance = (
+            self._slippage_tolerance_reduced
+            if self._circuit_breaker_active
+            else self._slippage_tolerance_multiplier
+        )
+        # Portfolio CB reduction (Observer)
+        if self._get_portfolio_reduction is not None:
+            tolerance *= self._get_portfolio_reduction()
+        max_allowed = base_risk_usdt * tolerance
+
+        if total_risk > max_allowed:
+            self._set_rejection(
+                code="SLIPPAGE_EXCEEDS_TOLERANCE",
+                reason="slippage_estimate_exceeds_tolerance",
+                details={
+                    "actual_risk_usdt": round(actual_risk_usdt, 4),
+                    "slippage_estimate_usdt": round(slippage_estimate, 4),
+                    "total_risk_usdt": round(total_risk, 4),
+                    "max_allowed_risk_usdt": round(max_allowed, 4),
+                    "tolerance": tolerance,
+                    "circuit_breaker_active": self._circuit_breaker_active,
+                },
+            )
+            logger.warning(
+                "slippage_exceeds_tolerance",
+                symbol=symbol,
+                actual_risk_usdt=round(actual_risk_usdt, 4),
+                slippage_estimate_usdt=round(slippage_estimate, 4),
+                total_risk_usdt=round(total_risk, 4),
+                max_allowed_risk_usdt=round(max_allowed, 4),
+                tolerance=tolerance,
+            )
+            return False
+
+        logger.info(
+            "slippage_check_passed",
+            symbol=symbol,
+            actual_risk_usdt=round(actual_risk_usdt, 4),
+            slippage_estimate_usdt=round(slippage_estimate, 4),
+            total_risk_usdt=round(total_risk, 4),
+            max_allowed_risk_usdt=round(max_allowed, 4),
+            tolerance=tolerance,
+        )
+        return True
+
     def _refresh_intraday_reference(self, available_balance: float, now_utc: datetime) -> None:
         day = now_utc.date()
         if self._daily_reference_day != day or self._daily_reference_capital is None:
@@ -629,8 +632,11 @@ class RiskManager:
 
     @property
     def effective_risk_per_trade_usdt(self) -> float:
-        """Retorna o risk_per_trade_usdt ativo (pode estar reduzido pelo CB)."""
-        return self._risk_per_trade_usdt
+        """Risk_per_trade_usdt ativo — pode estar reduzido pelo CB pair-level + portfólio."""
+        risk = self._risk_per_trade_usdt
+        if self._get_portfolio_reduction is not None:
+            risk *= self._get_portfolio_reduction()
+        return risk
 
     async def register_trade_outcome(self, pnl_usdt: float) -> None:
         """Registra resultado de trade para o circuit breaker (SPEC_043).
@@ -643,8 +649,7 @@ class RiskManager:
             return
 
         async with self._cb_lock:
-            # Zona morta: PnL próximo de zero não altera estado
-            if abs(pnl_usdt) <= 0.001:
+            if abs(pnl_usdt) <= DEAD_ZONE:
                 return
 
             if pnl_usdt > 0:

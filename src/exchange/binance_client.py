@@ -264,6 +264,45 @@ class BinanceClient:
         )
         return order
 
+    async def _create_order_with_protect(
+        self,
+        symbol: str,
+        order_type: str,
+        side: str,
+        amount: float,
+        params: dict[str, Any],
+        log_warn_event: str,
+        log_info_event: str,
+        log_info_fields: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Template Method: cria ordem com priceProtect e fallback silencioso (SPEC_043).
+
+        Tenta criar a ordem com priceProtect=True. Se a exchange rejeitar
+        com BadRequest (ex: testnet ou par sem suporte), retry sem priceProtect.
+        """
+        params_with_protect = {**params, "priceProtect": True}
+        try:
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type=order_type,
+                side=side,
+                amount=amount,
+                params=params_with_protect,
+            )
+        except ccxt.BadRequest:
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type=order_type,
+                side=side,
+                amount=amount,
+                params=params.copy(),
+            )
+            logger.warning(log_warn_event, symbol=symbol, side=side)
+
+        extra = (log_info_fields or {}) | {"order_id": order.get("id")}
+        logger.info(log_info_event, symbol=symbol, side=side, amount=amount, **extra)
+        return order
+
     async def create_stop_loss_order(
         self,
         symbol: str,
@@ -272,42 +311,16 @@ class BinanceClient:
         stop_price: float,
     ) -> dict[str, Any]:
         """Create a STOP_MARKET order for stop loss with priceProtect (SPEC_043)."""
-        params: dict[str, Any] = {
-            "stopPrice": stop_price,
-            "reduceOnly": True,
-            "priceProtect": True,
-        }
-        try:
-            order = await self._exchange.create_order(
-                symbol=symbol,
-                type="STOP_MARKET",
-                side=side,
-                amount=quantity,
-                params=params.copy(),
-            )
-        except ccxt.BadRequest:
-            params.pop("priceProtect", None)
-            order = await self._exchange.create_order(
-                symbol=symbol,
-                type="STOP_MARKET",
-                side=side,
-                amount=quantity,
-                params=params.copy(),
-            )
-            logger.warning(
-                "priceProtect_not_supported_stop_loss",
-                symbol=symbol,
-                side=side,
-            )
-        logger.info(
-            "stop_loss_order_created",
+        return await self._create_order_with_protect(
             symbol=symbol,
+            order_type="STOP_MARKET",
             side=side,
-            quantity=quantity,
-            stop_price=stop_price,
-            order_id=order.get("id"),
+            amount=quantity,
+            params={"stopPrice": stop_price, "reduceOnly": True},
+            log_warn_event="priceProtect_not_supported_stop_loss",
+            log_info_event="stop_loss_order_created",
+            log_info_fields={"stop_price": stop_price},
         )
-        return order
 
     async def create_take_profit_order(
         self,
@@ -317,42 +330,16 @@ class BinanceClient:
         take_profit_price: float,
     ) -> dict[str, Any]:
         """Create a TAKE_PROFIT_MARKET order with priceProtect (SPEC_043)."""
-        params: dict[str, Any] = {
-            "stopPrice": take_profit_price,
-            "reduceOnly": True,
-            "priceProtect": True,
-        }
-        try:
-            order = await self._exchange.create_order(
-                symbol=symbol,
-                type="TAKE_PROFIT_MARKET",
-                side=side,
-                amount=quantity,
-                params=params.copy(),
-            )
-        except ccxt.BadRequest:
-            params.pop("priceProtect", None)
-            order = await self._exchange.create_order(
-                symbol=symbol,
-                type="TAKE_PROFIT_MARKET",
-                side=side,
-                amount=quantity,
-                params=params.copy(),
-            )
-            logger.warning(
-                "priceProtect_not_supported_take_profit",
-                symbol=symbol,
-                side=side,
-            )
-        logger.info(
-            "take_profit_order_created",
+        return await self._create_order_with_protect(
             symbol=symbol,
+            order_type="TAKE_PROFIT_MARKET",
             side=side,
-            quantity=quantity,
-            take_profit_price=take_profit_price,
-            order_id=order.get("id"),
+            amount=quantity,
+            params={"stopPrice": take_profit_price, "reduceOnly": True},
+            log_warn_event="priceProtect_not_supported_take_profit",
+            log_info_event="take_profit_order_created",
+            log_info_fields={"take_profit_price": take_profit_price},
         )
-        return order
 
     async def create_trailing_stop_order(
         self,
@@ -368,43 +355,23 @@ class BinanceClient:
         ⚠️ closePosition=True causes error -4136 — uses explicit quantity + reduceOnly.
         priceProtect tentado com fallback silencioso (SPEC_043).
         """
-        params: dict[str, Any] = {
-            "trailingPercent": callback_rate,
-            "trailingTriggerPrice": activation_price,
-            "reduceOnly": True,
-        }
-        try:
-            params_with_protect = {**params, "priceProtect": True}
-            order = await self._exchange.create_order(
-                symbol=symbol,
-                type="TRAILING_STOP_MARKET",
-                side=side,
-                amount=quantity,
-                params=params_with_protect,
-            )
-        except ccxt.BadRequest:
-            order = await self._exchange.create_order(
-                symbol=symbol,
-                type="TRAILING_STOP_MARKET",
-                side=side,
-                amount=quantity,
-                params=params.copy(),
-            )
-            logger.warning(
-                "priceProtect_not_supported_trailing_stop",
-                symbol=symbol,
-                side=side,
-            )
-        logger.info(
-            "trailing_stop_order_created",
+        return await self._create_order_with_protect(
             symbol=symbol,
+            order_type="TRAILING_STOP_MARKET",
             side=side,
-            quantity=quantity,
-            activation_price=activation_price,
-            callback_rate=callback_rate,
-            order_id=order.get("id"),
+            amount=quantity,
+            params={
+                "trailingPercent": callback_rate,
+                "trailingTriggerPrice": activation_price,
+                "reduceOnly": True,
+            },
+            log_warn_event="priceProtect_not_supported_trailing_stop",
+            log_info_event="trailing_stop_order_created",
+            log_info_fields={
+                "activation_price": activation_price,
+                "callback_rate": callback_rate,
+            },
         )
-        return order
 
     async def cancel_all_orders(self, symbol: str) -> None:
         try:

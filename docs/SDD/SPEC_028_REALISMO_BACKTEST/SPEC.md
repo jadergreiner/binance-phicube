@@ -63,8 +63,8 @@ O motor hoje:
 **para** entender o impacto realista da estratégia.
 
 **Critério de aceite:**
-- `BacktestResult` inclui `gross` e `net` (ambos `BacktestResult`)
-- Quando `realistic=false`: `gross == net` (mesmo resultado, sem custos)
+- `BacktestResult` inclui `gross` e `net` (ambos `BacktestResult | None`)
+- Quando `realistic=false`: `gross = None`, `net = None`
 - Quando `realistic=true`: `gross ≠ net`, diferença reflete custos + sizing real
 
 ### US-028-03 — Sizing realista via RiskManager (NOVO)
@@ -110,22 +110,22 @@ O motor hoje:
 | `slippage_exit_pct` | `float` | % de slippage aplicado na saída |
 | `slippage_entry_usdt` | `float` | Deslize em USDT na entrada |
 | `slippage_exit_usdt` | `float` | Deslize em USDT na saída |
-| `pnl_gross_usdt` | `float` | PnL sem custos |
+| `pnl_gross_usdt` | `float` | PnL sem custos (fórmula linear SPEC_011) |
 | `pnl_net_usdt` | `float` | PnL líquido (deduzindo taxas + slippage) |
 
-> `pnl_usdt` existente permanece como alias para `pnl_gross_usdt` (compatibilidade reversa).
+> `pnl_usdt` existente permanece contendo o `pnl_gross` (fórmula linear SPEC_011) mesmo no modo realista — compatibilidade reversa mantida.
 
 ### Extensões em `BacktestResult`
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| `gross` | `BacktestResult` | Resultado sem custos (compatível com SPEC_011) |
-| `net` | `BacktestResult` | Resultado com custos |
+| `gross` | `BacktestResult \| None` | Resultado sem custos; `None` quando `realistic=false` |
+| `net` | `BacktestResult \| None` | Resultado com custos; `None` quando `realistic=false` |
 | `total_fees_usdt` | `float` | Soma total de taxas |
 | `total_slippage_usdt` | `float` | Soma total de slippage |
 | `warnings` | `list[str]` | Alertas informacionais (vazio se nenhum) |
 
-> **Sempre presente:** `gross` e `net` são sempre serializados. Quando `realistic=false`, `gross == net`.
+> `gross=None` e `net=None` quando `realistic=false`. Quando `realistic=true`, `gross` e `net` são ambos `BacktestResult` distintos.
 
 ---
 
@@ -184,20 +184,31 @@ def _apply_costs(
     direction: Literal["LONG", "SHORT"],
     symbol: str,
     order_type: Literal["market", "stop"],
+    slippage_override: float | None = None,
+    is_exit: bool = False,
 ) -> tuple[float, float, float]:
     """Aplica slippage percentual por tier e taxa no preço dado.
+
+    O slippage é sempre adverso: na entrada (comprar) o preço sobe;
+    na saída (vender) o preço desce. O parâmetro ``is_exit``
+    inverte a direção do slippage para ordens de saída.
 
     Args:
         price: Preço de referência (close do candle ou SL/TP).
         direction: Direção do trade.
         symbol: Símbolo para lookup do tier de liquidez.
         order_type: 'market' (entrada/saída) ou 'stop' (SL/TP).
+        slippage_override: Se fornecido, sobrescreve slippage do tier.
+        is_exit: Se True, inverte direção do slippage (saída é oposta).
 
     Returns:
         (price_with_slippage, fee_amount, slippage_amount_usdt)
     """
-    liq_tier = self._settings.backtest_slippage_liq_map.get(symbol, "medium")
-    slippage_pct = self._settings.backtest_slippage_by_liq[liq_tier]
+    if slippage_override is not None:
+        slippage_pct = max(0.0, slippage_override)
+    else:
+        liq_tier = self._settings.backtest_slippage_liq_map.get(symbol, "medium")
+        slippage_pct = self._settings.backtest_slippage_by_liq.get(liq_tier, 0.0008)
 
     fee_pct = (
         self._settings.backtest_maker_fee
@@ -205,7 +216,12 @@ def _apply_costs(
         else self._settings.backtest_taker_fee
     )
 
-    if direction == "LONG":
+    # Slippage adverso: na saída inverte direção
+    slip_dir = direction
+    if is_exit:
+        slip_dir = "SHORT" if direction == "LONG" else "LONG"
+
+    if slip_dir == "LONG":
         adjusted_price = price * (1 + slippage_pct)
     else:
         adjusted_price = price * (1 - slippage_pct)
@@ -247,19 +263,20 @@ else:  # modo legado (compatibilidade reversa)
 
 **Invariante de compatibilidade:**
 - Se `risk_manager` é `None`, todo o pipeline de custos (slippage, taxas) é ignorado
-- `BacktestResult.gross == BacktestResult.net` neste caso
+- `BacktestResult.gross = None` e `BacktestResult.net = None` neste caso
 
 ### 5.4 Alerta Informacional Composto
 
 Aplicado no output CLI e na resposta API quando `realistic=True`.
 
-**Quatro condições monitoradas:**
+**Cinco condições monitoradas:**
 
 | Condição | Gatilho | Mensagem |
 |----------|---------|----------|
 | Baixa significância | `N < 50` | "IC 95% win rate: [X%, Y%] — N={N} < 50, baixa significância estatística" |
 | Degradação alta | `net_pnl / gross_pnl < 0.5` | "Degradação alta: custos consomem >50% do lucro bruto (razão net/gross={ratio})" |
-| Crítico | Ambas acima | Alerta vermelho combinado |
+| Razão saudável | `net_pnl / gross_pnl >= 0.5` e `gross_pnl > 0` | "Razão net/gross: {ratio} — custos consumiram {degradation}% do lucro bruto" |
+| Crítico | Ambas as primeiras | Alerta vermelho combinado |
 | Múltiplas execuções | >3 runs no mesmo par em 24h | "Múltiplas execuções detectadas ({N} nas últimas 24h) — risco de data dredging" |
 
 **Comportamento:**
@@ -290,9 +307,11 @@ Taxas: $42.10 | Slippage: $15.80 | Degradação: 23.6%
 
 ```jsonl
 {"ts":"2026-05-10T14:00:00Z","symbol":"BTCUSDT","tf":"4h",
- "params":{"realistic":true,"slippage_tier":"high","risk_pct":1.0},
+ "params":{"realistic":true,"slippage_override":null},
  "gross_pnl":245.30,"net_pnl":187.40,"n_trades":35,"warnings":[]}
 ```
+
+> `slippage_tier` e `risk_pct` não são logados porque são deriváveis — o tier pode ser obtido do `backtest_slippage_liq_map` e o `risk_pct` está no `RiskManager`, que não tem visibilidade para o engine.
 
 **Comportamento:**
 - Ativo independentemente de `--realistic` (registra também execuções não-realistas)
@@ -351,7 +370,7 @@ GET /backtest?symbol=ADAUSDT&timeframe=4h&realistic=true&slippage_override=0.002
 | INV-028-02 | Slippage mínimo = 0.0 (após clamp) |
 | INV-028-03 | Taxa nunca excede o valor da posição (max 100%) |
 | INV-028-04 | `--realistic` não altera trades gerados — só custos + sizing |
-| INV-028-05 | Sem `--realistic`: `gross == net`, engine = comportamento SPEC_011 |
+| INV-028-05 | Sem `--realistic`: `gross = None`, `net = None`, engine = comportamento SPEC_011 |
 | INV-028-06 | Alerta informacional nunca bloqueia execução — exit code 0 sempre |
 | INV-028-07 | Cada execução append em `backtest_runs.jsonl` com parâmetros + resultado |
 

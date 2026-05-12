@@ -13,8 +13,8 @@
 - `origem_spec`: seção 4 — Modelo de Dados
 - `deps`: —
 - `owner`: Backend
-- `done_when`: `BacktestTrade` possui `entry_fee`, `exit_fee`, `slippage_entry_pct`, `slippage_exit_pct`, `slippage_entry_usdt`, `slippage_exit_usdt`, `pnl_gross_usdt`, `pnl_net_usdt`. `BacktestResult` possui `gross`, `net`, `total_fees_usdt`, `total_slippage_usdt`, `warnings`. Ambos serializáveis para JSON. `gross` e `net` sempre presentes (`gross == net` quando não-realista).
-- `evidência`: `pytest tests/backtest/test_realistic.py::TEST_028_04`
+- `done_when`: `BacktestTrade` possui `entry_fee`, `exit_fee`, `slippage_entry_pct`, `slippage_exit_pct`, `slippage_entry_usdt`, `slippage_exit_usdt`, `pnl_gross_usdt`, `pnl_net_usdt`. `BacktestResult` possui `gross`, `net`, `total_fees_usdt`, `total_slippage_usdt`, `warnings`. Ambos serializáveis para JSON. `gross` e `net` são `None` quando não-realista.
+- `evidência`: `pytest tests/backtest/test_spec028.py::TEST_028_04`
 - `risco`: baixo — mudança aditiva em dataclasses, sem quebra de contrato existente
 
 **TG-002 [P0] ✅ Adicionar configurações de slippage por tier e taxas**
@@ -30,7 +30,7 @@
 - `deps`: TG-001, TG-002
 - `owner`: Backend / Quant
 - `done_when`: Método `_apply_costs(price, direction, symbol, order_type)` retorna `(price_with_slippage, fee_amount, slippage_amount)`. LONG entry: +slippage. SHORT entry: −slippage. Stop orders usam maker_fee. Market orders usam taker_fee. INV-028-01, 02, 03 respeitados.
-- `evidência`: `pytest tests/backtest/test_realistic.py::TEST_028_01` e `TEST_028_02`
+- `evidência`: `pytest tests/backtest/test_spec028.py::TEST_028_01` e `TEST_028_02`
 - `risco`: médio — algoritmo de ajuste de preço por direção precisa estar correto para não inverter PnL
 
 **TG-004 [P0] ✅ Adicionar `--realistic` flag no CLI runner**
@@ -121,7 +121,7 @@
 - `origem_spec`: seção 7 — Testes
 - `deps`: TG-001 a TG-012 (cada teste depende da feature que testa)
 - `owner`: QA / Backend
-- `done_when`: 11 testes implementados e passando. `pytest tests/backtest/test_realistic.py` verde. `pytest tests/backtest/test_engine.py` inalterado.
+- `done_when`: 11 testes implementados e passando. `pytest tests/backtest/test_spec028.py` verde. `pytest tests/backtest/test_engine.py` inalterado.
 - `evidência`: CI green
 - `risco`: médio — testes de alerta multi-run dependem de clock. Usar `freezegun` ou mock de timestamp.
 

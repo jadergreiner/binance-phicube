@@ -374,16 +374,7 @@ class OrderMonitor:
             pnl_usdt=pnl_usdt,
         )
 
-        # SPEC_043 — Notificar circuit breaker
-        if self._on_trade_closed is not None and pnl_usdt is not None:
-            try:
-                await self._on_trade_closed(symbol, pnl_usdt)
-            except Exception as exc:
-                logger.warning(
-                    "trade_closed_callback_failed",
-                    symbol=symbol,
-                    error_type=type(exc).__name__,
-                )
+        await self._notify_trade_closed(symbol, pnl_usdt)
 
     async def _handle_sl_executed(self, trade: dict, order: dict) -> None:
         """Registra encerramento por SL com exit_price real."""
@@ -422,16 +413,7 @@ class OrderMonitor:
             pnl_usdt=pnl_usdt,
         )
 
-        # SPEC_043 — Notificar circuit breaker
-        if self._on_trade_closed is not None and pnl_usdt is not None:
-            try:
-                await self._on_trade_closed(symbol, pnl_usdt)
-            except Exception as exc:
-                logger.warning(
-                    "trade_closed_callback_failed",
-                    symbol=symbol,
-                    error_type=type(exc).__name__,
-                )
+        await self._notify_trade_closed(symbol, pnl_usdt)
 
     async def _handle_sl_missing(self, trade: dict, current_price: float) -> None:
         """Re-notificação periódica de SL ausente (RF-001, RF-002, RF-003).
@@ -773,16 +755,7 @@ class OrderMonitor:
             pnl_usdt=pnl_usdt,
         )
 
-        # SPEC_043 — Notificar circuit breaker
-        if self._on_trade_closed is not None and pnl_usdt is not None:
-            try:
-                await self._on_trade_closed(symbol, pnl_usdt)
-            except Exception as exc:
-                logger.warning(
-                    "trade_closed_callback_failed",
-                    symbol=symbol,
-                    error_type=type(exc).__name__,
-                )
+        await self._notify_trade_closed(symbol, pnl_usdt)
 
     @retry(
         max_attempts=_DEFAULT_ORDER_RETRIES,
@@ -938,3 +911,19 @@ class OrderMonitor:
         fees = float(trade.get("fees") or 0.0)
         side_mult = 1.0 if direction == "long" else -1.0
         return (exit_price - entry_price) * quantity * side_mult - fees
+
+    async def _notify_trade_closed(self, symbol: str, pnl_usdt: float | None) -> None:
+        """Notifica circuit breaker sobre trade fechado (SPEC_043).
+
+        Extraído via Extract Method para eliminar triplicação nos handlers
+        _handle_tp_executed, _handle_sl_executed e _handle_manual_close.
+        """
+        if self._on_trade_closed is not None and pnl_usdt is not None:
+            try:
+                await self._on_trade_closed(symbol, pnl_usdt)
+            except Exception as exc:
+                logger.warning(
+                    "trade_closed_callback_failed",
+                    symbol=symbol,
+                    error_type=type(exc).__name__,
+                )

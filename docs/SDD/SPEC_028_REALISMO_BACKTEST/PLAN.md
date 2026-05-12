@@ -100,7 +100,7 @@ Organizado em 3 fases sequenciais — cada fase termina com um **gate de qualida
 | Expor `warnings` na API | AP-02 | `routes/backtest.py` | Campo `warnings: list[str]` no JSON |
 | Implementar logging JSONL | EN-06 | `engine.py` | Append em `backtest_runs.jsonl` |
 | Implementar `--override-slippage` com WARN | EN-07 | `engine.py` + `runner.py` | Override aceito, WARN no log |
-| Testes de alerta e logging | TS-01 | `test_realistic.py` | TEST_028_07 a 11 |
+| Testes de alerta e logging | TS-01 | `test_spec028.py` | TEST_028_07 a 11 |
 
 **Gate Fase 3:**
 - [ ] TEST_028_07 a 11 passando

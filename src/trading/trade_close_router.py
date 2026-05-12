@@ -7,13 +7,11 @@ e mantém o circuit breaker de portfólio (portfolio-level).
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from src.monitoring.logger import get_logger
+from src.trading.risk_manager import DEAD_ZONE, RiskManager
 
 logger = get_logger(__name__)
-
-_DEAD_ZONE: float = 0.001  # D10: PnL abaixo deste valor não altera contadores
 
 
 class TradeCloseRouter:
@@ -30,7 +28,7 @@ class TradeCloseRouter:
         portfolio_risk_reduction_factor: float = 0.75,
     ) -> None:
         # Mapeamento symbol → RiskManager
-        self._registry: dict[str, Any] = {}
+        self._registry: dict[str, RiskManager] = {}
 
         # Portfolio-level state
         self._portfolio_consecutive_losses: int = 0
@@ -39,7 +37,7 @@ class TradeCloseRouter:
         self._portfolio_risk_reduction_factor = portfolio_risk_reduction_factor
         self._portfolio_lock: asyncio.Lock = asyncio.Lock()
 
-    def register(self, symbol: str, risk_manager: Any) -> None:
+    def register(self, symbol: str, risk_manager: RiskManager) -> None:
         """Registra um RiskManager para um símbolo."""
         self._registry[symbol.upper()] = risk_manager
         logger.debug(
@@ -51,6 +49,11 @@ class TradeCloseRouter:
     def portfolio_breaker_active(self) -> bool:
         """Indica se o circuit breaker de portfólio está ativo."""
         return self._portfolio_breaker_active
+
+    @property
+    def portfolio_risk_reduction_factor(self) -> float:
+        """Fator de redução de risco do portfólio CB."""
+        return self._portfolio_risk_reduction_factor
 
     @property
     def portfolio_consecutive_losses(self) -> int:
@@ -86,7 +89,7 @@ class TradeCloseRouter:
         Reduction: 0.75 (redução adicional sobre todos os pares).
         Zona morta: ±0.001 (D10).
         """
-        if abs(pnl_usdt) <= _DEAD_ZONE:
+        if abs(pnl_usdt) <= DEAD_ZONE:
             return
 
         async with self._portfolio_lock:
