@@ -208,13 +208,13 @@ Se não existe backup nas últimas 24h → log WARNING `backup_desatualizado`.
 | ID | Test Class | Descrição |
 |----|-----------|-----------|
 | TEST_031_01 | `TestBackupRecord` | `BackupRecord` frozen, field types, dict serialization, JSON serializable |
-| TEST_031_02 | `TestRotation` | Rotação mantém últimos 7, não rotaciona se ≤7, não crasha em dir vazio |
-| TEST_031_03 | `TestNotifyFailure` | `_notify_failure` envia via Notifier; sem notifier não crasha |
-| TEST_031_04 | `TestCliDryRun` | dry_run retorna None, não cria arquivo |
-| TEST_031_05 | `TestLogEvents` | Eventos structlog no caminho de sucesso |
-| TEST_031_06 | `TestVerify` | `_verify` chama mongorestore --dry-run; falha retorna False |
-| TEST_031_07 | `TestCheckLastBackup` | Sem timestamp, backup recente, backup desatualizado, timestamp corrompido |
-| TEST_031_08 | `TestWriteLastTimestamp` | `_write_last_timestamp` escreve conteúdo correto |
+| TEST_031_03 | `TestRotation` | Rotação mantém últimos 7, não rotaciona se ≤7, não crasha em dir vazio |
+| TEST_031_04 | `TestNotifyFailure` | `_notify_failure` envia via Notifier; sem notifier não crasha |
+| TEST_031_05 | `TestCliDryRun` | dry_run retorna None, não cria arquivo |
+| TEST_031_06 | `TestLogEvents` | Eventos structlog no caminho de sucesso |
+| TEST_031_07 | `TestVerify` | `_verify` chama mongorestore --dry-run; falha retorna False |
+| TEST_031_08 | `TestCheckLastBackup` | Sem timestamp, backup recente, backup desatualizado, timestamp corrompido |
+| TEST_031_09 | `TestWriteLastTimestamp` | `_write_last_timestamp` escreve conteúdo correto |
 
 ---
 
@@ -230,7 +230,7 @@ Se não existe backup nas últimas 24h → log WARNING `backup_desatualizado`.
 | `docs/OPERATIONS.md` | Modificado — seção de restore |
 | `docs/SDD/SPEC_031_BACKUP_MONGODB/SPEC.md` | Modificado — esta SPEC (v2.0) |
 | `.gitignore` | Modificado — ignorar `backups/` |
-| `tests/tools/test_backup_mongo.py` | Criado — 8 classes de teste (TEST_031_01 a 08) |
+| `tests/tools/test_backup_mongo.py` | Criado — 8 classes de teste (TEST_031_01, 03 a 09) |
 | `tests/tools/__init__.py` | Criado — pacote de testes |
 
 ---
@@ -246,5 +246,5 @@ Se não existe backup nas últimas 24h → log WARNING `backup_desatualizado`.
 - [x] `docs/OPERATIONS.md` com procedimento de restore (com e sem Docker)
 - [x] `.gitignore` inclui `backups/`
 - [x] `docker-compose.yml` monta volume `./backups:/app/backups` no serviço `phicube`
-- [x] TEST_031_01 a 08 passando (8 classes de teste, 19 testes)
+- [x] TEST_031_01, 03 a 09 passando (8 classes de teste, 19 testes)
 - [x] `ruff check` sem erros no módulo de backup e testes

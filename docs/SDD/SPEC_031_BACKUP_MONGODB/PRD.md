@@ -76,12 +76,12 @@ O bot registra **cada trade, sinal e evento de auditoria** no MongoDB. Esse hist
 
 | Critério | Métrica | Alvo | Como Verificar |
 |----------|---------|------|----------------|
-| **Dump executado com sucesso** | `mongodump` retorna código 0 | 100% das execuções | TEST_031_05 |
-| **Verificação de integridade passa** | `mongorestore --dry-run` retorna 0 | 100% dos backups válidos | TEST_031_06 |
-| **Rotação correta** | Máximo 7 backups no diretório | Sempre ≤ 7 | TEST_031_02 |
-| **Notificação de falha** | Telegram enviado se dump ou verify falhar | 100% das falhas notificadas | TEST_031_03 |
-| **CLI funcional** | `phicube ops backup --dry-run` executa sem erro | 100% dos modos CLI | TEST_031_04 |
-| **Verificação pós-startup** | Bot loga WARNING se backup desatualizado (>24h) | Toda inicialização | TEST_031_07 |
+| **Dump executado com sucesso** | `mongodump` retorna código 0 | 100% das execuções | TEST_031_06 |
+| **Verificação de integridade passa** | `mongorestore --dry-run` retorna 0 | 100% dos backups válidos | TEST_031_07 |
+| **Rotação correta** | Máximo 7 backups no diretório | Sempre ≤ 7 | TEST_031_03 |
+| **Notificação de falha** | Telegram enviado se dump ou verify falhar | 100% das falhas notificadas | TEST_031_04 |
+| **CLI funcional** | `phicube ops backup --dry-run` executa sem erro | 100% dos modos CLI | TEST_031_05 |
+| **Verificação pós-startup** | Bot loga WARNING se backup desatualizado (>24h) | Toda inicialização | TEST_031_08 |
 | **Restore documentado** | `docs/OPERATIONS.md` contém procedimento | Publicado | Leitura do documento |
 | **Backup imutável** | `BackupRecord` é `@dataclass(frozen=True)` | Garantido por teste | TEST_031_01 |
 
@@ -130,7 +130,7 @@ O bot registra **cada trade, sinal e evento de auditoria** no MongoDB. Esse hist
 ### Estratégia de rollout
 
 1. **Implementação única (já concluída):**
-   - Testes unitários (TEST_031_01 a 08 — 19 testes, todos passando)
+   - Testes unitários (TEST_031_01, 03 a 09 — 19 testes, todos passando)
    - `ruff check` sem erros
    - 729/729 testes da suite passando, 0 regressão
    - Container Docker com volume `./backups:/app/backups`
