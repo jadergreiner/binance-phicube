@@ -29,6 +29,7 @@ async def test_runtime_monitor_skips_symbol_with_insufficient_liquidity():
         repo=Mock(),
         signal_engine=Mock(),
         notifier=Mock(),
+        router=AsyncMock(),
     )
 
     await registry.add(SymbolConfig(symbol="XPDUSDT", timeframe="15m", leverage=10))

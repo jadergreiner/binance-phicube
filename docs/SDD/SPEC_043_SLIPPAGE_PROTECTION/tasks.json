@@ -1,0 +1,383 @@
+{
+  "spec": "SPEC_043",
+  "version": "2.1",
+  "created": "2026-05-12",
+  "updated": "2026-05-12",
+  "status": "completed (MVP)",
+  "phases": {
+    "dia_1": {
+      "description": "Settings + priceProtect + max_position_pct",
+      "tasks": ["T-001", "T-002", "T-003", "T-004", "T-005"]
+    },
+    "dia_3_5": {
+      "description": "Slippage Model + Validação",
+      "tasks": ["T-006", "T-007", "T-008", "T-009", "T-010"]
+    },
+    "semana_2": {
+      "description": "Circuit Breaker + Wiring",
+      "tasks": ["T-011", "T-012", "T-013", "T-014", "T-015", "T-016"]
+    },
+    "final": {
+      "description": "Lint + Cobertura + Cross-reference",
+      "tasks": ["T-017"]
+    },
+    "post_mvp": {
+      "description": "R5 — ATR_MULTIPLIER_OVERRIDES",
+      "tasks": ["T-018"]
+    }
+  },
+  "tasks": {
+    "T-001": {
+      "id": "T-001",
+      "description": "Expandir Settings com campos SPEC_043 (Builder Pattern)",
+      "target_files": ["src/config/settings.py", ".env.example"],
+      "depends_on": [],
+      "risk": "baixo",
+      "design_pattern": "Builder",
+      "completed": true,
+      "constraints": [
+        "price_protect_enabled NÃO deve existir (INV-043-01)",
+        "Todos os campos devem ter Field() com constraints Pydantic",
+        "max_position_pct default = 0.0 (desabilitado)",
+        "Seguir padrão Pattern C (default_factory para dict) do settings.py existente"
+      ],
+      "acceptance_criteria": [
+        "Campos adicionados: max_position_pct, consecutive_loss_threshold, portfolio_loss_threshold, slippage_tolerance_multiplier, slippage_tolerance_reduced, cb_risk_reduction_factor, portfolio_risk_reduction_factor, slippage_validation_enabled, circuit_breaker_enabled",
+        "python -c de validação passa com defaults",
+        ".env.example atualizado com seção SPEC_043",
+        "ruff check limpo"
+      ]
+    },
+    "T-002": {
+      "id": "T-002",
+      "description": "priceProtect em STOP_MARKET e TAKE_PROFIT_MARKET com fallback (Decorator Pattern)",
+      "target_files": ["src/exchange/binance_client.py"],
+      "depends_on": [],
+      "risk": "baixo",
+      "design_pattern": "Decorator",
+      "constraints": [
+        "Adicionar try/except ccxt.BadRequest com fallback (resolução V01)",
+        "except ccxt.BadRequest específico, não Exception genérico (PRD D02)",
+        "Log WARN estruturado no fallback",
+        "Aplicar tanto em create_stop_loss_order quanto create_take_profit_order"
+      ],
+      "acceptance_criteria": [
+        "create_stop_loss_order() tenta com priceProtect, fallback sem se BadRequest",
+        "create_take_profit_order() mesmo padrão",
+        "Exceção não-BadRequest propaga",
+        "ruff check limpo"
+      ]
+    },
+    "T-003": {
+      "id": "T-003",
+      "description": "priceProtect condicional em trailing stop com fallback (Decorator failover)",
+      "target_files": ["src/exchange/binance_client.py"],
+      "depends_on": ["T-002"],
+      "risk": "medio",
+      "design_pattern": "Decorator",
+      "constraints": [
+        "try/except ccxt.BadRequest com fallback",
+        "Exceção não-BadRequest propaga (não engolir AuthenticationError, etc)",
+        "Log WARN: priceProtect_not_supported_for_trailing_stop"
+      ],
+      "acceptance_criteria": [
+        "create_trailing_stop_order() tenta priceProtect, fallback se BadRequest",
+        "ruff check limpo"
+      ]
+    },
+    "T-004": {
+      "id": "T-004",
+      "description": "Implementar max_position_pct no RiskManager (Decorator Pattern)",
+      "target_files": ["src/trading/risk_manager.py"],
+      "depends_on": ["T-001"],
+      "risk": "medio",
+      "design_pattern": "Decorator",
+      "constraints": [
+        "max_position_pct=0 → desabilitado (usa MAX_POSITION_USDT legado)",
+        "effective_max = min(MAX_POSITION_USDT, balance * pct / 100) se pct > 0",
+        "calculate() deve passar available_balance para _calculate_atr()",
+        "Não quebrar assinatura pública de calculate() — usar argumento nomeado"
+      ],
+      "acceptance_criteria": [
+        "Construtor aceita max_position_pct: float = 0.0",
+        "Clamp modificado em _calculate_atr()",
+        "calculate() passa available_balance como nomeado para _calculate_atr()",
+        "ruff check limpo"
+      ]
+    },
+    "T-005": {
+      "id": "T-005",
+      "description": "Testes priceProtect (TEST-043-01, 02, 17) — Test Double Pattern",
+      "target_files": ["tests/exchange/test_binance_client.py"],
+      "depends_on": ["T-002", "T-003"],
+      "risk": "baixo",
+      "design_pattern": "Test Double",
+      "constraints": [
+        "Usar AsyncMock para mockar exchange.create_order",
+        "Fixture _mock_exchange_assert_params() que inspeciona params dict",
+        "Fixture _ccxt_bad_request_mock() para teste de fallback",
+        "TEST-043-17b: AuthenticationError NÃO deve ser engolida"
+      ],
+      "acceptance_criteria": [
+        "TEST-043-01: create_stop_loss → params['priceProtect'] == True",
+        "TEST-043-02: create_take_profit → params['priceProtect'] == True",
+        "TEST-043-17: Trailing stop + BadRequest → fallback + WARN",
+        "TEST-043-17b: Trailing stop + AuthenticationError → propaga exceção",
+        "pytest tests/exchange/test_binance_client.py -v com 4 testes passando"
+      ]
+    },
+    "T-006": {
+      "id": "T-006",
+      "description": "Extrair _compute_atr_value() como Facade",
+      "target_files": ["src/trading/risk_manager.py"],
+      "depends_on": [],
+      "risk": "medio",
+      "design_pattern": "Facade",
+      "constraints": [
+        "Refatorar _calculate_atr() para usar _compute_atr_value() internamente",
+        "Valor retornado deve ser IDÊNTICO ao anterior para mesmos inputs",
+        "Retornar 0.0 se df vazio ou None"
+      ],
+      "acceptance_criteria": [
+        "_compute_atr_value(df) -> float criado",
+        "_calculate_atr() refatorado para usar o novo método",
+        "Teste de regressão com dados conhecidos passa",
+        "ruff check limpo"
+      ]
+    },
+    "T-007": {
+      "id": "T-007",
+      "description": "Implementar _estimate_slippage() (Strategy Pattern)",
+      "target_files": ["src/trading/risk_manager.py"],
+      "depends_on": ["T-006"],
+      "risk": "medio",
+      "design_pattern": "Strategy",
+      "constraints": [
+        "Proteção contra divisão por zero (entry_price=0, atr_value=0)",
+        "Par não mapeado em backtest_slippage_liq_map → tier 'medium' (0.08%)",
+        "Log estruturado: slippage_estimated com symbol, tier, slippage_usdt, atr_ratio"
+      ],
+      "acceptance_criteria": [
+        "_estimate_slippage(symbol, quantity, entry_price, atr_value) -> float",
+        "static_slippage = tier_pct * notional",
+        "dynamic_slippage = atr_ratio * notional * 0.5",
+        "Retorna max(static, dynamic)",
+        "ruff check limpo"
+      ]
+    },
+    "T-008": {
+      "id": "T-008",
+      "description": "Gate de slippage em _calculate_atr() (Chain of Responsibility)",
+      "target_files": ["src/trading/risk_manager.py"],
+      "depends_on": ["T-007", "T-004"],
+      "risk": "medio",
+      "design_pattern": "Chain of Responsibility",
+      "constraints": [
+        "Gate só executa se slippage_validation_enabled == True",
+        "Tolerância reduzida (1.05) se circuit_breaker_active, normal (1.10) senão",
+        "Rejeição com code='SLIPPAGE_EXCEEDS_TOLERANCE'",
+        "Log info slippage_check_passed se aprovado"
+      ],
+      "acceptance_criteria": [
+        "Após actual_risk_usdt, calcula total_risk = risk + slippage_estimate",
+        "Rejeita se total_risk > risk_per_trade * tolerance",
+        "Tolerância dual implementada (D07)",
+        "ruff check limpo"
+      ]
+    },
+    "T-009": {
+      "id": "T-009",
+      "description": "Gate de slippage em _calculate_fixed() (Chain of Responsibility)",
+      "target_files": ["src/trading/risk_manager.py"],
+      "depends_on": ["T-008"],
+      "risk": "medio",
+      "design_pattern": "Chain of Responsibility",
+      "constraints": [
+        "actual_risk_usdt = qty * stop_distance (ou risk_amount)",
+        "Chamar _estimate_slippage(atr_value=0) — apenas estático",
+        "Gate só executa se slippage_validation_enabled == True"
+      ],
+      "acceptance_criteria": [
+        "Gate inserido em _calculate_fixed() antes do return",
+        "Rejeita se total_risk > limite",
+        "ruff check limpo"
+      ]
+    },
+    "T-010": {
+      "id": "T-010",
+      "description": "Testes slippage + max_position_pct (TEST-043-03 a 06, 10, 11)",
+      "target_files": ["tests/trading/test_risk_manager.py"],
+      "depends_on": ["T-004", "T-007", "T-008", "T-009"],
+      "risk": "medio",
+      "design_pattern": "Test Double",
+      "constraints": [
+        "Fixture _risk_manager_with_slippage() com _liq_map e _slippage_map injetados",
+        "Usar dados reais de settings para tiers",
+        "Não depender de exchange real — tudo mockado"
+      ],
+      "acceptance_criteria": [
+        "TEST-043-03 a 06 passando (slippage estimation + rejection)",
+        "TEST-043-10 e 11 passando (max_position_pct)",
+        "pytest tests/trading/test_risk_manager.py -v com 6 testes passando"
+      ]
+    },
+    "T-011": {
+      "id": "T-011",
+      "description": "Implementar register_trade_outcome() com State Pattern",
+      "target_files": ["src/trading/risk_manager.py"],
+      "depends_on": ["T-001"],
+      "risk": "alto",
+      "design_pattern": "State",
+      "constraints": [
+        "import asyncio adicionado (resolução V04)",
+        "asyncio.Lock protegendo estado (D09)",
+        "Zona morta ±0.001 (D10)",
+        "Piso $1.00 (INV-043-03)",
+        "recovery_wins_needed = 1 (default)",
+        "Só executa se circuit_breaker_enabled == True"
+      ],
+      "acceptance_criteria": [
+        "register_trade_outcome(pnl_usdt) async com Lock",
+        "3 perdas consecutivas → CB ativo + risco reduzido",
+        "1 vitória → reset completo",
+        "PnL=0 na zona morta não altera contadores",
+        "effective_risk_per_trade_usdt property",
+        "ruff check limpo"
+      ]
+    },
+    "T-012": {
+      "id": "T-012",
+      "description": "Criar TradeCloseRouter (Mediator Pattern)",
+      "target_files": ["src/trading/trade_close_router.py"],
+      "depends_on": ["T-011"],
+      "risk": "alto",
+      "design_pattern": "Mediator",
+      "constraints": [
+        "Arquivo NOVO em src/trading/trade_close_router.py",
+        "Portfolio CB: threshold=2, reduction=0.75 (PRD D04)",
+        "Portfolio CB com asyncio.Lock próprio",
+        "Mesma zona morta D10 do pair-level"
+      ],
+      "acceptance_criteria": [
+        "TradeCloseRouter com register(), __call__(), _update_portfolio()",
+        "__call__(symbol, pnl_usdt) roteia para RM correto + atualiza portfolio",
+        "Portfolio CB ativa após 2 perdas em pares diferentes",
+        "ruff check limpo"
+      ]
+    },
+    "T-013": {
+      "id": "T-013",
+      "description": "Adicionar callback on_trade_closed no OrderMonitor (Observer Pattern)",
+      "target_files": ["src/monitoring/order_monitor.py"],
+      "depends_on": ["T-012"],
+      "risk": "alto",
+      "design_pattern": "Observer",
+      "constraints": [
+        "Tipo do callback: Callable[[str, float], Awaitable[None]] (resolução V02)",
+        "Chamado APÓS update_trade_status e audit() nos 3 handlers",
+        "Se callback falha, log WARN mas não impede fechamento do trade",
+        "Parâmetro opcional com default None (backward compatible)"
+      ],
+      "acceptance_criteria": [
+        "OrderMonitor.__init__ aceita on_trade_closed opcional",
+        "Callback chamado em _handle_tp_executed, _handle_sl_executed, _handle_manual_close",
+        "Chamado APÓS persistência do trade no MongoDB",
+        "ruff check limpo"
+      ]
+    },
+    "T-014": {
+      "id": "T-014",
+      "description": "Wiring no _main() com mapeamento de rejection codes (Builder Pattern)",
+      "target_files": ["src/main.py"],
+      "depends_on": ["T-013", "T-012", "T-008", "T-009"],
+      "risk": "alto",
+      "design_pattern": "Builder",
+      "constraints": [
+        "TradeCloseRouter criado ANTES de RuntimeMonitorRegistry",
+        "Ordem: Settings → Router → RiskManagers → OrderMonitor → TradingMonitors",
+        "_map_risk_rejection_outcome é função standalone (resolução V03)",
+        "Adicionar entries no dict mapping, sem mudar assinatura"
+      ],
+      "acceptance_criteria": [
+        "_main() cria router antes dos monitores",
+        "_build_monitor() registra cada RM: router.register(symbol, risk_manager)",
+        "OrderMonitor recebe on_trade_closed=router",
+        "SLIPPAGE_EXCEEDS_TOLERANCE e CIRCUIT_BREAKER_ACTIVE mapeados",
+        "ruff check limpo"
+      ]
+    },
+    "T-015": {
+      "id": "T-015",
+      "description": "Testes circuit breaker pair-level (TEST-043-07 a 09, 12 a 14, 16)",
+      "target_files": ["tests/trading/test_risk_manager.py"],
+      "depends_on": ["T-011"],
+      "risk": "alto",
+      "design_pattern": "Test Double",
+      "constraints": [
+        "Fixture _risk_manager_with_cb(**overrides) configurável",
+        "Fixture _concurrent_trades_coro(rm, n=3) para teste de lock",
+        "Usar asyncio.gather para teste de concorrência (TEST-043-14)"
+      ],
+      "acceptance_criteria": [
+        "TEST-043-07 a 09, 12, 13, 14, 16 passando",
+        "pytest tests/trading/test_risk_manager.py -v com 7 testes passando"
+      ]
+    },
+    "T-016": {
+      "id": "T-016",
+      "description": "Testes integração (TEST-043-15, 18 + INT-043-01, 02)",
+      "target_files": [
+        "tests/monitoring/test_order_monitor.py",
+        "tests/trading/test_risk_manager.py"
+      ],
+      "depends_on": ["T-013", "T-014"],
+      "risk": "medio",
+      "design_pattern": "Test Double",
+      "constraints": [
+        "Fixture _mock_callback() — AsyncMock para capturar (symbol, pnl_usdt)",
+        "INT-043-01 skippable se Testnet geobloqueada",
+        "Fuzzing com 100 cenários aleatórios (TEST-043-18)"
+      ],
+      "acceptance_criteria": [
+        "TEST-043-15: callback chamado ao fechar trade no OrderMonitor",
+        "TEST-043-18: 100 cenários fuzzing sem violar INV-029-05",
+        "INT-043-01 e INT-043-02 documentados como skippable",
+        "pytest passando"
+      ]
+    },
+    "T-017": {
+      "id": "T-017",
+      "description": "Ruff + Cobertura + Cross-reference SPEC.md",
+      "target_files": ["src/", "tests/", "docs/SDD/SPEC.md"],
+      "depends_on": ["T-005", "T-010", "T-015", "T-016"],
+      "risk": "baixo",
+      "design_pattern": "N/A",
+      "constraints": [
+        "ruff check e format devem passar sem alterações",
+        "Cobertura ≥ 80% mantida",
+        "Cross-reference adicionada em docs/SDD/SPEC.md § Referências"
+      ],
+      "acceptance_criteria": [
+        "ruff check src/ tests/ limpo",
+        "pytest tests/ -v --tb=short com 18+ testes passando",
+        "Cobertura ≥ 80%",
+        "SPEC.md referenciado"
+      ]
+    },
+    "T-018": {
+      "id": "T-018",
+      "description": "R5 — ATR_MULTIPLIER_OVERRIDES default para low-cap (Post-MVP)",
+      "target_files": [".env.example"],
+      "depends_on": [],
+      "risk": "baixo",
+      "design_pattern": "N/A",
+      "constraints": [
+        "Adiado post-MVP (PRD §3.3)",
+        "Só documentação, sem implementação agora"
+      ],
+      "acceptance_criteria": [
+        ".env.example atualizado com defaults documentados"
+      ]
+    }
+  }
+}

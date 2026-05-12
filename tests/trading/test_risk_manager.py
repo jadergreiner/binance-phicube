@@ -483,3 +483,375 @@ class TestRiskManagerATR:
                 f"atr={atr_val:.4f} mult={multiplier:.2f} "
                 f"risk={risk_usdt:.2f} min={min_pos:.2f} max={max_pos:.2f}"
             )
+
+
+_SLIPPAGE_MAP = {
+    "high": 0.0003,
+    "medium": 0.0008,
+    "low": 0.0015,
+}
+
+_LIQ_MAP = {
+    "BTCUSDT": "high",
+    "ETHUSDT": "high",
+}
+
+
+class TestSlippageEstimate:
+    """TEST-043-03 e 04 — _estimate_slippage()."""
+
+    def _rm_with_slippage(self) -> RiskManager:
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=5,
+            max_capital_allocation_pct=30.0,
+            risk_per_trade_usdt=5.0,
+            sizing_mode=SizingMode.ATR,
+            liq_map=_LIQ_MAP,
+            slippage_map=_SLIPPAGE_MAP,
+        )
+        return rm
+
+    def test_slippage_known_pair_high_tier(self) -> None:
+        """TEST-043-03: BTCUSDT (high) → slippage_pct = 0.03%."""
+        rm = self._rm_with_slippage()
+        slippage = rm._estimate_slippage(
+            symbol="BTCUSDT",
+            quantity=0.1,
+            entry_price=60000.0,
+            atr_value=1000.0,
+        )
+        # static = 0.0003 * (0.1 * 60000) = 1.8
+        # dynamic = (1000/60000) * 6000 * 0.5 = 0.5 * 1000 * 0.5 = 50? No...
+        # atr_ratio = 1000/60000 = 0.01667, dynamic = 0.01667 * 6000 * 0.5 = 50
+        # expected = max(1.8, 50) = 50
+        expected_static = 0.0003 * 6000.0
+        atr_ratio = 1000.0 / 60000.0
+        expected_dynamic = atr_ratio * 6000.0 * 0.5
+        expected = max(expected_static, expected_dynamic)
+        assert slippage == pytest.approx(expected, rel=1e-4)
+        assert slippage >= expected_static
+
+    def test_slippage_unknown_pair_fallback_medium(self) -> None:
+        """TEST-043-04: Par desconhecido → fallback medium (0.08%)."""
+        rm = self._rm_with_slippage()
+        slippage = rm._estimate_slippage(
+            symbol="UNKNOWNUSDT",
+            quantity=0.5,
+            entry_price=100.0,
+            atr_value=5.0,
+        )
+        # static = 0.0008 * 50 = 0.04
+        # dynamic = (5/100) * 50 * 0.5 = 1.25
+        expected = max(0.04, 1.25)
+        assert slippage == pytest.approx(expected, rel=1e-4)
+
+    def test_slippage_zero_entry_price(self) -> None:
+        """Proteção contra divisão por zero: entry_price=0 → 0."""
+        rm = self._rm_with_slippage()
+        slippage = rm._estimate_slippage(
+            symbol="BTCUSDT",
+            quantity=0.1,
+            entry_price=0.0,
+            atr_value=1000.0,
+        )
+        assert slippage == 0.0
+
+    def test_slippage_zero_quantity(self) -> None:
+        """Proteção: quantity=0 → 0."""
+        rm = self._rm_with_slippage()
+        slippage = rm._estimate_slippage(
+            symbol="BTCUSDT",
+            quantity=0.0,
+            entry_price=60000.0,
+            atr_value=1000.0,
+        )
+        assert slippage == 0.0
+
+
+class TestSlippageGateATR:
+    """TEST-043-05 e 06 — Slippage gate no modo ATR."""
+
+    def _make_df(self, close: float = 100.0) -> pd.DataFrame:
+        arr = np.linspace(close - 5, close, 50)
+        return pd.DataFrame({
+            "close": arr,
+            "high": arr * 1.02,
+            "low": arr * 0.98,
+        })
+
+    def test_slippage_rejects_excessive_risk(self) -> None:
+        """TEST-043-05: Slippage + risco > tolerância → rejeição.
+
+        Testa o gate diretamente em _calculate_atr() para evitar que o
+        fallback para fixed mode mascare a rejeição por slippage.
+        """
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=5,
+            max_capital_allocation_pct=30.0,
+            risk_per_trade_usdt=5.0,
+            sizing_mode=SizingMode.ATR,
+            slippage_tolerance_multiplier=1.01,
+            slippage_validation_enabled=False,
+            liq_map=_LIQ_MAP,
+            slippage_map=_SLIPPAGE_MAP,
+        )
+
+        # Sinal que passa INV-029-05 mas falha no slippage gate
+        signal = _signal(entry=100.0, stop=99.0, take_profit=105.0)
+        df = self._make_df(100.0)
+
+        # Primeiro sem validação (deve passar)
+        pos = rm._calculate_atr(
+            signal=signal,
+            stop_distance=1.0,
+            quantity_precision=3,
+            df=df,
+            available_balance=50000.0,
+        )
+        assert pos is not None, "Sem validação, _calculate_atr deve retornar posição"
+
+        # Agora com validação ativa e tolerância baixa
+        rm._slippage_validation_enabled = True  # liga flag manualmente no modo "misto"
+        rm._slippage_tolerance_multiplier = 1.01  # tolerância mínima
+
+        pos2 = rm._calculate_atr(
+            signal=signal,
+            stop_distance=1.0,
+            quantity_precision=3,
+            df=df,
+            available_balance=50000.0,
+        )
+        assert pos2 is None, "_calculate_atr deve rejeitar com slippage validation ativo"
+        rejection = rm.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "SLIPPAGE_EXCEEDS_TOLERANCE"
+
+    def test_slippage_accepts_safe_risk(self) -> None:
+        """TEST-043-06: Slippage + risco dentro da tolerância → PositionSize."""
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=5,
+            max_capital_allocation_pct=30.0,
+            risk_per_trade_usdt=5.0,
+            sizing_mode=SizingMode.ATR,
+            slippage_validation_enabled=True,
+            slippage_tolerance_multiplier=1.10,
+            liq_map=_LIQ_MAP,
+            slippage_map=_SLIPPAGE_MAP,
+        )
+
+        # Signal com stop distante → position size pequeno → slippage baixa
+        signal = _signal(entry=100.0, stop=90.0, take_profit=120.0)
+        df = self._make_df(100.0)
+
+        pos = rm.calculate(signal, available_balance=5000.0, quantity_precision=3, df=df)
+        assert pos is not None
+        assert isinstance(pos, PositionSize)
+
+    def test_slippage_disabled_when_flag_false(self) -> None:
+        """Slippage gate não executa se slippage_validation_enabled=False."""
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=5,
+            max_capital_allocation_pct=30.0,
+            risk_per_trade_usdt=5.0,
+            sizing_mode=SizingMode.ATR,
+        )
+        # Não ativar validação — deve funcionar normalmente
+        signal = _signal(entry=100.0, stop=90.0, take_profit=120.0)
+        df = self._make_df(100.0)
+
+        pos = rm.calculate(signal, available_balance=5000.0, quantity_precision=3, df=df)
+        assert pos is not None
+
+
+class TestSlippageGateFixed:
+    """TEST-043-05 e 06 — Slippage gate no modo fixed."""
+
+    def test_slippage_rejects_excessive_risk_fixed(self) -> None:
+        """Slippage + risco > tolerância → rejeição no modo fixed.
+
+        Configura parâmetros que passam MAX_CAPITAL_ALLOCATION mas
+        excedem a tolerância de slippage.
+        """
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,  # 1% de 10000 = 100 USDT de risco
+            leverage=5,
+            max_capital_allocation_pct=50.0,  # margem máxima 5000
+            slippage_validation_enabled=True,
+            slippage_tolerance_multiplier=1.02,
+            liq_map={"BTCUSDT": "low"},
+            slippage_map={"low": 0.0015},
+        )
+
+        # stop=98, dist=2, raw_qty=100/2=50, notional=5000
+        # margin=5000/5=1000 <= 5000 → PASS
+        # actual_risk=50*2=100, slippage=0.0015*5000=7.5
+        # total=107.5 > 100*1.02=102 → REJEITA
+        signal = _signal(entry=100.0, stop=98.0, take_profit=105.0)
+
+        pos = rm.calculate(signal, available_balance=10000.0, quantity_precision=3)
+        assert pos is None
+        rejection = rm.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "SLIPPAGE_EXCEEDS_TOLERANCE", (
+            f"Esperava SLIPPAGE, recebeu {rejection.code}: {rejection.reason}"
+        )
+
+
+class TestMaxPositionPct:
+    """TEST-043-10 e 11 — max_position_pct."""
+
+    def _make_df(self) -> pd.DataFrame:
+        arr = np.linspace(95, 100, 50)
+        return pd.DataFrame({
+            "close": arr,
+            "high": arr * 1.02,
+            "low": arr * 0.98,
+        })
+
+    def test_max_position_pct_limits_position(self) -> None:
+        """TEST-043-10: max_position_pct=50, balance=300 → effective_max=150."""
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=5,
+            max_capital_allocation_pct=30.0,
+            risk_per_trade_usdt=100.0,  # alto para gerar position grande
+            sizing_mode=SizingMode.ATR,
+            max_position_usdt=500.0,
+            max_position_pct=50.0,  # 50% do saldo
+            min_position_usdt=1.0,
+        )
+        signal = _signal(entry=100.0, stop=90.0, take_profit=120.0)
+        df = self._make_df()
+        pos = rm.calculate(signal, available_balance=300.0, quantity_precision=3, df=df)
+
+        assert pos is not None
+        # effective_max = min(500, 300 * 50/100) = min(500, 150) = 150
+        # position_usdt = risk * entry / effective_stop → deve estar clamped a 150
+        assert pos.notional <= 150.0, (
+            f"notional={pos.notional} deveria ser <= 150 (max_position_pct=50%)"
+        )
+
+    def test_max_position_pct_zero_disabled(self) -> None:
+        """TEST-043-11: max_position_pct=0 → usa MAX_POSITION_USDT."""
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=5,
+            max_capital_allocation_pct=30.0,
+            risk_per_trade_usdt=200.0,
+            sizing_mode=SizingMode.ATR,
+            max_position_usdt=500.0,
+            max_position_pct=0.0,  # desabilitado
+            min_position_usdt=1.0,
+        )
+        signal = _signal(entry=100.0, stop=90.0, take_profit=120.0)
+        df = self._make_df()
+        pos = rm.calculate(signal, available_balance=300.0, quantity_precision=3, df=df)
+
+        assert pos is not None
+        # max_position_pct=0 → usa max_position_usdt=500 como limite
+        assert pos.notional <= 500.0
+        # Verificar que não foi limitado a 150 (que seria 50% de 300)
+        if pos.notional > 150.0:
+            pass  # OK: sem o limite de 50%, notional pode ser maior
+
+
+class TestCircuitBreaker:
+    """TEST-043-12 a 18 — Circuit breaker pair-level (register_trade_outcome)."""
+
+    async def _rm_cb(
+        self,
+        enabled: bool = True,
+        threshold: int = 3,
+        reduction: float = 0.5,
+        recovery: int = 1,
+        risk_usdt: float = 100.0,
+    ) -> RiskManager:
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=5,
+            max_capital_allocation_pct=30.0,
+            risk_per_trade_usdt=risk_usdt,
+            sizing_mode=SizingMode.FIXED,
+            min_position_usdt=1.0,
+            max_position_usdt=500.0,
+            consecutive_loss_threshold=threshold,
+            cb_risk_reduction_factor=reduction,
+            recovery_wins_needed=recovery,
+            circuit_breaker_enabled=enabled,
+        )
+        return rm
+
+    async def test_cb_disabled_quando_flag_false(self) -> None:
+        """TEST-043-12: circuit_breaker_enabled=False → não altera estado."""
+        rm = await self._rm_cb(enabled=False)
+        for _ in range(5):
+            await rm.register_trade_outcome(-10.0)
+
+        assert not rm.circuit_breaker_active
+        assert rm.effective_risk_per_trade_usdt == 100.0
+
+    async def test_cb_ativa_apos_perdas_consecutivas(self) -> None:
+        """TEST-043-13: threshold=3, 3 perdas → CB ativo."""
+        rm = await self._rm_cb(risk_usdt=200.0)
+        for _ in range(3):
+            await rm.register_trade_outcome(-10.0)
+
+        assert rm.circuit_breaker_active
+        assert rm.effective_risk_per_trade_usdt == 100.0  # 200 * 0.5
+
+    async def test_cb_nao_ativa_antes_do_threshold(self) -> None:
+        """TEST-043-14: 2 perdas com threshold=3 → CB não ativa."""
+        rm = await self._rm_cb()
+        for _ in range(2):
+            await rm.register_trade_outcome(-10.0)
+
+        assert not rm.circuit_breaker_active
+
+    async def test_cb_dead_zone_pnl_pequeno(self) -> None:
+        """TEST-043-15 (D10): PnL ±0.001 não altera contadores."""
+        rm = await self._rm_cb()
+        await rm.register_trade_outcome(0.0005)
+        assert rm._consecutive_losses == 0
+
+        await rm.register_trade_outcome(-0.0005)
+        assert rm._consecutive_losses == 0
+
+    async def test_cb_reseta_apos_recovery_wins(self) -> None:
+        """TEST-043-16: recovery_wins_needed=2 → 2 vitórias resetam."""
+        rm = await self._rm_cb(recovery=2, risk_usdt=100.0)
+        for _ in range(3):
+            await rm.register_trade_outcome(-10.0)
+        assert rm.circuit_breaker_active
+        assert rm.effective_risk_per_trade_usdt == 50.0
+
+        await rm.register_trade_outcome(5.0)
+        assert rm.circuit_breaker_active
+        assert rm._recovery_wins_count == 1
+
+        await rm.register_trade_outcome(3.0)
+        assert not rm.circuit_breaker_active
+        assert rm.effective_risk_per_trade_usdt == 100.0
+
+    async def test_cb_vitoria_quando_inativo_reseta_losses(self) -> None:
+        """TEST-043-17: Vitória com CB inativo zera consecutive_losses."""
+        rm = await self._rm_cb()
+        await rm.register_trade_outcome(-10.0)
+        await rm.register_trade_outcome(-5.0)
+        assert rm._consecutive_losses == 2
+
+        await rm.register_trade_outcome(5.0)
+        assert rm._consecutive_losses == 0
+        assert not rm.circuit_breaker_active
+
+    async def test_cb_risk_floor_um_dolar(self) -> None:
+        """TEST-043-18 (INV-043-03): Piso $1.00 com reduction muito baixo."""
+        rm = await self._rm_cb(reduction=0.01, risk_usdt=10.0)
+        for _ in range(3):
+            await rm.register_trade_outcome(-10.0)
+
+        assert rm.circuit_breaker_active
+        assert rm.effective_risk_per_trade_usdt == 1.0

@@ -31,6 +31,7 @@ from src.storage.repository import MongoRepository
 from src.strategy.signal_engine import SignalEngine
 from src.trading.order_manager import OrderManager, TradeStatus
 from src.trading.risk_manager import RiskManager, RiskRejection
+from src.trading.trade_close_router import TradeCloseRouter
 
 logger = get_logger(__name__)
 
@@ -104,12 +105,14 @@ class RuntimeMonitorRegistry:
         repo: MongoRepository,
         signal_engine: SignalEngine,
         notifier: Notifier,
+        router: TradeCloseRouter,
     ) -> None:
         self._settings = settings
         self._client = client
         self._repo = repo
         self._signal_engine = signal_engine
         self._notifier = notifier
+        self._router = router
         self._tasks: dict[tuple[str, str], asyncio.Task] = {}
         self._configs: dict[tuple[str, str], SymbolConfig] = {}
 
@@ -117,7 +120,7 @@ class RuntimeMonitorRegistry:
     def monitor_count(self) -> int:
         return len(self._tasks)
 
-    def _build_monitor(self, cfg: SymbolConfig) -> TradingMonitor:
+    def _build_monitor(self, cfg: SymbolConfig, router: TradeCloseRouter) -> TradingMonitor:
         risk_manager = RiskManager(
             risk_per_trade_pct=self._settings.risk_per_trade_pct,
             leverage=cfg.leverage,
@@ -129,7 +132,15 @@ class RuntimeMonitorRegistry:
             min_position_usdt=self._settings.min_position_usdt,
             max_position_usdt=self._settings.max_position_usdt,
             get_atr_multiplier_override=self._settings.atr_multiplier_overrides.get,
+            max_position_pct=self._settings.max_position_pct,
+            slippage_validation_enabled=self._settings.slippage_validation_enabled,
+            slippage_tolerance_multiplier=self._settings.slippage_tolerance_multiplier,
+            slippage_tolerance_reduced=self._settings.slippage_tolerance_reduced,
+            liq_map=self._settings.backtest_slippage_liq_map,
+            slippage_map=self._settings.backtest_slippage_by_liq,
         )
+        # Registrar no router
+        router.register(cfg.symbol, risk_manager)
         order_manager = OrderManager(
             self._client,
             leverage=cfg.leverage,
@@ -173,7 +184,7 @@ class RuntimeMonitorRegistry:
             return
 
         await self._client.set_leverage(cfg.symbol, cfg.leverage)
-        monitor = self._build_monitor(cfg)
+        monitor = self._build_monitor(cfg, self._router)
         task = asyncio.create_task(monitor.run())
         self._tasks[key] = task
         self._configs[key] = cfg
@@ -557,6 +568,8 @@ class TradingMonitor:
             "QTY_ZERO_AFTER_ROUNDING": "REJECTED_RISK_QTY_ZERO",
             "MIN_NOTIONAL_NOT_MET": "REJECTED_RISK_MIN_NOTIONAL",
             "INTRADAY_LOSS_LIMIT_REACHED": "REJECTED_RISK_INTRADAY_LOSS_LIMIT",
+            "SLIPPAGE_EXCEEDS_TOLERANCE": "REJECTED_RISK_SLIPPAGE",
+            "CIRCUIT_BREAKER_ACTIVE": "REJECTED_RISK_CIRCUIT_BREAKER",
         }
         execution_status = mapping.get(rejection.code, "REJECTED_UNKNOWN")
         details = rejection.details or None
@@ -598,12 +611,20 @@ async def _main() -> None:
 
     signal_engine = SignalEngine(risk_reward_ratio=settings.risk_reward_ratio)
     notifier = _create_notifier(settings)
+
+    # SPEC_043 — TradeCloseRouter criado ANTES de RuntimeMonitorRegistry
+    trade_close_router = TradeCloseRouter(
+        portfolio_loss_threshold=settings.portfolio_loss_threshold,
+        portfolio_risk_reduction_factor=settings.portfolio_risk_reduction_factor,
+    )
+
     monitor_registry = RuntimeMonitorRegistry(
         settings=settings,
         client=client,
         repo=repo,
         signal_engine=signal_engine,
         notifier=notifier,
+        router=trade_close_router,
     )
 
     reporter = PerformanceReporter(
@@ -619,6 +640,7 @@ async def _main() -> None:
         renotify_interval_seconds=settings.sl_missing_renotify_interval_minutes * 60,
         manual_close_confirm_cycles=settings.order_monitor_manual_close_confirm_cycles,
         manual_close_require_dual_source=settings.order_monitor_manual_close_require_dual_source,
+        on_trade_closed=trade_close_router,
     )
 
     tasks: list[asyncio.Task] = []

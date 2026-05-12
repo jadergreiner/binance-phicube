@@ -138,6 +138,49 @@ class Settings(BaseSettings):
         description="Callback rate do trailing stop em %% (0.1-10.0)",
     )
 
+    # SPEC_043 — Slippage Protection, priceProtect e Circuit Breaker
+    max_position_pct: Annotated[float, Field(ge=0, le=100)] = Field(
+        default=0.0,
+        description="Limite máximo da posição como %% do saldo "
+        "(0=desabilitado, usa MAX_POSITION_USDT)",
+    )
+    consecutive_loss_threshold: Annotated[int, Field(ge=1, le=10)] = Field(
+        default=3,
+        description="Nº de perdas consecutivas para ativar circuit breaker do par",
+    )
+    portfolio_loss_threshold: Annotated[int, Field(ge=1, le=10)] = Field(
+        default=2,
+        description="Nº de perdas em pares diferentes para ativar circuit breaker de portfólio",
+    )
+    slippage_tolerance_multiplier: Annotated[float, Field(ge=1.0)] = Field(
+        default=1.10,
+        description="Multiplicador de tolerância de slippage (normal)",
+    )
+    slippage_tolerance_reduced: Annotated[float, Field(ge=1.0)] = Field(
+        default=1.05,
+        description="Multiplicador de tolerância de slippage (com CB ativo)",
+    )
+    cb_risk_reduction_factor: Annotated[float, Field(gt=0, le=1.0)] = Field(
+        default=0.5,
+        description="Fator de redução de risco do circuit breaker pair-level",
+    )
+    portfolio_risk_reduction_factor: Annotated[float, Field(gt=0, le=1.0)] = Field(
+        default=0.75,
+        description="Fator de redução de risco do circuit breaker de portfólio",
+    )
+    recovery_wins_needed: Annotated[int, Field(ge=1, le=10)] = Field(
+        default=1,
+        description="Nº de vitórias consecutivas para reset do circuit breaker",
+    )
+    slippage_validation_enabled: bool = Field(
+        default=False,
+        description="Feature flag: ativa validação de slippage no RiskManager",
+    )
+    circuit_breaker_enabled: bool = Field(
+        default=False,
+        description="Feature flag: ativa circuit breaker de perdas consecutivas",
+    )
+
     # Commodities — gate de segurança: ativar apenas após backtest aprovado (INV-018-01)
     commodities_backtest_validated: bool = False
 

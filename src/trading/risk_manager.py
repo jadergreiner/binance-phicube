@@ -21,6 +21,7 @@ SPEC_029 — Position Sizing por ATR:
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -87,6 +88,18 @@ class RiskManager:
         min_position_usdt: float = 10.0,
         max_position_usdt: float = 500.0,
         get_atr_multiplier_override: Callable[[str], float | None] | None = None,
+        # SPEC_043 — Slippage Protection e Circuit Breaker
+        max_position_pct: float = 0.0,
+        consecutive_loss_threshold: int = 3,
+        cb_risk_reduction_factor: float = 0.5,
+        recovery_wins_needed: int = 1,
+        circuit_breaker_enabled: bool = False,
+        # SPEC_043 — Slippage parameters (refactored from getattr injection)
+        slippage_validation_enabled: bool = False,
+        slippage_tolerance_multiplier: float = 1.10,
+        slippage_tolerance_reduced: float = 1.05,
+        liq_map: dict[str, str] | None = None,
+        slippage_map: dict[str, float] | None = None,
     ) -> None:
         self._risk_pct = risk_per_trade_pct
         self._leverage = leverage
@@ -104,6 +117,23 @@ class RiskManager:
         self._min_position_usdt = min_position_usdt
         self._max_position_usdt = max_position_usdt
         self._get_atr_multiplier_override = get_atr_multiplier_override
+        # SPEC_043 — Slippage
+        self._max_position_pct = max_position_pct
+        # SPEC_043 — Circuit Breaker (State Pattern)
+        self._consecutive_losses: int = 0
+        self._circuit_breaker_active: bool = False
+        self._recovery_wins_count: int = 0
+        self._original_risk_per_trade_usdt: float = risk_per_trade_usdt
+        self._consecutive_loss_threshold = consecutive_loss_threshold
+        self._cb_risk_reduction_factor = cb_risk_reduction_factor
+        self._recovery_wins_needed = recovery_wins_needed
+        self._circuit_breaker_enabled = circuit_breaker_enabled
+        self._cb_lock: asyncio.Lock = asyncio.Lock()
+        self._slippage_validation_enabled = slippage_validation_enabled
+        self._slippage_tolerance_multiplier = slippage_tolerance_multiplier
+        self._slippage_tolerance_reduced = slippage_tolerance_reduced
+        self._liq_map = liq_map or {}
+        self._slippage_map = slippage_map or {}
 
     @property
     def last_rejection(self) -> RiskRejection | None:
@@ -190,6 +220,7 @@ class RiskManager:
                 stop_distance=stop_distance,
                 quantity_precision=quantity_precision,
                 df=df,
+                available_balance=available_balance,
             )
             if result is not None:
                 return result
@@ -209,6 +240,24 @@ class RiskManager:
             quantity_precision=quantity_precision,
         )
 
+    def _compute_atr_value(self, df: pd.DataFrame) -> float:
+        """Calcula o valor do ATR para o DataFrame fornecido (SPEC_043 Facade).
+
+        Retorna 0.0 se df for None, vazio ou não tiver candles suficientes.
+        """
+        if df is None or df.empty or len(df) < self._atr_period + 1:
+            return 0.0
+        atr_series = atr_func(
+            df["close"],
+            df["high"],
+            df["low"],
+            self._atr_period,
+        )
+        atr_value = atr_series.iloc[-1]
+        if pd.isna(atr_value) or atr_value <= 0:
+            return 0.0
+        return float(atr_value)
+
     def _get_effective_multiplier(self, symbol: str) -> float:
         """Retorna atr_multiplier considerando override por par."""
         if self._get_atr_multiplier_override is not None:
@@ -223,23 +272,18 @@ class RiskManager:
         stop_distance: float,
         quantity_precision: int,
         df: pd.DataFrame,
+        available_balance: float = 0.0,
     ) -> PositionSize | None:
         """Calculate position size using ATR mode (SPEC_029).
 
         effective_stop = max(fractal_sl_distance, atr_value * atr_multiplier)
         position_usdt = risk_per_trade_usdt * entry_price / effective_stop
         """
-        # Calculate ATR
-        atr_series = atr_func(
-            df["close"],
-            df["high"],
-            df["low"],
-            self._atr_period,
-        )
-        atr_value = atr_series.iloc[-1]
+        # Calculate ATR via Facade (SPEC_043)
+        atr_value = self._compute_atr_value(df)
 
         # Fallback se ATR inválido
-        if pd.isna(atr_value) or atr_value <= 0:
+        if atr_value <= 0:
             logger.warning(
                 "atr_value_invalid_fallback_to_fixed",
                 symbol=signal.symbol,
@@ -255,10 +299,15 @@ class RiskManager:
         effective_stop = max(fractal_sl_distance, atr_value * multiplier)
 
         # Position size em USDT
-        position_usdt = self._risk_per_trade_usdt * signal.entry_price / effective_stop
+        position_usdt = self.effective_risk_per_trade_usdt * signal.entry_price / effective_stop
+        # SPEC_043 — max_position_pct: limite dinâmico como % do saldo
+        effective_max_position = self._max_position_usdt
+        if self._max_position_pct > 0 and available_balance > 0:
+            max_by_pct = available_balance * self._max_position_pct / 100.0
+            effective_max_position = min(self._max_position_usdt, max_by_pct)
         position_usdt = max(
             self._min_position_usdt,
-            min(position_usdt, self._max_position_usdt),
+            min(position_usdt, effective_max_position),
         )
 
         # Quantidade do ativo
@@ -280,7 +329,7 @@ class RiskManager:
 
         # INV-029-05: risco real não excede 1.05x configurado
         actual_risk_usdt = qty * effective_stop
-        max_risk_usdt = self._risk_per_trade_usdt * 1.05
+        max_risk_usdt = self.effective_risk_per_trade_usdt * 1.05
         if actual_risk_usdt > max_risk_usdt:
             self._set_rejection(
                 code="INV_029_05_RISK_EXCEEDED",
@@ -304,6 +353,54 @@ class RiskManager:
             )
             return None
 
+        # SPEC_043 — Slippage gate (Chain of Responsibility)
+        if self._slippage_validation_enabled:
+            slippage_estimate = self._estimate_slippage(
+                symbol=signal.symbol,
+                quantity=qty,
+                entry_price=signal.entry_price,
+                atr_value=atr_value,
+            )
+            total_risk = actual_risk_usdt + slippage_estimate
+            tolerance = (
+                self._slippage_tolerance_reduced
+                if self._circuit_breaker_active
+                else self._slippage_tolerance_multiplier
+            )
+            max_allowed_risk = self.effective_risk_per_trade_usdt * tolerance
+            if total_risk > max_allowed_risk:
+                self._set_rejection(
+                    code="SLIPPAGE_EXCEEDS_TOLERANCE",
+                    reason="slippage_estimate_exceeds_tolerance",
+                    details={
+                        "actual_risk_usdt": round(actual_risk_usdt, 4),
+                        "slippage_estimate_usdt": round(slippage_estimate, 4),
+                        "total_risk_usdt": round(total_risk, 4),
+                        "max_allowed_risk_usdt": round(max_allowed_risk, 4),
+                        "tolerance": tolerance,
+                        "circuit_breaker_active": self._circuit_breaker_active,
+                    },
+                )
+                logger.warning(
+                    "slippage_exceeds_tolerance",
+                    symbol=signal.symbol,
+                    actual_risk_usdt=round(actual_risk_usdt, 4),
+                    slippage_estimate_usdt=round(slippage_estimate, 4),
+                    total_risk_usdt=round(total_risk, 4),
+                    max_allowed_risk_usdt=round(max_allowed_risk, 4),
+                    tolerance=tolerance,
+                )
+                return None
+            logger.info(
+                "slippage_check_passed",
+                symbol=signal.symbol,
+                actual_risk_usdt=round(actual_risk_usdt, 4),
+                slippage_estimate_usdt=round(slippage_estimate, 4),
+                total_risk_usdt=round(total_risk, 4),
+                max_allowed_risk_usdt=round(max_allowed_risk, 4),
+                tolerance=tolerance,
+            )
+
         # Log estruturado para auditoria
         logger.info(
             "atr_sizing_calculated",
@@ -314,7 +411,7 @@ class RiskManager:
             effective_stop=round(effective_stop, 2),
             position_usdt=round(position_usdt, 2),
             quantity=qty,
-            risk_per_trade_usdt=self._risk_per_trade_usdt,
+            risk_per_trade_usdt=self.effective_risk_per_trade_usdt,
             multiplier=multiplier,
             sizing_mode="atr",
         )
@@ -328,7 +425,7 @@ class RiskManager:
             entry_price=signal.entry_price,
             stop_loss=signal.stop_loss,
             take_profit=signal.take_profit,
-            risk_amount=self._risk_per_trade_usdt,
+            risk_amount=self.effective_risk_per_trade_usdt,
         )
 
     def _calculate_fixed(
@@ -401,6 +498,55 @@ class RiskManager:
             )
             return None
 
+        # SPEC_043 — Slippage gate (Chain of Responsibility) para modo fixed
+        if self._slippage_validation_enabled:
+            actual_risk_usdt_fixed = qty * stop_distance
+            slippage_estimate = self._estimate_slippage(
+                symbol=symbol,
+                quantity=qty,
+                entry_price=entry_price,
+                atr_value=0.0,  # Apenas slippage estático no modo fixed
+            )
+            total_risk = actual_risk_usdt_fixed + slippage_estimate
+            tolerance = (
+                self._slippage_tolerance_reduced
+                if self._circuit_breaker_active
+                else self._slippage_tolerance_multiplier
+            )
+            max_allowed_risk = risk_amount * tolerance
+            if total_risk > max_allowed_risk:
+                self._set_rejection(
+                    code="SLIPPAGE_EXCEEDS_TOLERANCE",
+                    reason="slippage_estimate_exceeds_tolerance",
+                    details={
+                        "actual_risk_usdt": round(actual_risk_usdt_fixed, 4),
+                        "slippage_estimate_usdt": round(slippage_estimate, 4),
+                        "total_risk_usdt": round(total_risk, 4),
+                        "max_allowed_risk_usdt": round(max_allowed_risk, 4),
+                        "tolerance": tolerance,
+                        "circuit_breaker_active": self._circuit_breaker_active,
+                    },
+                )
+                logger.warning(
+                    "slippage_exceeds_tolerance",
+                    symbol=symbol,
+                    actual_risk_usdt=round(actual_risk_usdt_fixed, 4),
+                    slippage_estimate_usdt=round(slippage_estimate, 4),
+                    total_risk_usdt=round(total_risk, 4),
+                    max_allowed_risk_usdt=round(max_allowed_risk, 4),
+                    tolerance=tolerance,
+                )
+                return None
+            logger.info(
+                "slippage_check_passed",
+                symbol=symbol,
+                actual_risk_usdt=round(actual_risk_usdt_fixed, 4),
+                slippage_estimate_usdt=round(slippage_estimate, 4),
+                total_risk_usdt=round(total_risk, 4),
+                max_allowed_risk_usdt=round(max_allowed_risk, 4),
+                tolerance=tolerance,
+            )
+
         pos = PositionSize(
             symbol=symbol,
             direction=direction,
@@ -417,6 +563,49 @@ class RiskManager:
         logger.info("position_size_calculated", **pos.to_dict())
         return pos
 
+    def _estimate_slippage(
+        self,
+        symbol: str,
+        quantity: float,
+        entry_price: float,
+        atr_value: float,
+    ) -> float:
+        """Estima slippage em USDT para o par dado (SPEC_043).
+
+        Usa os tiers de liquidez definidos em _slippage_map (backtest_slippage_by_liq)
+        e o mapeamento _liq_map (backtest_slippage_liq_map).
+
+        Se o par não está mapeado, usa default "medium" (0.08%).
+        """
+        # Proteção contra divisão por zero
+        if entry_price <= 0 or quantity <= 0:
+            return 0.0
+
+        tier = self._liq_map.get(symbol, "medium")
+        slippage_pct = self._slippage_map.get(tier, 0.0008)
+
+        notional = entry_price * quantity
+        static_slippage = slippage_pct * notional
+
+        # Slippage dinâmica: 50% do ATR% aplicado ao nocional
+        atr_ratio = atr_value / entry_price if atr_value > 0 else 0
+        dynamic_slippage = atr_ratio * notional * 0.5
+
+        slippage_usdt = max(static_slippage, dynamic_slippage)
+
+        logger.info(
+            "slippage_estimated",
+            symbol=symbol,
+            tier=tier,
+            slippage_pct=slippage_pct,
+            notional=round(notional, 4),
+            static_slippage=round(static_slippage, 4),
+            atr_ratio=round(atr_ratio, 6),
+            dynamic_slippage=round(dynamic_slippage, 4),
+            slippage_usdt=round(slippage_usdt, 4),
+        )
+        return slippage_usdt
+
     def _refresh_intraday_reference(self, available_balance: float, now_utc: datetime) -> None:
         day = now_utc.date()
         if self._daily_reference_day != day or self._daily_reference_capital is None:
@@ -430,3 +619,68 @@ class RiskManager:
             return False
         loss_pct = abs(intraday_realized_pnl_usdt) / self._daily_reference_capital * 100
         return loss_pct >= self._intraday_loss_limit_pct
+
+    # ─── SPEC_043 — Circuit Breaker (State Pattern) ──────────────────────────
+
+    @property
+    def circuit_breaker_active(self) -> bool:
+        """Indica se o circuit breaker pair-level está ativo (risco reduzido)."""
+        return self._circuit_breaker_active
+
+    @property
+    def effective_risk_per_trade_usdt(self) -> float:
+        """Retorna o risk_per_trade_usdt ativo (pode estar reduzido pelo CB)."""
+        return self._risk_per_trade_usdt
+
+    async def register_trade_outcome(self, pnl_usdt: float) -> None:
+        """Registra resultado de trade para o circuit breaker (SPEC_043).
+
+        Deve ser chamado pelo TradingMonitor após o fechamento de cada trade.
+        Zone morta: PnL entre -0.001 e +0.001 não altera contadores (D10).
+        Só executa se circuit_breaker_enabled == True.
+        """
+        if not self._circuit_breaker_enabled:
+            return
+
+        async with self._cb_lock:
+            # Zona morta: PnL próximo de zero não altera estado
+            if abs(pnl_usdt) <= 0.001:
+                return
+
+            if pnl_usdt > 0:
+                # Vitória
+                if self._circuit_breaker_active:
+                    self._recovery_wins_count += 1
+                    if self._recovery_wins_count >= self._recovery_wins_needed:
+                        # Reset completo
+                        self._circuit_breaker_active = False
+                        self._consecutive_losses = 0
+                        self._recovery_wins_count = 0
+                        self._risk_per_trade_usdt = self._original_risk_per_trade_usdt
+                        logger.info(
+                            "circuit_breaker_reset",
+                            reason="recovery_wins_achieved",
+                            recovery_wins_needed=self._recovery_wins_needed,
+                            restored_risk_usdt=self._risk_per_trade_usdt,
+                        )
+                else:
+                    self._consecutive_losses = 0
+            else:
+                # Perda
+                self._consecutive_losses += 1
+                self._recovery_wins_count = 0
+                if (self._consecutive_losses >= self._consecutive_loss_threshold
+                        and not self._circuit_breaker_active):
+                    self._circuit_breaker_active = True
+                    reduced_risk = (
+                        self._original_risk_per_trade_usdt * self._cb_risk_reduction_factor
+                    )
+                    self._risk_per_trade_usdt = max(reduced_risk, 1.0)  # INV-043-03: piso $1.00
+                    logger.warning(
+                        "circuit_breaker_activated",
+                        consecutive_losses=self._consecutive_losses,
+                        threshold=self._consecutive_loss_threshold,
+                        original_risk_usdt=self._original_risk_per_trade_usdt,
+                        reduced_risk_usdt=self._risk_per_trade_usdt,
+                        reduction_factor=self._cb_risk_reduction_factor,
+                    )

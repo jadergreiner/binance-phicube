@@ -271,18 +271,34 @@ class BinanceClient:
         quantity: float,
         stop_price: float,
     ) -> dict[str, Any]:
-        """Create a STOP_MARKET order for stop loss."""
-        params = {
+        """Create a STOP_MARKET order for stop loss with priceProtect (SPEC_043)."""
+        params: dict[str, Any] = {
             "stopPrice": stop_price,
             "reduceOnly": True,
+            "priceProtect": True,
         }
-        order = await self._exchange.create_order(
-            symbol=symbol,
-            type="STOP_MARKET",
-            side=side,
-            amount=quantity,
-            params=params,
-        )
+        try:
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type="STOP_MARKET",
+                side=side,
+                amount=quantity,
+                params=params.copy(),
+            )
+        except ccxt.BadRequest:
+            params.pop("priceProtect", None)
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type="STOP_MARKET",
+                side=side,
+                amount=quantity,
+                params=params.copy(),
+            )
+            logger.warning(
+                "priceProtect_not_supported_stop_loss",
+                symbol=symbol,
+                side=side,
+            )
         logger.info(
             "stop_loss_order_created",
             symbol=symbol,
@@ -300,18 +316,34 @@ class BinanceClient:
         quantity: float,
         take_profit_price: float,
     ) -> dict[str, Any]:
-        """Create a TAKE_PROFIT_MARKET order."""
-        params = {
+        """Create a TAKE_PROFIT_MARKET order with priceProtect (SPEC_043)."""
+        params: dict[str, Any] = {
             "stopPrice": take_profit_price,
             "reduceOnly": True,
+            "priceProtect": True,
         }
-        order = await self._exchange.create_order(
-            symbol=symbol,
-            type="TAKE_PROFIT_MARKET",
-            side=side,
-            amount=quantity,
-            params=params,
-        )
+        try:
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type="TAKE_PROFIT_MARKET",
+                side=side,
+                amount=quantity,
+                params=params.copy(),
+            )
+        except ccxt.BadRequest:
+            params.pop("priceProtect", None)
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type="TAKE_PROFIT_MARKET",
+                side=side,
+                amount=quantity,
+                params=params.copy(),
+            )
+            logger.warning(
+                "priceProtect_not_supported_take_profit",
+                symbol=symbol,
+                side=side,
+            )
         logger.info(
             "take_profit_order_created",
             symbol=symbol,
@@ -334,19 +366,35 @@ class BinanceClient:
 
         Uses ccxt's native trailingPercent support. ccxt routes to POST /fapi/v1/algo.
         ⚠️ closePosition=True causes error -4136 — uses explicit quantity + reduceOnly.
+        priceProtect tentado com fallback silencioso (SPEC_043).
         """
         params: dict[str, Any] = {
             "trailingPercent": callback_rate,
             "trailingTriggerPrice": activation_price,
             "reduceOnly": True,
         }
-        order = await self._exchange.create_order(
-            symbol=symbol,
-            type="TRAILING_STOP_MARKET",
-            side=side,
-            amount=quantity,
-            params=params,
-        )
+        try:
+            params_with_protect = {**params, "priceProtect": True}
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type="TRAILING_STOP_MARKET",
+                side=side,
+                amount=quantity,
+                params=params_with_protect,
+            )
+        except ccxt.BadRequest:
+            order = await self._exchange.create_order(
+                symbol=symbol,
+                type="TRAILING_STOP_MARKET",
+                side=side,
+                amount=quantity,
+                params=params.copy(),
+            )
+            logger.warning(
+                "priceProtect_not_supported_trailing_stop",
+                symbol=symbol,
+                side=side,
+            )
         logger.info(
             "trailing_stop_order_created",
             symbol=symbol,

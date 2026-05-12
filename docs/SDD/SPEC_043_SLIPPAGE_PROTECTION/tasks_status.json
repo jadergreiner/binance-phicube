@@ -1,0 +1,183 @@
+{
+  "spec": "SPEC_043",
+  "version": "2.1",
+  "generated": "2026-05-12T12:00:00Z",
+  "status_geral": "concluido",
+  "tasks": [
+    {
+      "id": "T-001",
+      "description": "Expandir Settings com campos SPEC_043 (Builder Pattern)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/config/settings.py", ".env.example"],
+      "evidence": ["10 campos Pydantic adicionados", ".env.example atualizado com seção SPEC_043"],
+      "validators": []
+    },
+    {
+      "id": "T-002",
+      "description": "priceProtect em STOP_MARKET e TAKE_PROFIT_MARKET com fallback (Decorator Pattern)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/exchange/binance_client.py"],
+      "evidence": ["try/except ccxt.BadRequest com fallback nos 2 tipos de ordem"],
+      "validators": ["qa-review"]
+    },
+    {
+      "id": "T-003",
+      "description": "priceProtect condicional em trailing stop com fallback (Decorator failover)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/exchange/binance_client.py"],
+      "evidence": ["try/except ccxt.BadRequest com fallback + log priceProtect_not_supported_for_trailing_stop"],
+      "validators": ["qa-review"]
+    },
+    {
+      "id": "T-004",
+      "description": "Implementar max_position_pct no RiskManager (Decorator Pattern)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/trading/risk_manager.py"],
+      "evidence": ["max_position_pct=0 → desabilitado", "effective_max = min(MAX_POSITION_USDT, balance * pct / 100)"],
+      "validators": []
+    },
+    {
+      "id": "T-005",
+      "description": "Testes priceProtect (TEST-043-01, 02, 17) — Test Double Pattern",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["tests/exchange/test_binance_client.py"],
+      "evidence": ["10 testes priceProtect passando (SL, TP, trailing, BadRequest, AuthError)"],
+      "validators": []
+    },
+    {
+      "id": "T-006",
+      "description": "Extrair _compute_atr_value() como Facade",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/trading/risk_manager.py"],
+      "evidence": ["_compute_atr_value(df) -> float extraído", "Valor idêntico ao anterior para mesmos inputs"],
+      "validators": []
+    },
+    {
+      "id": "T-007",
+      "description": "Implementar _estimate_slippage() (Strategy Pattern)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/trading/risk_manager.py"],
+      "evidence": ["static_slippage + dynamic_slippage implementados", "Proteção divisão por zero"],
+      "validators": ["qa-review"]
+    },
+    {
+      "id": "T-008",
+      "description": "Gate de slippage em _calculate_atr() (Chain of Responsibility)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/trading/risk_manager.py"],
+      "evidence": ["Gate com tolerância dual (1.10 normal / 1.05 CB ativo)", "Rejeição SLIPPAGE_EXCEEDS_TOLERANCE"],
+      "validators": []
+    },
+    {
+      "id": "T-009",
+      "description": "Gate de slippage em _calculate_fixed() (Chain of Responsibility)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/trading/risk_manager.py"],
+      "evidence": ["Gate em _calculate_fixed() com atr_value=0 (apenas estático)"],
+      "validators": []
+    },
+    {
+      "id": "T-010",
+      "description": "Testes slippage + max_position_pct (TEST-043-03 a 06, 10, 11)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["tests/trading/test_risk_manager.py"],
+      "evidence": ["10 testes slippage + max_position_pct passando"],
+      "validators": []
+    },
+    {
+      "id": "T-011",
+      "description": "Implementar register_trade_outcome() com State Pattern",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/trading/risk_manager.py"],
+      "evidence": ["register_trade_outcome async com Lock", "Zona morta ±0.001", "Piso $1.00", "3 perdas → CB ativo"],
+      "validators": ["qa-review"]
+    },
+    {
+      "id": "T-012",
+      "description": "Criar TradeCloseRouter (Mediator Pattern)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/trading/trade_close_router.py"],
+      "evidence": ["Arquivo novo criado", "Portfolio CB threshold=2 reduction=0.75", "100% cobertura"],
+      "validators": []
+    },
+    {
+      "id": "T-013",
+      "description": "Adicionar callback on_trade_closed no OrderMonitor (Observer Pattern)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/monitoring/order_monitor.py"],
+      "evidence": ["Callback opcional chamado nos 3 handlers (TP, SL, manual)", "Log WARN se callback falha"],
+      "validators": []
+    },
+    {
+      "id": "T-014",
+      "description": "Wiring no _main() com mapeamento de rejection codes (Builder Pattern)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["src/main.py"],
+      "evidence": ["Router criado antes dos monitores", "SLIPPAGE_EXCEEDS_TOLERANCE + CIRCUIT_BREAKER_ACTIVE mapeados"],
+      "validators": []
+    },
+    {
+      "id": "T-015",
+      "description": "Testes circuit breaker pair-level (TEST-043-07 a 09, 12 a 14, 16)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["tests/trading/test_risk_manager.py"],
+      "evidence": ["7 testes circuit breaker passando (disabled, activation, dead zone, recovery, floor)"],
+      "validators": []
+    },
+    {
+      "id": "T-016",
+      "description": "Testes integração TradeCloseRouter (TEST-043-15, 18 + INT-043-01, 02)",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": ["tests/trading/test_trade_close_router.py"],
+      "evidence": ["9 testes router passando (registration, routing, portfolio CB, dead zone)"],
+      "validators": []
+    },
+    {
+      "id": "T-017",
+      "description": "Ruff + Cobertura + Cross-reference SPEC.md",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": [],
+      "evidence": ["ruff check src/ limpo", "712 testes passando", "cobertura 81%"],
+      "validators": []
+    },
+    {
+      "id": "T-018",
+      "description": "R5 — ATR_MULTIPLIER_OVERRIDES default para low-cap",
+      "status": "done",
+      "sub_agent": "dev-agent",
+      "files_modified": [".env.example", ".env"],
+      "evidence": [
+        "PRD_043.md: R5 movido de §3.3 para §3.1 (MVP)",
+        ".env.example: seção ATR_MULTIPLIER_OVERRIDES adicionada com docs + defaults low-cap",
+        ".env: overrides atualizados com XAUUSDT + 6 low-cap pairs",
+        "SPEC.md AC-01 e AC-02 marcados como concluídos"
+      ],
+      "validators": []
+    }
+  ],
+  "test_summary": {
+    "total": 712,
+    "passed": 712,
+    "failed": 0,
+    "coverage_pct": 81,
+    "ruff_src_errors": 0,
+    "ruff_test_errors": 2
+  }
+}
