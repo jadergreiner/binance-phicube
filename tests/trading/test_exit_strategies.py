@@ -344,6 +344,46 @@ def test_settings_rejects_negative_qty_pct() -> None:
         )
 
 
+def test_settings_accepts_pct_alias() -> None:
+    """Adapter: chave `pct` é aceita e normalizada para `price_distance_pct`.
+
+    O operador pode usar `pct` (conforme documentado na SPEC e PRD)
+    e o sistema normaliza automaticamente para o campo canônico.
+    Sem esta normalização, o OrderManager quebra com KeyError.
+    """
+    s = _make_settings(
+        exit_strategy="partial",
+        tp_levels=[
+            {"qty_pct": 50.0, "pct": 2.0},
+            {"qty_pct": 50.0, "pct": 4.0},
+        ],
+    )
+    # Verifica que `pct` foi normalizado para `price_distance_pct`
+    assert s.tp_levels[0]["price_distance_pct"] == 2.0
+    assert s.tp_levels[1]["price_distance_pct"] == 4.0
+    # Verifica que a chave `pct` foi removida
+    assert "pct" not in s.tp_levels[0]
+    assert "pct" not in s.tp_levels[1]
+
+
+def test_settings_accepts_mixed_pct_and_canonical() -> None:
+    """Adapter: níveis mistos (alguns com `pct`, outros com `price_distance_pct`) são aceitos.
+
+    `price_distance_pct` canônico tem precedência se ambos existirem.
+    """
+    s = _make_settings(
+        exit_strategy="partial",
+        tp_levels=[
+            {"qty_pct": 50.0, "pct": 2.0},
+            {"qty_pct": 50.0, "price_distance_pct": 4.0},
+        ],
+    )
+    assert s.tp_levels[0]["price_distance_pct"] == 2.0
+    assert s.tp_levels[1]["price_distance_pct"] == 4.0
+    assert "pct" not in s.tp_levels[0]
+    assert "pct" not in s.tp_levels[1]
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST_030_09: SimulatedClient + TP parcial integrado
 # ═══════════════════════════════════════════════════════════════════════════════

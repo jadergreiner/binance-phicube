@@ -108,14 +108,15 @@ EXIT_STRATEGY: str = "fixed"
 # "partial+trailing" → futuro
 
 # TP Parcial (V1) — até 3 níveis
-# Cada nível: {"pct": 2.0, "qty_pct": 50}
-#   pct: percentual de lucro alvo (ex: 2.0 = 2%)
+# Cada nível: {"price_distance_pct": 2.0, "qty_pct": 50}
+#   price_distance_pct: percentual de lucro alvo (ex: 2.0 = 2%)
 #   qty_pct: percentual da quantidade a fechar (ex: 50 = 50%)
+#   (alias: `pct` também é aceito para compatibilidade com especificações anteriores)
 # sum(qty_pct) <= 100
 # 1 <= len(tp_levels) <= 3
 TP_LEVELS: list[dict] = [
-    {"pct": 2.0, "qty_pct": 50},   # Nível 1: TP 2%, fecha 50%
-    {"pct": 4.0, "qty_pct": 50},   # Nível 2: TP 4%, fecha 50%
+    {"price_distance_pct": 2.0, "qty_pct": 50},   # Nível 1: TP 2%, fecha 50%
+    {"price_distance_pct": 4.0, "qty_pct": 50},   # Nível 2: TP 4%, fecha 50%
 ]
 
 # Trailing Stop (V2) — nativo TRAILING_STOP_MARKET
@@ -128,11 +129,25 @@ TRAILING_CALLBACK_RATE: float = 0.5      # callbackRate = 0.5% (Algo Order API)
 Se `exit_strategy` contém `"partial"`:
 - `1 <= len(tp_levels) <= 3`
 - Cada `lvl.qty_pct > 0`
-- Cada `lvl.pct > 0`
+- Cada `lvl.price_distance_pct > 0` (alias: `lvl.pct` também aceito)
 - `sum(lvl.qty_pct) <= 100`
 
 Se `exit_strategy` contém `"trailing"`:
-- `activation_threshold > trail_distance` (senão ativa na abertura)
+- `trailing_activation_pct > trailing_callback_rate` (senão ativa na abertura)
+
+### Override por símbolo
+
+```python
+# Estratégia de saída por símbolo — substitui o valor global EXIT_STRATEGY
+# Chave: símbolo (upper case)
+# Valor: "fixed" | "partial" | "trailing"
+EXIT_STRATEGY_OVERRIDES: dict[str, str] = {
+    "BTCUSDT": "partial",
+    "ETHUSDT": "fixed",
+}
+```
+
+Se um símbolo não tem override, usa o valor global `EXIT_STRATEGY`.
 
 ### Modelo de posição (`Trade`)
 
@@ -140,8 +155,8 @@ Se `exit_strategy` contém `"trailing"`:
 |-------|------|-----------|-------------|
 | `exit_strategy` | `str` | Estratégia usada na abertura | V1 |
 | `tp_levels` | `list[dict]` | Níveis de TP configurados | V1 |
+| `tp_order_ids` | `list[str]` | IDs das ordens de TP criadas (para rollback) | V1 |
 | `sl_price` | `float` | Preço do stop-loss (já existente) | Existente |
-| `tp_prices` | `list[float]` | Preços alvo de cada nível (calculados na abertura) | V1 |
 
 > ⚠️ NENHUM campo de estado pós-abertura é necessário. A exchange gerencia ordens reduceOnly, quantidades remanescentes e execução de trailing. O bot NÃO persiste `remaining_qty`, `best_price_seen` ou `tp_executed`.
 
@@ -205,7 +220,7 @@ O `SimulatedBinanceClient` (modo simulation) deve aceitar múltiplas ordens redu
 |----|-----------|--------|
 | INV-030-01 | SL fixo inicial nunca é removido ou afastado | DD-002 (SPEC_022) |
 | INV-030-02 | Soma das `qty_pct` dos TP parciais <= 100 | D-006 |
-| INV-030-03 | `activation_threshold` > `trail_distance` | D-006 |
+| INV-030-03 | `trailing_activation_pct` > `trailing_callback_rate` | D-006 |
 | INV-030-04 | TP parcial só reduz posição — nunca aumenta | D-001 |
 | INV-030-05 | NENHUMA lógica de pós-processamento após abertura | D-001 |
 | INV-030-06 | Config inválida (D-006) causa erro fatal no startup, não warning | D-006 |
@@ -225,8 +240,11 @@ O `SimulatedBinanceClient` (modo simulation) deve aceitar múltiplas ordens redu
 | TEST_030_05 | SimulatedBinanceClient executa TP parcial corretamente | Time B |
 | TEST_030_06 | Config validation rejeita `sum(qty_pct) > 100` com erro fatal | Time B |
 | TEST_030_07 | Config validation rejeita `len(tp_levels) < 1` ou `len(tp_levels) > 3` | Time B |
-| TEST_030_08 | Config validation rejeita `qty_pct <= 0` ou `pct <= 0` | Time B |
+| TEST_030_08 | Config validation rejeita `qty_pct <= 0` ou `price_distance_pct <= 0` (alias: `pct`) | Time B |
 | TEST_030_09 | RRR médio ponderado calculado corretamente com 2+ níveis | Time B |
+| TEST_030_10 | Trailing stop: cria ordem via `create_trailing_stop_order` com activatePrice e callbackRate | Time B |
+| TEST_030_11 | Trailing stop: activation_pct > callback_rate valida no startup (D-006) | Time B |
+| TEST_030_12 | SimulatedClient executa trailing stop corretamente no modo simulation | Time B |
 
 ---
 
@@ -236,14 +254,14 @@ O `SimulatedBinanceClient` (modo simulation) deve aceitar múltiplas ordens redu
 |---------|---------|-----------|
 | `src/config/settings.py` | Adicionar `EXIT_STRATEGY`, `TP_LEVELS` + config validation no startup | V1 |
 | `src/trading/order_manager.py` | Modificar `execute()` — enviar TP levels + SL como reduceOnly se `exit_strategy="partial"` | V1 |
-| `src/trading/order_manager.py` | Adicionar campos `exit_strategy`, `tp_levels` ao modelo `Trade` | V1 |
-| `src/trading/position_model.py` | Atualizar schema e documentação | V1 |
+| `src/trading/order_manager.py` | Adicionar campos `exit_strategy`, `tp_levels`, `tp_order_ids` ao modelo `Trade` | V1 |
 | `src/exchange/binance_client.py` | Garantir que `create_take_profit_order` aceita `reduceOnly` | V1 |
 | `src/exchange/simulated_client.py` | Suporte a N ordens reduceOnly simultâneas | V1 |
 | `src/main.py` | Passar `exit_strategy` e `tp_levels` para OrderManager | V1 |
-| `tests/trading/test_exit_strategies.py` | TEST_030_01 a 09 | V1 |
+| `tests/trading/test_exit_strategies.py` | TEST_030_01 a 12 | V1 + V2 |
 | `src/exchange/binance_client.py` | `create_trailing_stop_order()` via `POST /fapi/v1/algo` | V2 |
 | `src/config/settings.py` | `TRAILING_ACTIVATION_PCT`, `TRAILING_CALLBACK_RATE` | V2 |
+| `tests/trading/test_exit_strategies.py` | TEST_030_10 a 12 (V2) | V2 |
 
 ---
 
@@ -257,7 +275,7 @@ O `SimulatedBinanceClient` (modo simulation) deve aceitar múltiplas ordens redu
 - [ ] RRR médio ponderado para trades com saída parcial (D-007)
 - [ ] Logging de execução de saída: nível, preço, quantidade remanescente, condições de mercado (D-008)
 - [ ] Modo legado `"fixed"` mantém comportamento atual (D-003)
-- [ ] TEST_030_01 a 09 passando
+- [ ] TEST_030_01 a 12 passando (V1 + V2)
 - [ ] `ruff check src/ tests/` limpo
 - [ ] V2: Verificação técnica concluída (ccxt + Testnet)
 - [ ] V2: TRAILING_STOP_MARKET funcional via Algo Order API (quando aplicável)

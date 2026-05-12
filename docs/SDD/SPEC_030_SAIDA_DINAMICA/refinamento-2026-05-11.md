@@ -173,7 +173,7 @@ Nenhuma inconsistência grave entre decisões. Todos os 5 gaps eram expansões o
 | `src/trading/position_model.py` | Atualizar schema/documentação |
 | `src/exchange/binance_client.py` | Verificar se `create_take_profit_order` aceita `reduceOnly` corretamente |
 | `src/main.py` | Passar `exit_strategy` e `tp_levels` para OrderManager |
-| `tests/trading/test_exit_strategies.py` | TEST_030_01 a 06 (criar) |
+| `tests/trading/test_exit_strategies.py` | TEST_030_01 a 12 (criar) |
 
 **Algoritmo (definitivo — genérico para N níveis, G-001):**
 ```
@@ -194,8 +194,8 @@ Na abertura (execute()):
 ```python
 EXIT_STRATEGY: str = "fixed"  # "fixed" | "partial" | "trailing" | "partial+trailing"
 TP_LEVELS: list[dict] = [
-    {"pct": 2.0, "qty_pct": 50},
-    {"pct": 4.0, "qty_pct": 50},
+    {"price_distance_pct": 2.0, "qty_pct": 50},
+    {"price_distance_pct": 4.0, "qty_pct": 50},
 ]
 ```
 
@@ -208,12 +208,12 @@ TP_LEVELS: list[dict] = [
 
 ### Prioridade 3 — Trailing Stop Nativo (V2, condicional à verificação acima)
 
-- [ ] Adicionar `TRAILING_ACTIVATION_PCT` e `TRAILING_DISTANCE_PCT` em settings.py
+- [ ] Adicionar `TRAILING_ACTIVATION_PCT` e `TRAILING_CALLBACK_RATE` em settings.py
 - [ ] Criar `BinanceClient.create_trailing_stop_order()` via chamada direta ao Algo Order API
 - [ ] Adicionar lógica em `OrderManager` para modo `"trailing"`
 
 ### Skills de Validação Recomendadas
 
-- **@qa-review** — para validar cobertura de testes (TEST_030_01 a 06)
+- **@qa-review** — para validar cobertura de testes (TEST_030_01 a 12)
 - **@signal-review** — não aplicável (mudança é na saída, não na entrada)
 - **@security-audit** — verificar se chamada ao Algo Order API expõe credenciais em logs

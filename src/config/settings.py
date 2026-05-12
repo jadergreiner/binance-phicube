@@ -121,7 +121,8 @@ class Settings(BaseSettings):
             {"qty_pct": 50.0, "price_distance_pct": 4.0},
         ],
         description="Níveis de TP parcial: lista de {qty_pct, price_distance_pct}. "
-        "Mínimo 1, máximo 3 níveis. Soma de qty_pct <= 100.",
+        "Mínimo 1, máximo 3 níveis. Soma de qty_pct <= 100. "
+        "Nota: `pct` é aceito como alias de `price_distance_pct` para compatibilidade.",
     )
     exit_strategy_overrides: dict[str, str] = Field(
         default_factory=dict,
@@ -376,11 +377,17 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_exit_strategy(self) -> Settings:
         """D-006: Valida configuração de saída dinâmica. Erro fatal no startup."""
-        # Validar tp_levels
+        # Adapter Pattern: normalizar `pct` (alias) → `price_distance_pct` (canonical)
+        # para que downstream (OrderManager) sempre encontre o campo canônico.
         levels = self.tp_levels
-        if not isinstance(levels, list) or not (1 <= len(levels) <= 3):
-            n_levels = len(levels) if isinstance(levels, list) else "tipo inválido"
-            raise ValueError(f"tp_levels deve ter entre 1 e 3 níveis, mas tem {n_levels}")
+        if not isinstance(levels, list):
+            raise ValueError(f"tp_levels deve ser uma lista, recebeu {type(levels).__name__}")
+        for level in levels:
+            if "pct" in level and "price_distance_pct" not in level:
+                level["price_distance_pct"] = level.pop("pct")
+
+        if not (1 <= len(levels) <= 3):
+            raise ValueError(f"tp_levels deve ter entre 1 e 3 níveis, mas tem {len(levels)}")
 
         total_qty = 0.0
         for i, level in enumerate(levels):

@@ -250,12 +250,16 @@ TELEGRAM_CHAT_ID=         # Chat ID do operador
 **Configuração do Operador:**
 
 ```ini
-# .env — Opt-in por símbolo
-BTCUSDT:15m:5:partial  # exit_strategy=partial
-ETHUSDT:15m:5:fixed    # exit_strategy=fixed (default)
+# .env — Opt-in por símbolo (global)
+EXIT_STRATEGY=fixed
+
+# Override de exit_strategy por símbolo (opcional)
+# Chave: símbolo; Valor: "fixed" | "partial" | "trailing"
+EXIT_STRATEGY_OVERRIDES={"BTCUSDT":"partial","ETHUSDT":"fixed"}
 
 # Níveis de TP (opcional — aplica se exit_strategy contém "partial")
-TP_LEVELS=[{"pct":2.0,"qty_pct":50},{"pct":4.0,"qty_pct":50}]
+# price_distance_pct é o campo canônico; pct também é aceito como alias
+TP_LEVELS=[{"price_distance_pct":2.0,"qty_pct":50},{"price_distance_pct":4.0,"qty_pct":50}]
 
 # Trailing (opcional — aplica se exit_strategy contém "trailing")
 TRAILING_ACTIVATION_PCT=1.0
