@@ -139,9 +139,7 @@ class RuntimeMonitorRegistry:
             liq_map=self._settings.backtest_slippage_liq_map,
             slippage_map=self._settings.backtest_slippage_by_liq,
             get_portfolio_reduction=lambda: (
-                router.portfolio_risk_reduction_factor
-                if router.portfolio_breaker_active
-                else 1.0
+                router.portfolio_risk_reduction_factor if router.portfolio_breaker_active else 1.0
             ),
         )
         # Registrar no router

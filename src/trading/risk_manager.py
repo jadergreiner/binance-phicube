@@ -674,8 +674,10 @@ class RiskManager:
                 # Perda
                 self._consecutive_losses += 1
                 self._recovery_wins_count = 0
-                if (self._consecutive_losses >= self._consecutive_loss_threshold
-                        and not self._circuit_breaker_active):
+                if (
+                    self._consecutive_losses >= self._consecutive_loss_threshold
+                    and not self._circuit_breaker_active
+                ):
                     self._circuit_breaker_active = True
                     reduced_risk = (
                         self._original_risk_per_trade_usdt * self._cb_risk_reduction_factor

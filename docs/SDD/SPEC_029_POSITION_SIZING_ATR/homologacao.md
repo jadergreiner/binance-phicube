@@ -56,7 +56,7 @@ Este documento.
 
 | Parâmetro | Valor | Fonte |
 |-----------|-------|-------|
-| `SIZING_MODE` | `atr_with_guard` | SPEC v2.0, Time A |
+| `SIZING_MODE` | `atr` | SPEC v2.0, Time A |
 | `RISK_PER_TRADE_USDT` | `5.0` | Calibração + saldo $300 |
 | `ATR_PERIOD` | `14` | Especificação |
 | `ATR_MULTIPLIER` | `2.0` | Simulação 5 pares |
@@ -70,7 +70,7 @@ Este documento.
 |----|----------|--------|
 | INV-029-01 | effective_stop ≥ fractal_sl_distance | ✅ by construction |
 | INV-029-02 | Fallback para fixed se ATR indisponível | ✅ |
-| INV-029-03 | effective_stop clampado em [MIN_POSITION_USDT, MAX_POSITION_USDT] | ✅ |
+| INV-029-03 | position_usdt clampado em [MIN_POSITION_USDT, MAX_POSITION_USDT] | ✅ |
 | INV-029-04 | Per-symbol override via env var | ✅ |
 | INV-029-05 | Risco real nunca excede 1.05× configurado | ✅ fuzzing 100 seeds |
 | INV-029-06 | ATR calculado no mesmo timeframe da estratégia | ✅ |
@@ -78,7 +78,7 @@ Este documento.
 ## Rollout Check
 
 Pré-requisitos para rollout:
-- [x] `.env` com `SIZING_MODE=atr_with_guard` e `ATR_MULTIPLIER=2.0`
+- [x] `.env` com `SIZING_MODE=atr` e `ATR_MULTIPLIER=2.0`
 - [x] Container recriado (`docker compose up -d`)
 - [x] df passado de `TradingMonitor._tick()` → `SignalEngine.evaluate()` → `RiskManager.calculate()`
 - [ ] Monitoramento 24h sem violações de INV-029

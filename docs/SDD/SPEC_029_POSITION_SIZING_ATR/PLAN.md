@@ -151,7 +151,7 @@ BROCCOLI714,1.5,31.8,68.2,2.10,8.9
 
 #### 2.3 Decisão de calibração
 
-> **Não óbvio:** O `atr_multiplier` não precisa ser global. Podemos ter um **default global** (1.5) e permitir **override por par** via `.env` (`ATR_MULTIPLIER_BTCUSDT=2.0`). A simulação vai mostrar que BROCCOLI714 precisa de multiplier maior para não superproteger — override por par resolve sem penalizar BTC.
+> **Não óbvio:** O `atr_multiplier` não precisa ser global. Podemos ter um **default global** (1.5) e permitir **override por par** via `.env` (`ATR_MULTIPLIER_OVERRIDES={"XAUUSDT":3.0}`). A simulação vai mostrar que BROCCOLI714 precisa de multiplier maior para não superproteger — override por par resolve sem penalizar BTC.
 
 #### 2.4 Artefato da simulação
 
@@ -193,106 +193,77 @@ class Settings(BaseSettings):
 
 #### 3.2 RiskManager — método `calculate_position_size()`
 
-Assinatura modificada:
+Assinatura implementada:
 
 ```python
-async def calculate_position_size(
+def calculate(
     self,
-    symbol: str,
-    direction: str,
-    entry_price: float,
-    stop_price: float,
+    signal: Signal,
+    available_balance: float,
+    quantity_precision: int = 3,
+    intraday_realized_pnl_usdt: float = 0.0,
+    now_utc: datetime | None = None,
     df: pd.DataFrame | None = None,
-) -> PositionSize:
+) -> PositionSize | None:
 ```
 
-> **Não óbvio:** O `df` é opcional porque o TradingMonitor já tem o DataFrame na memória quando chama o RiskManager. Mas em outros contextos (testes, backtest) pode não estar disponível. A assinatura aceita `None` e faz fallback para fixed — sem quebrar.
+O `df` é opcional porque o TradingMonitor já tem o DataFrame na memória quando chama o RiskManager. Mas em outros contextos (testes, backtest) pode não estar disponível. A assinatura aceita `None` e faz fallback para fixed — sem quebrar.
 
-#### 3.3 Guard Implementation
+#### 3.3 Guard Implementation (código real)
+
+A implementação real usa injeção de dependência via construtor (não `self._settings`), `_compute_atr_value()` como Facade, e retorna `None` com `_set_rejection()` em vez de `raise`. Ver `risk_manager.py:216-241` para o fluxo completo.
 
 ```python
-# Dentro de calculate_position_size()
-
-if self._settings.sizing_mode == SizingMode.ATR and df is not None:
-    atr_series = atr(df["close"], df["high"], df["low"], self._settings.atr_period)
-    atr_value = atr_series.iloc[-1]
-
-    if pd.isna(atr_value):
-        # Fallback silencioso para fixed
-        logger.warning(
-            "atr_value_is_nan_fallback_to_fixed",
-            symbol=symbol,
-            atr_period=self._settings.atr_period,
-        )
-        return await self._calculate_fixed(symbol, direction, entry_price, stop_price)
-
-    fractal_sl_distance = abs(entry_price - stop_price)
-    effective_stop = max(
-        fractal_sl_distance,
-        atr_value * self._settings.atr_multiplier,
+# Dentro de calculate() — ver risk_manager.py:216-241
+if self._sizing_mode == SizingMode.ATR and df is not None:
+    result = self._calculate_atr(
+        signal=signal,
+        stop_distance=stop_distance,
+        quantity_precision=quantity_precision,
+        df=df,
+        available_balance=available_balance,
     )
-    position_usdt = self._settings.risk_per_trade_usdt * entry_price / effective_stop
-    position_usdt = max(
-        self._settings.min_position_usdt,
-        min(position_usdt, self._settings.max_position_usdt),
-    )
+    if result is not None:
+        return result
+    # Fallback silencioso
+    logger.info("atr_fallback_to_fixed", symbol=signal.symbol)
 
-    # Log para auditoria
-    logger.info(
-        "atr_sizing_calculated",
-        symbol=symbol,
-        direction=direction,
-        atr_value=round(atr_value, 4),
-        fractal_sl_distance=round(fractal_sl_distance, 2),
-        effective_stop=round(effective_stop, 2),
-        position_usdt=round(position_usdt, 2),
-        risk_per_trade_usdt=self._settings.risk_per_trade_usdt,
-        sizing_mode="atr",
-    )
-
-    quantity = position_usdt / entry_price
-    quantity = self._round_precision(quantity, symbol)
-
-    # INV-029-05: valida risco real
-    actual_risk_usdt = quantity * effective_stop
-    if actual_risk_usdt > self._settings.risk_per_trade_usdt * 1.05:
-        logger.error(
-            "atr_sizing_risk_violation",
-            symbol=symbol,
-            actual_risk_usdt=round(actual_risk_usdt, 2),
-            max_risk_usdt=round(self._settings.risk_per_trade_usdt * 1.05, 2),
-        )
-        raise RuntimeError(
-            f"INV-029-05 violation: "
-            f"actual_risk={actual_risk_usdt:.2f} > "
-            f"max_risk={self._settings.risk_per_trade_usdt * 1.05:.2f}"
-        )
-
-    return PositionSize(
-        quantity=quantity,
-        risk_amount=self._settings.risk_per_trade_usdt,
-        entry_price=entry_price,
-        stop_price=stop_price,
-    )
-
-# SIZING_MODE = fixed ou df = None
-return await self._calculate_fixed(symbol, direction, entry_price, stop_price)
+return self._calculate_fixed(
+    symbol=signal.symbol,
+    direction=signal.direction,
+    ...
+)
 ```
+
+O método `_calculate_atr()` (detalhes em `risk_manager.py:269-392`):
+1. Calcula ATR via `_compute_atr_value(df)` (Facade)
+2. Se atr_value <= 0 → retorna None (fallback)
+3. `effective_stop = max(fractal_sl_distance, atr_value * multiplier)`
+4. `position_usdt = effective_risk_per_trade_usdt * entry_price / effective_stop`
+5. Aplica `max_position_pct` se configurado
+6. Aplica clamp em [min_position_usdt, max_position_usdt]
+7. Valida INV-029-05: `actual_risk_usdt > max_risk_usdt * 1.05` → `_set_rejection()` → None
+8. Valida slippage gate (SPEC_043): `_check_slippage_gate()` → None se exceder
+9. Log: `atr_sizing_calculated`
+10. Retorna `PositionSize`
 
 #### 3.4 Método `_calculate_fixed()` extraído
 
 > **Não óbvio:** Extrair a lógica atual de `calculate_position_size()` para `_calculate_fixed()` evita duplicação e mantém o modo legado isolado. Se no futuro removermos o modo fixed, o código morto fica explícito.
 
 ```python
-async def _calculate_fixed(
+def _calculate_fixed(
     self,
     symbol: str,
-    direction: str,
+    direction: Direction,
     entry_price: float,
     stop_price: float,
-) -> PositionSize:
+    take_profit: float,
+    available_balance: float,
+    quantity_precision: int = 3,
+) -> PositionSize | None:
     """Comportamento legado: risk_per_trade_pct do saldo."""
-    # ... lógica existente ...
+    # ... lógica existente (ver risk_manager.py:394-488) ...
 ```
 
 #### 3.5 Logging — estrutura do log

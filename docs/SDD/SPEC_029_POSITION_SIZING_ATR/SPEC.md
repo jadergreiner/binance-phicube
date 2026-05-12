@@ -3,7 +3,7 @@
 **ID:** SPEC_029
 **Título:** Position Sizing por ATR
 **Data:** 2026-05-11
-**Status:** Em Refinamento (Aguardando Time B)
+**Status:** Concluída
 **Versão:** 2.0
 **Dependências:** SPEC_006 (métricas), SPEC_022 (convergência risco)
 **PRD §:** Fase 2 — "Gestão de risco dinâmica"
@@ -14,13 +14,15 @@
 
 Substituir o position sizing fixo (`risk_per_trade_pct` % do saldo) por um modelo dinâmico baseado em ATR (Average True Range) que mantém **risco constante em USDT por trade**, independente da volatilidade do par — com proteção contra superdimensionamento via `effective_stop = max(fractal_sl_distance, atr_value * atr_multiplier)`.
 
+Sizing mode: `"atr"` (SizingMode.ATR). O guard `effective_stop = max(...)` é uma propriedade intrínseca do modo ATR, não um modo separado.
+
 ---
 
 ## 2. Escopo
 
 ### Dentro do escopo
 - Cálculo de ATR no `indicators.py` (Wilder SMMA, período 14)
-- Novo modelo de sizing: `atr_with_guard` — `effective_stop = max(fractal_sl_distance, atr * atr_multiplier)`
+- Novo modelo de sizing: `atr` — `effective_stop = max(fractal_sl_distance, atr * atr_multiplier)`
 - Risco fixo em USDT configurável (`RISK_PER_TRADE_USDT`)
 - Fallback para sizing fixo se ATR indisponível (poucos candles)
 - Integração com `RiskManager.calculate_position_size()`
@@ -55,7 +57,7 @@ Substituir o position sizing fixo (`risk_per_trade_pct` % do saldo) por um model
 
 **Critério de aceite:**
 - `SIZING_MODE=fixed` → comportamento atual (`risk_per_trade_pct` do saldo)
-- `SIZING_MODE=atr` → posição = `risk_per_trade_usdt * entry_price / effective_stop`
+- `SIZING_MODE=atr` → posição = `effective_risk_per_trade_usdt * entry_price / effective_stop`
 - `effective_stop = max(fractal_sl_distance, atr_value * atr_multiplier)`
 - Logging de `effective_stop`, `atr_value`, `fractal_sl_distance` em todo cálculo
 - Posição mínima respeitada: `MIN_POSITION_USDT`
@@ -70,10 +72,10 @@ Substituir o position sizing fixo (`risk_per_trade_pct` % do saldo) por um model
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
 | `sizing_mode` | `SizingMode` | `"fixed"` | `"fixed"` ou `"atr"` |
-| `risk_per_trade_usdt` | `float` | `5.0` | Risco máximo por trade (USDT) |
+| `risk_per_trade_usdt` | `float` | `5.0` | Risco base por trade (USDT). Pode ser reduzido por CB pair-level + portfólio (`effective_risk_per_trade_usdt`) |
 | `atr_period` | `int` | `14` | Período do ATR (Wilder) |
-| `atr_multiplier` | `float` | `1.5` | Multiplicador do ATR no effective_stop |
-| `min_position_usdt` | `float` | `10.0` | Posição mínima (min notional Binance) |
+| `atr_multiplier` | `float` | `1.5` (env: 2.0) | Multiplicador do ATR no effective_stop |
+| `min_position_usdt` | `float` | `10.0` (env: 1.0) | Posição mínima (min notional Binance) |
 | `max_position_usdt` | `float` | `500.0` | Posição máxima (cap de segurança) |
 
 ### Fórmula de sizing (ATR mode)
@@ -123,33 +125,38 @@ def atr(
 
 ```python
 class RiskManager:
-    async def calculate_position_size(
+    def calculate(
         self,
-        symbol: str,
-        direction: str,
+        signal: Signal,
+        available_balance: float,
+        quantity_precision: int = 3,
+        intraday_realized_pnl_usdt: float = 0.0,
+        now_utc: datetime | None = None,
         df: pd.DataFrame | None = None,
-    ) -> PositionSize:
-        """Retorna PositionSize com quantity, risk, reward, RRR.
+    ) -> PositionSize | None:
+        """Retorna PositionSize ou None se violar constraints de risco.
 
         Se SIZING_MODE=atr e df for fornecido:
-          - atr_with_guard: effective_stop = max(sl_distance, atr * mult)
+          - effective_stop = max(sl_distance, atr * mult)
           - Log: effective_stop, atr_value, fractal_sl_distance
 
         Se SIZING_MODE=fixed ou df=None:
           - Comportamento atual (risk_per_trade_pct do saldo)
-        """
-```
+        ```
 
-**Algoritmo ATR:**
+**Algoritmo ATR (síncrono):**
 1. Se `sizing_mode == "fixed"`: retorna comportamento atual
 2. Se `sizing_mode == "atr"` e `df is None`: log WARN, cai para fixed
 3. Se `sizing_mode == "atr"`:
-   - Calcula ATR no DataFrame
-   - Se último ATR for NaN → fallback para fixed
+   - Calcula ATR no DataFrame via `_compute_atr_value(df)` (Facade)
+   - Se último ATR <= 0 → fallback para fixed
    - `effective_stop = max(fractal_sl_distance, atr_value * atr_multiplier)`
-   - `position_usdt = risk_per_trade_usdt * entry_price / effective_stop`
+   - `position_usdt = effective_risk_per_trade_usdt * entry_price / effective_stop`
+   - Aplica `max_position_pct` se configurado
    - Aplica `clamp` (min/max position)
    - Converte para quantidade do ativo
+   - Valida INV-029-05: se risco real > 1.05x → rejection
+   - Valida slippage gate SPEC_043: se slippage > tolerância → rejection
    - Log: `{effective_stop, atr_value, fractal_sl_distance, sizing_mode, position_usdt}`
 
 ---
@@ -158,12 +165,12 @@ class RiskManager:
 
 | ID | Invariante |
 |----|-----------|
-| INV-029-01 | `position_usdt` nunca excede `MAX_POSITION_USDT` |
-| INV-029-02 | `position_usdt` nunca é menor que `MIN_POSITION_USDT` |
-| INV-029-03 | Se ATR for NaN no último candle, sizing cai para fixed |
-| INV-029-04 | `risk_per_trade_usdt` > 0 sempre |
-| INV-029-05 | `position_usdt * (effective_stop / entry_price) <= risk_per_trade_usdt * 1.05` |
-| INV-029-06 | SL da estratégia mantém-se no fractal anterior (regra Phicube inegociável) |
+| INV-029-01 | `effective_stop ≥ fractal_sl_distance` | by construction (`max()`) |
+| INV-029-02 | Fallback para fixed se ATR indisponível (NaN, df=None, zero, candles insuficientes) |
+| INV-029-03 | `position_usdt` clampado em [`MIN_POSITION_USDT`, `MAX_POSITION_USDT`] |
+| INV-029-04 | Override de `atr_multiplier` por símbolo via `atr_multiplier_overrides` |
+| INV-029-05 | Risco real `quantity * effective_stop` ≤ `effective_risk_per_trade_usdt * 1.05` |
+| INV-029-06 | ATR calculado no mesmo timeframe da estratégia (df fornecido pelo TradingMonitor) |
 
 ---
 
@@ -187,10 +194,12 @@ class RiskManager:
 | Arquivo | Mudança |
 |---------|---------|
 | `src/strategy/indicators.py` | Modificado — adicionar `atr()` |
-| `src/trading/risk_manager.py` | Modificado — `calculate_position_size()` com ATR + guard |
-| `src/config/settings.py` | Modificado — novos campos `SIZING_MODE`, `RISK_PER_TRADE_USDT`, `ATR_*`, `MIN/MAX_POSITION_USDT` |
+| `src/trading/risk_manager.py` | Modificado — `calculate()` com ATR + guard |
+| `src/config/settings.py` | Modificado — novos campos `SIZING_MODE`, `RISK_PER_TRADE_USDT`, `ATR_*`, `MIN/MAX_POSITION_USDT`, `atr_multiplier_overrides` |
+| `src/main.py` | Modificado — wiring de `get_atr_multiplier_override` no RiskManager |
 | `tests/strategy/test_indicators.py` | Modificado — TEST_029_01, 02 |
 | `tests/trading/test_risk_manager.py` | Modificado — TEST_029_03 a 08 |
+| `tools/simulacao_atr_calibracao.py` | Novo — script de simulação (5 pares, 8 multipliers) |
 
 ---
 
@@ -221,15 +230,15 @@ class RiskManager:
 
 ## 10. Definition of Done
 
-- [ ] `indicators.atr()` implementado e testado (TEST_029_01, 02)
-- [ ] `RiskManager.calculate_position_size()` com suporte ATR + `effective_stop` guard
-- [ ] Config `SIZING_MODE` alternando entre `fixed` e `atr`
-- [ ] Logging de `effective_stop`, `atr_value`, `fractal_sl_distance` em todo cálculo ATR
-- [ ] Fallback para fixed em caso de dados insuficientes
-- [ ] INV-029-01 a 06 implementados e testados
-- [ ] TEST_029_01 a 08 passando
-- [ ] Simulação 5 pares executada; `atr_multiplier` homologado pelo Trader Sênior
-- [ ] `ruff check src/ tests/` limpo
+- [x] `indicators.atr()` implementado e testado (TEST_029_01, 02)
+- [x] `RiskManager.calculate()` com suporte ATR + `effective_stop` guard
+- [x] Config `SIZING_MODE` alternando entre `fixed` e `atr`
+- [x] Logging de `effective_stop`, `atr_value`, `fractal_sl_distance` em todo cálculo ATR
+- [x] Fallback para fixed em caso de dados insuficientes
+- [x] INV-029-01 a 06 implementados e testados
+- [x] TEST_029_01 a 08 passando (712 total na suite)
+- [x] Simulação 5 pares executada; `atr_multiplier=2.0` homologado
+- [x] `ruff check src/ tests/` limpo
 
 ---
 

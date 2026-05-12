@@ -574,11 +574,13 @@ class TestSlippageGateATR:
 
     def _make_df(self, close: float = 100.0) -> pd.DataFrame:
         arr = np.linspace(close - 5, close, 50)
-        return pd.DataFrame({
-            "close": arr,
-            "high": arr * 1.02,
-            "low": arr * 0.98,
-        })
+        return pd.DataFrame(
+            {
+                "close": arr,
+                "high": arr * 1.02,
+                "low": arr * 0.98,
+            }
+        )
 
     def test_slippage_rejects_excessive_risk(self) -> None:
         """TEST-043-05: Slippage + risco > tolerância → rejeição.
@@ -706,11 +708,13 @@ class TestMaxPositionPct:
 
     def _make_df(self) -> pd.DataFrame:
         arr = np.linspace(95, 100, 50)
-        return pd.DataFrame({
-            "close": arr,
-            "high": arr * 1.02,
-            "low": arr * 0.98,
-        })
+        return pd.DataFrame(
+            {
+                "close": arr,
+                "high": arr * 1.02,
+                "low": arr * 0.98,
+            }
+        )
 
     def test_max_position_pct_limits_position(self) -> None:
         """TEST-043-10: max_position_pct=50, balance=300 → effective_max=150."""

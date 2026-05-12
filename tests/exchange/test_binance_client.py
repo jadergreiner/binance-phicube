@@ -38,7 +38,10 @@ class TestPriceProtectStopLoss:
     async def test_stop_loss_has_price_protect(self) -> None:
         """create_stop_loss_order envia priceProtect=True nos params."""
         client = _make_client()
-        mock_create = _mock_exchange_create_order(client, return_value={"id": "123", "status": "new"})
+        mock_create = _mock_exchange_create_order(
+            client,
+            return_value={"id": "123", "status": "new"},
+        )
 
         await client.create_stop_loss_order("BTCUSDT", "sell", 0.01, 60000.0)
 
@@ -92,7 +95,10 @@ class TestPriceProtectTakeProfit:
     async def test_take_profit_has_price_protect(self) -> None:
         """create_take_profit_order envia priceProtect=True nos params."""
         client = _make_client()
-        mock_create = _mock_exchange_create_order(client, return_value={"id": "789", "status": "new"})
+        mock_create = _mock_exchange_create_order(
+            client,
+            return_value={"id": "789", "status": "new"},
+        )
 
         await client.create_take_profit_order("BTCUSDT", "sell", 0.01, 65000.0)
 
@@ -150,7 +156,9 @@ class TestPriceProtectTrailingStop:
         )
 
         await client.create_trailing_stop_order(
-            "BTCUSDT", "sell", 0.01,
+            "BTCUSDT",
+            "sell",
+            0.01,
             activation_price=62000.0,
             callback_rate=0.5,
         )
@@ -173,7 +181,9 @@ class TestPriceProtectTrailingStop:
         )
 
         result = await client.create_trailing_stop_order(
-            "ETHUSDT", "sell", 0.1,
+            "ETHUSDT",
+            "sell",
+            0.1,
             activation_price=3100.0,
             callback_rate=0.5,
         )
@@ -196,7 +206,9 @@ class TestPriceProtectTrailingStop:
 
         with pytest.raises(ccxt.AuthenticationError):
             await client.create_trailing_stop_order(
-                "BTCUSDT", "sell", 0.01,
+                "BTCUSDT",
+                "sell",
+                0.01,
                 activation_price=62000.0,
                 callback_rate=0.5,
             )
@@ -214,7 +226,9 @@ class TestPriceProtectTrailingStop:
 
         with pytest.raises(ccxt.InsufficientFunds):
             await client.create_trailing_stop_order(
-                "BTCUSDT", "sell", 0.01,
+                "BTCUSDT",
+                "sell",
+                0.01,
                 activation_price=62000.0,
                 callback_rate=0.5,
             )

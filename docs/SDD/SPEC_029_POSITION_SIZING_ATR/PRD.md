@@ -4,7 +4,7 @@
 **PRD Principal:** [`PRD.md`](../../PRD.md)
 **Data:** 2026-05-11
 **Versão:** 1.0
-**Status:** Refinado (Aguardando Time B)
+**Status:** Concluído
 
 ---
 
@@ -61,7 +61,7 @@ Hoje o bot calcula o tamanho da posição como **percentual fixo do saldo** (`ri
 
 | Decisão | Opção Escolhida | Alternativa Rejeitada | Motivo |
 |---------|----------------|----------------------|--------|
-| Modo de sizing | `atr_with_guard` (`max(fractal, ATR)`) | `atr_simple` (só ATR) | Risco de superdimensionamento no `atr_simple` é inaceitável (Princípio 2 do Manifesto) |
+| Modo de sizing | `atr` com guard (`max(fractal, ATR)`) | `atr_simple` (só ATR) | Risco de superdimensionamento no `atr_simple` é inaceitável (Princípio 2 do Manifesto) |
 | Risco configurável | `RISK_PER_TRADE_USDT` (USDT fixo) | Manter `risk_per_trade_pct` (%) | Previsibilidade: operador sabe exatamente o risco em USDT |
 | Default `RISK_PER_TRADE_USDT` | 5.0 | Valor maior (10, 20) | Saldo inicial de $300; 5 USDT = 1.6% do saldo |
 | Timeframe do ATR | Mesmo timeframe do trade | Timeframe fixo (1h, 4h) | Coerência com o SL do fractal (mesma resolução) |

@@ -107,8 +107,10 @@ class TradeCloseRouter:
             else:
                 # Perda no portfólio
                 self._portfolio_consecutive_losses += 1
-                if (self._portfolio_consecutive_losses >= self._portfolio_loss_threshold
-                        and not self._portfolio_breaker_active):
+                if (
+                    self._portfolio_consecutive_losses >= self._portfolio_loss_threshold
+                    and not self._portfolio_breaker_active
+                ):
                     self._portfolio_breaker_active = True
                     logger.warning(
                         "portfolio_circuit_breaker_activated",
