@@ -35,6 +35,10 @@ from src.trading.trade_close_router import TradeCloseRouter
 
 logger = get_logger(__name__)
 
+# Horário do backup diário (UTC)
+_BACKUP_HOUR_UTC = 3
+_BACKUP_MINUTE_UTC = 0
+
 # Seconds to wait between each candle-close poll per (symbol, timeframe)
 _TIMEFRAME_SECONDS: dict[str, int] = {
     "1m": 60,
@@ -78,20 +82,70 @@ class HeartbeatTask:
                 logger.debug("heartbeat_failed", error_type=type(exc).__name__)
             await asyncio.sleep(self.INTERVAL_SECONDS)
 
-    async def _beat(self) -> None:
-        uptime = int((datetime.now(UTC) - self._started_at).total_seconds())
-        monitor_count = self._monitor_count
-        if callable(self._monitor_count_getter):
-            monitor_count = int(self._monitor_count_getter())
-        await self._repo.audit(
-            "heartbeat",
-            {
-                "process_uptime_seconds": uptime,
-                "monitor_count": monitor_count,
-                "metadata": {"source": "HeartbeatTask", "version": "1.0"},
-            },
+
+class BackupTask:
+    """Executa backup MongoDB diário às 03:00 UTC (SPEC_031).
+
+    Padrão: mesma estrutura de HeartbeatTask.
+    Usa asyncio.sleep dinâmico para acordar na hora agendada.
+    """
+
+    def __init__(
+        self,
+        mongodb_uri: str,
+        backup_dir: str = "./backups/mongo",
+        notifier: Notifier | None = None,
+    ) -> None:
+        self._mongodb_uri = mongodb_uri
+        self._backup_dir = backup_dir
+        self._notifier = notifier
+
+    async def run(self) -> None:
+        while True:
+            try:
+                await self._run_once()
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                logger.error("backup_task_failed", error_type=type(exc).__name__)
+
+            # Aguardar até o próximo dia às 03:00 UTC
+            await self._sleep_until_next()
+
+    async def _run_once(self) -> None:
+        from tools.backup_mongo import MongoBackup  # noqa: PLC0415
+
+        logger.info("backup_task_starting")
+        backup = MongoBackup(
+            mongodb_uri=self._mongodb_uri,
+            backup_dir=self._backup_dir,
+            notifier=self._notifier,
         )
-        logger.debug("heartbeat_recorded", uptime_seconds=uptime)
+        record = await backup.run(verify=True)
+        if record is not None:
+            logger.info(
+                "backup_task_completed",
+                file=record.file_path,
+                size_bytes=record.file_size_bytes,
+                duration_s=record.duration_seconds,
+            )
+
+    async def _sleep_until_next(self) -> None:
+        """Calcula segundos até a próxima 03:00 UTC e dorme."""
+        now = datetime.now(UTC)
+        next_run = now.replace(
+            hour=_BACKUP_HOUR_UTC,
+            minute=_BACKUP_MINUTE_UTC,
+            second=0,
+            microsecond=0,
+        )
+        if next_run <= now:
+            # Já passou das 03:00 hoje → agenda para amanhã
+            next_run = next_run.replace(day=next_run.day + 1)
+
+        delay = (next_run - now).total_seconds()
+        logger.debug("backup_task_next_run", next_run=next_run.isoformat(), delay_s=int(delay))
+        await asyncio.sleep(delay)
 
 
 class RuntimeMonitorRegistry:
@@ -667,6 +721,15 @@ async def _main() -> None:
                 repo=repo,
                 monitor_count=monitor_registry.monitor_count,
                 monitor_count_getter=lambda: monitor_registry.monitor_count,
+            ).run()
+        )
+    )
+    tasks.append(
+        asyncio.create_task(
+            BackupTask(
+                mongodb_uri=settings.mongodb_uri,
+                backup_dir="./backups/mongo",
+                notifier=notifier,
             ).run()
         )
     )

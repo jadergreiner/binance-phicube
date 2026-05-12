@@ -175,6 +175,28 @@ def cmd_openspec(args: argparse.Namespace) -> int:
     return 0 if target.exists() else 1
 
 
+def cmd_backup(args: argparse.Namespace) -> int:
+    """Executa backup MongoDB (SPEC_031)."""
+    import asyncio  # noqa: PLC0415
+
+    from src.config.settings import get_settings  # noqa: PLC0415
+    from tools.backup_mongo import MongoBackup  # noqa: PLC0415
+
+    async def _run() -> int:
+        mongodb_uri = args.mongodb_uri or get_settings().mongodb_uri
+        backup = MongoBackup(
+            mongodb_uri=mongodb_uri,
+            backup_dir=args.backup_dir,
+        )
+        record = await backup.run(dry_run=args.dry_run, verify=not args.no_verify)
+        if record is None:
+            return 1 if not args.dry_run else 0
+        print(f"Backup concluído: {record.file_path} ({record.file_size_bytes} bytes)")
+        return 0
+
+    return asyncio.run(_run())
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="phicube-ops", description="Phicube operations CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -211,6 +233,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_openspec.add_argument("--json", action="store_true", help="Emit JSON output")
     p_openspec.set_defaults(func=cmd_openspec)
+
+    # ── backup ──────────────────────────────────────────────
+    p_backup = sub.add_parser("backup", help="Backup MongoDB (SPEC_031)")
+    p_backup.add_argument("--dry-run", action="store_true", help="Apenas loga o que faria")
+    p_backup.add_argument(
+        "--no-verify", action="store_true", help="Pula verificacao de integridade"
+    )
+    p_backup.add_argument("--backup-dir", default="./backups/mongo", help="Diretorio de backup")
+    p_backup.add_argument(
+        "--mongodb-uri",
+        default=None,
+        help="URI MongoDB (padrao: da configuracao)",
+    )
+    p_backup.set_defaults(func=cmd_backup)
 
     return parser
 

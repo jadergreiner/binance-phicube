@@ -19,6 +19,7 @@ class NotificationEvent(StrEnum):
     CRITICAL_ERROR = "critical_error"
     SL_PROTECTION_FAILED = "sl_protection_failed"
     PERFORMANCE_REPORT = "performance_report"
+    BACKUP_FAILED = "backup_failed"
     SL_MISSING = "sl_missing"
     SL_RESTORED = "sl_restored"
 
@@ -156,6 +157,22 @@ class SLRestoredEvent:
             f"⏱️ **Tempo de resposta:** {mins} minuto(s)\n"
             f"🔔 **Alertas enviados:** {self.notification_count}\n\n"
             f"⏰ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+        )
+
+
+@dataclass(frozen=True)
+class BackupFailedEvent:
+    """Evento de falha no backup automatizado MongoDB."""
+
+    reason: str
+    timestamp: str  # YYYY-MM-DD
+
+    def to_message(self) -> str:
+        return (
+            f"🚨 **FALHA NO BACKUP MongoDB**\n\n"
+            f"📅 **Data:** {self.timestamp}\n"
+            f"❌ **Motivo:** {self.reason}\n\n"
+            f"⚠️ **Ação necessária:** Verifique os logs do bot."
         )
 
 

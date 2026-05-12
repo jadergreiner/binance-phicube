@@ -15,6 +15,7 @@ Modos de uso:
     python tools/corpus_curator.py --csv data/BTCUSDT_5m.csv \\
         --symbol BTCUSDT --timeframe 5m
 """
+
 from __future__ import annotations
 
 import argparse

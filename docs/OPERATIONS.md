@@ -236,3 +236,58 @@ Cada evento de SL orfao e registrado no MongoDB com:
 Use esses campos para analisar tendencias de resposta e ajustar o intervalo se necessario.
 
 > **Nunca ignore alertas de SL ORPHAN. Cada minuto sem protecao e risco nao coberto.**
+
+---
+
+## Procedimento de Restore — MongoDB
+
+**Referencia:** SPEC_031 — Backup Automatico MongoDB (docs/SDD/SPEC_031_BACKUP_MONGODB/SPEC.md)
+
+O bot executa backup diario automatico do MongoDB as 03:00 UTC para o diretorio `./backups/mongo/`.
+
+### Listar backups disponiveis
+
+```bash
+ls -lh ./backups/mongo/phicube_*.gz
+```
+
+Ou via Docker:
+
+```bash
+docker compose exec phicube ls -lh /app/backups/mongo/
+```
+
+### Restaurar o backup mais recente
+
+```bash
+mongorestore "mongodb://<usuario>:<senha>@localhost:27017/phicube" \
+  --gzip --archive="./backups/mongo/$(ls -t ./backups/mongo/phicube_*.gz | head -1)" \
+  --drop
+```
+
+### Restaurar um backup especifico
+
+```bash
+mongorestore "mongodb://<usuario>:<senha>@localhost:27017/phicube" \
+  --gzip --archive="./backups/mongo/phicube_2026-05-10.gz" \
+  --drop
+```
+
+### Restaurar via Docker
+
+```bash
+docker compose exec -T phicube mongorestore "mongodb://mongo:27017/phicube" \
+  --gzip --archive="/app/backups/mongo/phicube_2026-05-10.gz" \
+  --drop
+```
+
+O parametro `--drop` remove as colecoes existentes antes de restaurar. Remova-o se quiser fazer merge dos dados.
+
+### Verificacao pos-restore
+
+```bash
+# Conectar ao MongoDB e verificar documentos
+docker compose exec mongo mongosh mongodb://mongo:27017/phicube \
+  --eval "db.trades.countDocuments()" \
+  --quiet
+```

@@ -49,9 +49,7 @@ def fetch_ohlcv(
     import ccxt
 
     exchange = ccxt.binance({"enableRateLimit": True})
-    since = exchange.parse8601(
-        (pd.Timestamp.now() - pd.Timedelta(days=days)).isoformat()
-    )
+    since = exchange.parse8601((pd.Timestamp.now() - pd.Timedelta(days=days)).isoformat())
     all_candles: list[list] = []
 
     while True:
@@ -185,11 +183,13 @@ def run_simulation(
 
         for mult in multipliers:
             metrics = simulate_metrics(df, mult)
-            rows.append({
-                "symbol": symbol,
-                "multiplier": round(mult, 1),
-                **metrics,
-            })
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "multiplier": round(mult, 1),
+                    **metrics,
+                }
+            )
             print(
                 f"    multiplier={mult:.1f} "
                 f"guard={metrics['guard_activation_pct']:.1f}% "
@@ -211,6 +211,7 @@ def generate_plot(results: pd.DataFrame, path: Path) -> None:
     """Generate calibration plot — risk_overshoot_p95 vs multiplier per symbol."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
@@ -298,7 +299,9 @@ def main() -> int:
     print("=" * 60)
     print(f"Pares: {', '.join(args.pairs)}")
     print(f"Período: {args.days} dias, Timeframe: {args.timeframe}")
-    print(f"Multiplier range: {MULTIPLIER_RANGE[0]}..{MULTIPLIER_RANGE[1]} step {MULTIPLIER_RANGE[2]}")
+    print(
+        f"Multiplier range: {MULTIPLIER_RANGE[0]}..{MULTIPLIER_RANGE[1]} step {MULTIPLIER_RANGE[2]}"
+    )
     print()
 
     results = run_simulation(

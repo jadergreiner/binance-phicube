@@ -95,7 +95,7 @@ Cada SPEC incremental vive em seu próprio diretório:
 | [SPEC_028_REALISMO_BACKTEST/](SPEC_028_REALISMO_BACKTEST/SPEC.md) | SPEC_028 | Realismo em Backtest: Slippage, Taxas e Sizing | Concluída |
 | [SPEC_029_POSITION_SIZING_ATR/](SPEC_029_POSITION_SIZING_ATR/SPEC.md) | SPEC_029 | Position Sizing por ATR | Em Refinamento |
 | [SPEC_030_SAIDA_DINAMICA/](SPEC_030_SAIDA_DINAMICA/SPEC.md) | SPEC_030 | Saída Dinâmica: Trailing Stop e TP Parcial | **Aprovado** |
-| [SPEC_031_BACKUP_MONGODB/](SPEC_031_BACKUP_MONGODB/SPEC.md) | SPEC_031 | Backup Automático MongoDB | Rascunho |
+| [SPEC_031_BACKUP_MONGODB/](SPEC_031_BACKUP_MONGODB/SPEC.md) | SPEC_031 | Backup Automático MongoDB | Concluída |
 | [SPEC_032_OBSERVABILIDADE_PROMETHEUS/](SPEC_032_OBSERVABILIDADE_PROMETHEUS/SPEC.md) | SPEC_032 | Observabilidade com Prometheus + Grafana | Rascunho |
 | [SPEC_033_PLUGINS_ESTRATEGIA/](SPEC_033_PLUGINS_ESTRATEGIA/SPEC.md) | SPEC_033 | Arquitetura de Plugins de Estratégia | Rascunho |
 | [SPEC_034_RECUPERACAO_AUTOMATICA/](SPEC_034_RECUPERACAO_AUTOMATICA/SPEC.md) | SPEC_034 | Recuperação Automática: Circuit Breaker e Graceful Degradation | Rascunho |

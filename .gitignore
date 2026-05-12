@@ -46,6 +46,9 @@ coverage.xml
 # Serena (assistente local — não deve ir para o repositório)
 .serena/
 
+# Backup artifacts (SPEC_031)
+backups/
+
 # Task management artifacts
 .tmp/
 
