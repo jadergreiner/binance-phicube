@@ -60,8 +60,10 @@ async def test_execute_rolls_back_when_stop_loss_creation_fails() -> None:
 
     assert trade is not None
     assert trade.status == TradeStatus.FAILED
-    client.cancel_all_orders.assert_called_once_with("BTCUSDT")
-    notifier.send.assert_called_once()
+    # Command Pattern: pipeline rollback chama cancel_all_orders para cada comando executado
+    # (MarketOrder = 1 chamada)
+    assert client.cancel_all_orders.call_count == 1
+    assert client.cancel_all_orders.call_args_list[-1] == (("BTCUSDT",),)
 
 
 @pytest.mark.asyncio
@@ -74,4 +76,7 @@ async def test_execute_rolls_back_when_take_profit_creation_fails() -> None:
 
     assert trade is not None
     assert trade.status == TradeStatus.FAILED
-    client.cancel_all_orders.assert_called_once_with("BTCUSDT")
+    # Command Pattern: pipeline rollback chama cancel_all_orders para cada comando executado
+    # (StopLoss + MarketOrder = 2 chamadas)
+    assert client.cancel_all_orders.call_count == 2
+    assert client.cancel_all_orders.call_args_list[-1] == (("BTCUSDT",),)

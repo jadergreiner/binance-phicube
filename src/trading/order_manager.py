@@ -26,6 +26,15 @@ from src.notifications import Notifier
 from src.notifications.events import NotificationEvent, SLProtectionFailedEvent
 from src.strategy.signal_engine import Direction, Signal
 from src.trading.risk_manager import PositionSize
+from src.trading.trade_builder import TradeBuilder
+
+# Command Pattern imports (SPEC_034)
+from src.trading.commands import (
+    CreateMarketOrderCommand,
+    CreateStopLossCommand,
+    CreateTakeProfitCommand,
+    OrderPipeline,
+)
 
 logger = get_logger(__name__)
 
@@ -225,7 +234,7 @@ class OrderManager:
         return round(weighted_rrr, 2)
 
     async def execute(self, signal: Signal, position: PositionSize) -> Trade | None:
-        """Execute a full trade: market entry + SL + TP(s).
+        """Execute a full trade: market entry + SL + TP(s) via Command Pipeline.
 
         If exit_strategy is "fixed" (default): single TP for full qty (legacy behavior).
         If exit_strategy is "partial": multiple TAKE_PROFIT_MARKET orders (SPEC_030).
@@ -242,13 +251,21 @@ class OrderManager:
         await self._client.set_leverage(symbol, self._leverage)
         await self._client.set_margin_mode(symbol, "isolated")
 
-        # ─── Step 2: Market entry order ───────────────────────────────────────
+        # ─── Step 2: Build Command Pipeline ───────────────────────────────────
+        pipeline = OrderPipeline()
+
+        # Market entry command
+        market_cmd = CreateMarketOrderCommand(
+            client=self._client,
+            symbol=symbol,
+            side=entry_side,
+            quantity=total_qty,
+        )
+        pipeline.add(market_cmd)
+
+        # ─── Step 3: Execute pipeline ───────────────────────────────────────
         try:
-            entry_order = await self._client.create_market_order(
-                symbol=symbol,
-                side=entry_side,
-                quantity=total_qty,
-            )
+            await pipeline.execute()
         except Exception as exc:
             logger.error(
                 "entry_order_failed",
@@ -257,6 +274,10 @@ class OrderManager:
             )
             return None
 
+        entry_order = market_cmd.result
+        if entry_order is None:
+            logger.error("market_order_result_is_none", symbol=symbol)
+            return None
         entry_order_id = str(entry_order.get("id", "unknown"))
         actual_entry = float(entry_order.get("average") or position.entry_price)
 
@@ -269,116 +290,99 @@ class OrderManager:
             order_id=entry_order_id,
         )
 
-        # ─── Step 3: Stop Loss / Trailing Stop order (full quantity) ──────────
-        sl_order_id: str | None = None
-        try:
-            if self._exit_strategy == ExitStrategy.TRAILING:
-                # Trailing Stop replaces fixed SL
-                if is_long:
-                    activation_price = actual_entry * (1 + self._trailing_activation_pct / 100.0)
+        # ─── Step 4: Add SL and TP commands to pipeline ─────────────────────
+        # Stop Loss command
+        sl_cmd = CreateStopLossCommand(
+            client=self._client,
+            symbol=symbol,
+            side=exit_side,
+            quantity=total_qty,
+            stop_price=position.stop_loss,
+            exit_strategy=self._exit_strategy,
+            trailing_activation_pct=self._trailing_activation_pct,
+            trailing_callback_rate=self._trailing_callback_rate,
+            entry_price=actual_entry,
+        )
+        pipeline.add(sl_cmd)
+
+        # Take Profit commands
+        tp_commands: list[CreateTakeProfitCommand] = []
+        if self._exit_strategy == ExitStrategy.TRAILING:
+            pass  # No fixed TP in trailing mode
+        elif self._exit_strategy == ExitStrategy.PARTIAL and self._tp_levels:
+            for level in self._tp_levels:
+                qty_pct = float(level["qty_pct"])
+                price_dist_pct = float(level["price_distance_pct"])
+                level_qty = total_qty * qty_pct / 100.0
+                level_qty = self._client.round_quantity(symbol, level_qty)
+                is_long_tp = exit_side == "sell"
+                if is_long_tp:
+                    tp_price = actual_entry * (1 + price_dist_pct / 100.0)
                 else:
-                    activation_price = actual_entry * (1 - self._trailing_activation_pct / 100.0)
-                activation_price = self._client.round_price(symbol, activation_price)
-                trailing_order = await self._client.create_trailing_stop_order(
+                    tp_price = actual_entry * (1 - price_dist_pct / 100.0)
+                tp_cmd = CreateTakeProfitCommand(
+                    client=self._client,
                     symbol=symbol,
                     side=exit_side,
-                    quantity=total_qty,
-                    activation_price=activation_price,
-                    callback_rate=self._trailing_callback_rate,
-                )
-                sl_order_id = str(trailing_order.get("id", "unknown"))
-            else:
-                sl_price = self._client.round_price(symbol, position.stop_loss)
-                sl_order = await self._create_sl_order(
-                    symbol=symbol,
-                    side=exit_side,
-                    quantity=total_qty,
-                    stop_price=sl_price,
-                )
-                sl_order_id = str(sl_order.get("id", "unknown"))
-        except Exception as exc:
-            logger.error(
-                "sl_order_failed",
-                symbol=symbol,
-                error_type=type(exc).__name__,
-                action="cancelling_all_orders",
-            )
-            await self._client.cancel_all_orders(symbol)
-
-            if self._notifier:
-                await self._notifier.send(
-                    NotificationEvent.SL_PROTECTION_FAILED,
-                    SLProtectionFailedEvent(
-                        symbol=symbol,
-                        entry_order_id=entry_order_id,
-                        entry_price=actual_entry,
-                        quantity=total_qty,
-                        timestamp=datetime.now(UTC),
-                    ),
-                )
-
-            return _failed_trade(signal, position, entry_order_id)
-
-        # ─── Step 4: Take Profit order(s) ────────────────────────────────────
-        tp_order_ids: list[str] = []
-        try:
-            if self._exit_strategy == ExitStrategy.TRAILING:
-                pass  # No fixed TP in trailing mode — exchange manages via trailing stop
-            elif self._exit_strategy == ExitStrategy.PARTIAL and self._tp_levels:
-                tp_order_ids = await self._create_tp_orders(
-                    symbol=symbol,
-                    side=exit_side,
-                    total_quantity=total_qty,
-                    entry_price=actual_entry,
-                    tp_levels=self._tp_levels,
-                )
-            else:
-                # Fixed: single TP for full quantity (legacy behavior)
-                tp_price = self._client.round_price(symbol, position.take_profit)
-                tp_order = await self._client.create_take_profit_order(
-                    symbol=symbol,
-                    side=exit_side,
-                    quantity=total_qty,
+                    quantity=level_qty,
                     take_profit_price=tp_price,
                 )
-                tp_order_id = str(tp_order.get("id", "unknown"))
-                tp_order_ids = [tp_order_id]
-                logger.info(
-                    "tp_order_created",
-                    symbol=symbol,
-                    quantity=total_qty,
-                    tp_price=tp_price,
-                    order_id=tp_order_id,
-                )
+                tp_commands.append(tp_cmd)
+                pipeline.add(tp_cmd)
+        else:
+            # Fixed: single TP for full quantity
+            tp_cmd = CreateTakeProfitCommand(
+                client=self._client,
+                symbol=symbol,
+                side=exit_side,
+                quantity=total_qty,
+                take_profit_price=position.take_profit,
+            )
+            tp_commands.append(tp_cmd)
+            pipeline.add(tp_cmd)
+
+        # ─── Step 5: Execute SL + TP pipeline ─────────────────────────────────
+        try:
+            await pipeline.execute()
         except Exception as exc:
             logger.error(
-                "tp_order_failed",
+                "sl_tp_order_failed",
                 symbol=symbol,
                 error_type=type(exc).__name__,
                 action="cancelling_all_orders",
             )
-            await self._client.cancel_all_orders(symbol)
+
+            if "sl" in str(exc).lower() or "stop" in str(exc).lower():
+                if self._notifier:
+                    await self._notifier.send(
+                        NotificationEvent.SL_PROTECTION_FAILED,
+                        SLProtectionFailedEvent(
+                            symbol=symbol,
+                            entry_order_id=entry_order_id,
+                            entry_price=actual_entry,
+                            quantity=total_qty,
+                            timestamp=datetime.now(UTC),
+                        ),
+                    )
+
             return _failed_trade(signal, position, entry_order_id)
 
-        # ─── Step 5: Build and return Trade ───────────────────────────────────
-        trade = Trade(
-            symbol=symbol,
-            timeframe=signal.timeframe,
-            direction=signal.direction,
-            quantity=total_qty,
-            entry_price=actual_entry,
-            stop_loss=position.stop_loss,
-            take_profit=position.take_profit,
-            risk_amount=position.risk_amount,
-            margin_used=position.margin_required,
-            entry_order_id=entry_order_id,
-            sl_order_id=sl_order_id,
-            tp_order_id=tp_order_ids[0] if tp_order_ids else None,
-            status=TradeStatus.OPEN,
-            signal=signal.to_dict(),
-            exit_strategy=self._exit_strategy,
-            tp_levels=self._tp_levels,
-            tp_order_ids=tp_order_ids,
+        # ─── Step 6: Extract order IDs and build Trade ────────────────────────
+        sl_order_id = None
+        if sl_cmd.result:
+            sl_order_id = str(sl_cmd.result.get("id", "unknown"))
+
+        tp_order_ids: list[str] = []
+        for tp_cmd in tp_commands:
+            if tp_cmd.result:
+                tp_order_ids.append(str(tp_cmd.result.get("id", "unknown")))
+
+        trade = (
+            TradeBuilder()
+            .with_entry(signal, position)
+            .with_orders(entry_order_id, sl_order_id, tp_order_ids)
+            .with_exit_strategy(self._exit_strategy, self._tp_levels)
+            .build()
         )
 
         logger.info("trade_opened", **trade.to_dict())
@@ -392,17 +396,4 @@ class OrderManager:
 
 
 def _failed_trade(signal: Signal, position: PositionSize, entry_order_id: str) -> Trade:
-    return Trade(
-        symbol=signal.symbol,
-        timeframe=signal.timeframe,
-        direction=signal.direction,
-        quantity=position.quantity,
-        entry_price=position.entry_price,
-        stop_loss=position.stop_loss,
-        take_profit=position.take_profit,
-        risk_amount=position.risk_amount,
-        margin_used=position.margin_required,
-        entry_order_id=entry_order_id,
-        status=TradeStatus.FAILED,
-        signal=signal.to_dict(),
-    )
+    return TradeBuilder().build_failed(signal, position, entry_order_id)

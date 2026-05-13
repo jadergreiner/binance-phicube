@@ -229,7 +229,10 @@ async def test_rollback_when_partial_tp_fails() -> None:
 
     assert trade is not None
     assert trade.status == TradeStatus.FAILED
-    client.cancel_all_orders.assert_called_once_with("BTCUSDT")
+    # Command Pattern: rollback chama cancel_all_orders para cada comando executado
+    # (MarketOrder + StopLoss + TakeProfit1 = 3 chamadas)
+    assert client.cancel_all_orders.call_count == 3
+    assert client.cancel_all_orders.call_args_list[-1] == (("BTCUSDT",),)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
