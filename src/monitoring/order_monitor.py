@@ -28,6 +28,7 @@ import ccxt.async_support as ccxt
 
 from src.common.decorators import retry
 from src.monitoring.logger import get_logger
+from src.monitoring.metrics import record_pnl_realized, record_trade_executed
 from src.notifications.events import (
     NotificationEvent,
     SLMissingEvent,
@@ -374,7 +375,12 @@ class OrderMonitor:
             pnl_usdt=pnl_usdt,
         )
 
-        await self._notify_trade_closed(symbol, pnl_usdt)
+        await self._notify_trade_closed(
+            symbol,
+            pnl_usdt,
+            trade.get("direction", "long"),
+            "win",
+        )
 
     async def _handle_sl_executed(self, trade: dict, order: dict) -> None:
         """Registra encerramento por SL com exit_price real."""
@@ -413,7 +419,12 @@ class OrderMonitor:
             pnl_usdt=pnl_usdt,
         )
 
-        await self._notify_trade_closed(symbol, pnl_usdt)
+        await self._notify_trade_closed(
+            symbol,
+            pnl_usdt,
+            trade.get("direction", "long"),
+            "loss",
+        )
 
     async def _handle_sl_missing(self, trade: dict, current_price: float) -> None:
         """Re-notificação periódica de SL ausente (RF-001, RF-002, RF-003).
@@ -755,7 +766,12 @@ class OrderMonitor:
             pnl_usdt=pnl_usdt,
         )
 
-        await self._notify_trade_closed(symbol, pnl_usdt)
+        await self._notify_trade_closed(
+            symbol,
+            pnl_usdt,
+            trade.get("direction", "long"),
+            "closed_manual",
+        )
 
     @retry(
         max_attempts=_DEFAULT_ORDER_RETRIES,
@@ -912,12 +928,41 @@ class OrderMonitor:
         side_mult = 1.0 if direction == "long" else -1.0
         return (exit_price - entry_price) * quantity * side_mult - fees
 
-    async def _notify_trade_closed(self, symbol: str, pnl_usdt: float | None) -> None:
+    async def _notify_trade_closed(
+        self,
+        symbol: str,
+        pnl_usdt: float | None,
+        direction: str,
+        close_status: str,
+    ) -> None:
         """Notifica circuit breaker sobre trade fechado (SPEC_043).
+
+        Também registra métricas Prometheus:
+        - `phicube_trades_total` com status de fechamento
+        - `phicube_pnl_realized_win_total` ou `phicube_pnl_realized_loss_total`
 
         Extraído via Extract Method para eliminar triplicação nos handlers
         _handle_tp_executed, _handle_sl_executed e _handle_manual_close.
+
+        Args:
+            symbol: Símbolo do par
+            pnl_usdt: PnL realizado em USDT (pode ser None se não calculável)
+            direction: "long" ou "short"
+            close_status: "win", "loss", ou "closed_manual"
         """
+        # SPEC_032: Registrar trade fechado
+        # Normalizar direction para minúsculo (compatibilidade)
+        norm_direction = direction.lower()
+        record_trade_executed(
+            symbol,
+            norm_direction,  # type: ignore[arg-type]
+            close_status,  # type: ignore[arg-type]
+        )
+
+        # SPEC_032: Registrar PnL realizado (se disponível)
+        if pnl_usdt is not None:
+            record_pnl_realized(symbol, pnl_usdt)
+
         if self._on_trade_closed is not None and pnl_usdt is not None:
             try:
                 await self._on_trade_closed(symbol, pnl_usdt)
