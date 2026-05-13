@@ -241,6 +241,12 @@ class Settings(BaseSettings):
         description="Timeout em segundos para evaluate() de plugins de estratégia",
     )
 
+    # SPEC_034 — Pipeline Pattern para Tick
+    tick_pipeline_enabled: bool = Field(
+        default=False,
+        description="Feature flag: ativa pipeline de middlewares para processamento de ticks",
+    )
+
     # SPEC_032 — Prometheus Metrics
     prometheus_enabled: bool = Field(
         default=True,

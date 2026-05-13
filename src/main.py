@@ -233,6 +233,7 @@ class RuntimeMonitorRegistry:
             notifier=self._notifier,
             max_open_positions=self._settings.max_open_positions,
             warmup_candles=self._settings.warmup_candles,
+            tick_pipeline_enabled=getattr(self._settings, "tick_pipeline_enabled", False),
         )
 
     def _init_plugin_registry(self) -> None:
@@ -459,6 +460,7 @@ class TradingMonitor:
         notifier: Notifier,
         max_open_positions: int,
         warmup_candles: int,
+        tick_pipeline_enabled: bool = False,
     ) -> None:
         self._config = config
         self._symbol = config.symbol
@@ -471,8 +473,34 @@ class TradingMonitor:
         self._notifier = notifier
         self._max_positions = max_open_positions
         self._warmup_candles = warmup_candles
+        self._tick_pipeline_enabled = tick_pipeline_enabled
         # Intervalo derivado do timeframe — corrige bug de 300 s fixo (SPEC_018)
         self._interval = _TIMEFRAME_SECONDS.get(config.timeframe, 300)
+        # SPEC_034: Inicializar pipeline se habilitado
+        self._pipeline = None
+        if self._tick_pipeline_enabled:
+            self._init_pipeline()
+
+    def _init_pipeline(self) -> None:
+        from src.trading.tick_pipeline import TickPipeline
+        from src.trading.middlewares import (
+            FetchCandlesMiddleware,
+            ValidateLimitsMiddleware,
+            EvaluateSignalMiddleware,
+            CalculateRiskMiddleware,
+            ExecuteTradeMiddleware,
+            NotifyMiddleware,
+        )
+
+        self._pipeline = (
+            TickPipeline()
+            .use(FetchCandlesMiddleware(self._client, self._warmup_candles))
+            .use(ValidateLimitsMiddleware(self._repo, self._max_positions))
+            .use(EvaluateSignalMiddleware(self._signal_engine))
+            .use(CalculateRiskMiddleware(self._client, self._risk_manager, self._repo))
+            .use(ExecuteTradeMiddleware(self._order_manager, self._repo))
+            .use(NotifyMiddleware(self._notifier))
+        )
 
     async def run(self) -> None:
         logger.info("monitor_started", symbol=self._symbol, timeframe=self._timeframe)
@@ -495,6 +523,11 @@ class TradingMonitor:
             await asyncio.sleep(self._interval)
 
     async def _tick(self) -> None:
+        # SPEC_034: Usar pipeline quando habilitado
+        if self._tick_pipeline_enabled and self._pipeline is not None:
+            await self._tick_pipeline()
+            return
+
         # SPEC_032: Medir duração do tick
         tick_start = time.time()
 
@@ -680,6 +713,44 @@ class TradingMonitor:
             logger.error("trade_saved_as_failed", symbol=self._symbol, trade_id=trade_id)
 
         # SPEC_032: Registrar duração do tick no final do método
+        observe_tick_duration(
+            self._symbol,
+            self._timeframe,
+            time.time() - tick_start,
+        )
+
+    async def _tick_pipeline(self) -> None:
+        from src.trading.tick_pipeline import TickContext
+
+        tick_start = time.time()
+        update_heartbeat()
+
+        context = TickContext(
+            symbol=self._symbol,
+            timeframe=self._timeframe,
+        )
+
+        if self._pipeline is None:
+            logger.error("tick_pipeline_not_initialized", symbol=self._symbol)
+            return
+        result = await self._pipeline.execute(context)
+
+        if result.aborted:
+            logger.debug(
+                "tick_pipeline_aborted",
+                symbol=self._symbol,
+                timeframe=self._timeframe,
+                reason=result.abort_reason,
+                metrics=result.metrics,
+            )
+        else:
+            logger.debug(
+                "tick_pipeline_completed",
+                symbol=self._symbol,
+                timeframe=self._timeframe,
+                metrics=result.metrics,
+            )
+
         observe_tick_duration(
             self._symbol,
             self._timeframe,
