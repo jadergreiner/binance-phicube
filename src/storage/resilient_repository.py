@@ -359,6 +359,11 @@ class ResilientMongoRepository:
         """Expõe database da repo real para acesso direto se necessário."""
         return self._real_repo.database
 
+    @property
+    def registry(self) -> CircuitBreakerRegistry:
+        """Expõe registry de circuit breakers para monitoramento."""
+        return self._cb_registry
+
     async def setup_indexes(self) -> None:
         """Delegate para setup de índices."""
         await self._real_repo.setup_indexes()
