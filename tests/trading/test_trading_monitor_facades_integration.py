@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
@@ -29,7 +29,6 @@ from src.storage.resilient_repository import ResilientMongoRepository
 from src.strategy.plugin_base import SignalResult
 from src.strategy.signal_engine import Direction
 from src.trading.order_manager import Trade, TradeStatus
-from src.trading.risk_manager import RiskRejection
 
 
 def _build_signal_result() -> SignalResult:

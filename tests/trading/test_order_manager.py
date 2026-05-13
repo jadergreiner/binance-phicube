@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.strategy.signal_engine import Direction, Signal
-from src.trading.order_manager import OrderManager, TradeStatus
+from src.trading.order_manager import OrderManager
 from src.trading.risk_manager import PositionSize
 
 

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from src.common.result import Result, SignalError, err, ok
+from src.common.result import Result, SignalError, ok
 from src.monitoring.logger import get_logger
 from src.strategy.plugin_base import NullSignalResult, SignalResult
 from src.strategy.plugin_registry import PluginRegistry

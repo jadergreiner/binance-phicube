@@ -12,7 +12,7 @@ from src.strategies.williams_strategy import WilliamsStrategy
 from src.strategy.indicators import compute_all_optimized
 from src.strategy.plugin_base import NullSignalResult, SignalResult
 from src.strategy.plugin_registry import PluginRegistry
-from src.strategy.signal_engine import Direction, SignalEngine
+from src.strategy.signal_engine import SignalEngine
 
 # ─── Engine fixture ────────────────────────────────────────────────────────────
 

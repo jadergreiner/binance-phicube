@@ -142,7 +142,7 @@ async def test_tick_registra_desfecho_trade_opened() -> None:
     )
     signal_result = _build_signal_result()
     signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
-    from src.common.result import ok, err
+    from src.common.result import ok
     position = SimpleNamespace(quantity=1.0)
     risk_manager = SimpleNamespace(
         calculate=MagicMock(return_value=ok(position)),

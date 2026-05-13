@@ -554,15 +554,15 @@ class TradingMonitor:
             self._init_pipeline()
 
     def _init_pipeline(self) -> None:
-        from src.trading.tick_pipeline import TickPipeline
         from src.trading.middlewares import (
-            FetchCandlesMiddleware,
-            ValidateLimitsMiddleware,
-            EvaluateSignalMiddleware,
             CalculateRiskMiddleware,
+            EvaluateSignalMiddleware,
             ExecuteTradeMiddleware,
+            FetchCandlesMiddleware,
             NotifyMiddleware,
+            ValidateLimitsMiddleware,
         )
+        from src.trading.tick_pipeline import TickPipeline
 
         self._pipeline = (
             TickPipeline()
@@ -756,7 +756,7 @@ class TradingMonitor:
                 "create_order_circuit_breaker_open",
                 symbol=self._symbol,
                 timeframe=self._timeframe,
-                error=str(exc),
+                error_type=type(exc).__name__,
             )
             await self._set_signal_outcome(
                 signal_id,
