@@ -189,6 +189,8 @@ class Settings(BaseSettings):
     mongodb_uri: str = Field(default="mongodb://mongo:27017")
     mongodb_database: str = Field(default="phicube")
     trade_history_retention_days: Annotated[int, Field(ge=90)] = 90
+    circuit_breaker_mongo_recovery_timeout_secs: Annotated[int, Field(ge=10)] = 60
+    circuit_breaker_binance_recovery_timeout_secs: Annotated[int, Field(ge=10)] = 30
 
     # App
     log_level: str = Field(default="INFO")
