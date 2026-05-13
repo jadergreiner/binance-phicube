@@ -144,7 +144,9 @@ async def test_signal_engine_conforma_corpus(case_id: str, case: dict) -> None:
         pytest.skip(f"{case_id}: snapshot com {len(df)} candles — insuficiente")
 
     enriched = compute_all_optimized(df)
-    signal = await _ENGINE.evaluate(case["symbol"], case["timeframe"], enriched)
+    result_obj = await _ENGINE.evaluate(case["symbol"], case["timeframe"], enriched)
+    assert result_obj.is_ok()
+    signal = result_obj.unwrap()
     expected = case["expected_signal"]
 
     if not isinstance(signal, SignalResult):

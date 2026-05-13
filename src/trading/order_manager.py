@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+from src.common.result import OrderError, Result, err, ok
 from src.config.settings import ExitStrategy
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import get_logger
@@ -25,8 +26,6 @@ from src.monitoring.metrics import record_trade_executed
 from src.notifications import Notifier
 from src.notifications.events import NotificationEvent, SLProtectionFailedEvent
 from src.strategy.signal_engine import Direction, Signal
-from src.trading.risk_manager import PositionSize
-from src.trading.trade_builder import TradeBuilder
 
 # Command Pattern imports (SPEC_034)
 from src.trading.commands import (
@@ -35,6 +34,8 @@ from src.trading.commands import (
     CreateTakeProfitCommand,
     OrderPipeline,
 )
+from src.trading.risk_manager import PositionSize
+from src.trading.trade_builder import TradeBuilder
 
 logger = get_logger(__name__)
 
@@ -233,13 +234,13 @@ class OrderManager:
 
         return round(weighted_rrr, 2)
 
-    async def execute(self, signal: Signal, position: PositionSize) -> Trade | None:
+    async def execute(self, signal: Signal, position: PositionSize) -> Result[Trade, OrderError]:
         """Execute a full trade: market entry + SL + TP(s) via Command Pipeline.
 
         If exit_strategy is "fixed" (default): single TP for full qty (legacy behavior).
         If exit_strategy is "partial": multiple TAKE_PROFIT_MARKET orders (SPEC_030).
 
-        Returns a Trade object if successful, None on failure.
+        Returns Result[Trade, OrderError] — Ok(Trade) if successful, Err(OrderError) on failure.
         """
         symbol = signal.symbol
         is_long = signal.direction == Direction.LONG
@@ -272,12 +273,24 @@ class OrderManager:
                 symbol=symbol,
                 error_type=type(exc).__name__,
             )
-            return None
+            return err(
+                OrderError(
+                    code="ENTRY_ORDER_FAILED",
+                    message=f"Failed to create market entry order: {type(exc).__name__}",
+                    details={"symbol": symbol, "error": str(exc)},
+                )
+            )
 
         entry_order = market_cmd.result
         if entry_order is None:
             logger.error("market_order_result_is_none", symbol=symbol)
-            return None
+            return err(
+                OrderError(
+                    code="ENTRY_ORDER_RESULT_NONE",
+                    message="Market order result is None",
+                    details={"symbol": symbol},
+                )
+            )
         entry_order_id = str(entry_order.get("id", "unknown"))
         actual_entry = float(entry_order.get("average") or position.entry_price)
 
@@ -365,7 +378,13 @@ class OrderManager:
                         ),
                     )
 
-            return _failed_trade(signal, position, entry_order_id)
+            return err(
+                OrderError(
+                    code="SL_TP_ORDER_FAILED",
+                    message=f"Failed to create SL/TP orders: {type(exc).__name__}",
+                    details={"symbol": symbol, "entry_order_id": entry_order_id, "error": str(exc)},
+                )
+            )
 
         # ─── Step 6: Extract order IDs and build Trade ────────────────────────
         sl_order_id = None
@@ -392,7 +411,7 @@ class OrderManager:
             direction="long" if is_long else "short",
             status="open",
         )
-        return trade
+        return ok(trade)
 
 
 def _failed_trade(signal: Signal, position: PositionSize, entry_order_id: str) -> Trade:

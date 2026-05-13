@@ -97,9 +97,10 @@ async def test_partial_tp_two_levels() -> None:
         ],
     )
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
+    assert result.is_ok()
+    trade = result.unwrap()
     assert trade.status == TradeStatus.OPEN
     assert client.create_take_profit_order.call_count == 2
     assert trade.exit_strategy == ExitStrategy.PARTIAL
@@ -134,9 +135,10 @@ async def test_partial_tp_three_levels() -> None:
         ],
     )
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
+    assert result.is_ok()
+    trade = result.unwrap()
     assert trade.status == TradeStatus.OPEN
     assert client.create_take_profit_order.call_count == 3
     assert trade.tp_order_ids is not None
@@ -154,9 +156,10 @@ async def test_fixed_strategy_no_regression() -> None:
     client = _mock_client()
     manager = OrderManager(client=client, leverage=5)
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
+    assert result.is_ok()
+    trade = result.unwrap()
     assert trade.status == TradeStatus.OPEN
     assert client.create_take_profit_order.call_count == 1
     assert trade.exit_strategy == ExitStrategy.FIXED
@@ -188,9 +191,10 @@ async def test_sl_uses_full_quantity_partial_tp() -> None:
         ],
     )
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
+    assert result.is_ok()
+    trade = result.unwrap()
     assert trade.status == TradeStatus.OPEN
     # SL must be placed for the FULL position quantity, not partial TP qty
     client.create_stop_loss_order.assert_called_once_with(
@@ -225,10 +229,11 @@ async def test_rollback_when_partial_tp_fails() -> None:
         ],
     )
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
-    assert trade.status == TradeStatus.FAILED
+    assert result.is_err()
+    error = result.unwrap_err()
+    assert error.code == "SL_TP_ORDER_FAILED"
     # Command Pattern: rollback chama cancel_all_orders para cada comando executado
     # (MarketOrder + StopLoss + TakeProfit1 = 3 chamadas)
     assert client.cancel_all_orders.call_count == 3
@@ -416,8 +421,9 @@ async def test_simulated_client_partial_tp() -> None:
         ],
     )
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
-    assert trade is not None
+    result = await manager.execute(_sample_signal(), _sample_position())
+    assert result.is_ok()
+    trade = result.unwrap()
     assert trade.status == TradeStatus.OPEN
 
     # Deve ter 1 SL + 2 TP = 3 ordens condicionais abertas
@@ -462,9 +468,10 @@ async def test_trailing_stop_creates_trailing_order() -> None:
         trailing_callback_rate=0.5,
     )
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
+    assert result.is_ok()
+    trade = result.unwrap()
     assert trade.status == TradeStatus.OPEN
     client.create_trailing_stop_order.assert_called_once()
     client.create_take_profit_order.assert_not_called()
@@ -491,10 +498,11 @@ async def test_trailing_stop_rollback_on_failure() -> None:
         exit_strategy=ExitStrategy.TRAILING,
     )
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
-    assert trade.status == TradeStatus.FAILED
+    assert result.is_err()
+    error = result.unwrap_err()
+    assert error.code == "SL_TP_ORDER_FAILED"
     client.cancel_all_orders.assert_called_once_with("BTCUSDT")
 
 

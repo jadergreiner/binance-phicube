@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from src.common.result import Result, SignalError, err, ok
 from src.monitoring.logger import get_logger
 from src.strategy.plugin_base import NullSignalResult, SignalResult
 from src.strategy.plugin_registry import PluginRegistry
@@ -160,25 +161,25 @@ class SignalEngine:
         symbol: str,
         timeframe: str,
         df: pd.DataFrame,
-    ) -> SignalResult | NullSignalResult:
+    ) -> Result[SignalResult | NullSignalResult, SignalError]:
         if self._registry is None:
             logger.warning("no_plugin_registry", symbol=symbol, timeframe=timeframe)
             result: SignalResult | NullSignalResult = NullSignalResult(reason="no_plugin_registry")
             self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
-            return result
+            return ok(result)
 
         if len(df) < 50:
             logger.debug("insufficient_candles", symbol=symbol, rows=len(df))
             result = NullSignalResult(reason="insufficient_candles")
             self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
-            return result
+            return ok(result)
 
         required_cols = ["jaw", "teeth", "lips", "ao"]
         if not all(c in df.columns for c in required_cols):
             logger.debug("indicators_not_enriched", symbol=symbol)
             result = NullSignalResult(reason="indicators_not_enriched")
             self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
-            return result
+            return ok(result)
 
         # Chain of Responsibility
         chain = self._build_chain(symbol)
@@ -196,7 +197,7 @@ class SignalEngine:
         else:
             self._emit(SignalEventData(SignalEvent.EVALUATED, symbol, timeframe, result))
 
-        return result
+        return ok(result)
 
     def _build_chain(self, symbol: str) -> list:
         handlers = []

@@ -138,7 +138,9 @@ class TestChainOfResponsibility:
             symbol_strategy_map={"BTCUSDT": "custom_fail"},
         )
         df = _make_bullish_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, SignalResult), (
             f"Expected SignalResult from williams fallback, got {type(result)}: {result}"
         )
@@ -155,7 +157,9 @@ class TestChainOfResponsibility:
             symbol_strategy_map={"BTCUSDT": "echo_long"},
         )
         df = _make_bullish_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, SignalResult)
         assert result.direction == "LONG"
 
@@ -169,7 +173,9 @@ class TestChainOfResponsibility:
             default_strategy="always_fail",
         )
         df = _make_no_signal_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
         assert result.reason != "no_plugin_matched", (
             "Chain should have handlers but all returned null"
@@ -193,12 +199,16 @@ class TestSymbolStrategyMap:
 
         # BTCUSDT → williams plugin only (early return because williams)
         df_btc = _make_bullish_df()
-        result_btc = await engine.evaluate("BTCUSDT", "15m", df_btc)
+        result_btc_obj = await engine.evaluate("BTCUSDT", "15m", df_btc)
+        assert result_btc_obj.is_ok()
+        result_btc = result_btc_obj.unwrap()
         assert isinstance(result_btc, SignalResult)
 
         # ETHUSDT → echo_short (default_strategy)
         df_eth = _make_bullish_df()
-        result_eth = await engine.evaluate("ETHUSDT", "15m", df_eth)
+        result_eth_obj = await engine.evaluate("ETHUSDT", "15m", df_eth)
+        assert result_eth_obj.is_ok()
+        result_eth = result_eth_obj.unwrap()
         assert isinstance(result_eth, SignalResult)
         # Verifica que o direction é do echo_short
         assert result_eth.direction == "SHORT"
@@ -213,7 +223,9 @@ class TestSymbolStrategyMap:
             default_strategy="echo_long",
         )
         df = _make_bullish_df()
-        result = await engine.evaluate("UNKNOWN", "15m", df)
+        result_obj = await engine.evaluate("UNKNOWN", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, SignalResult)
         assert result.direction == "LONG"  # echo_long retorna LONG
 
@@ -228,7 +240,9 @@ class TestCorpusCompatibility:
         registry.register("williams", WilliamsStrategy())
         engine = SignalEngine(plugin_registry=registry)
         df = pd.DataFrame({"close": [100.0] * 10})
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
         assert result.reason == "insufficient_candles"
 
@@ -238,7 +252,9 @@ class TestCorpusCompatibility:
         registry.register("williams", WilliamsStrategy())
         engine = SignalEngine(plugin_registry=registry)
         df = pd.DataFrame({"close": [100.0] * 60})
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
         assert result.reason == "indicators_not_enriched"
 
@@ -246,7 +262,9 @@ class TestCorpusCompatibility:
         """SignalEngine sem registry retorna NullSignalResult."""
         engine = SignalEngine()
         df = _make_bullish_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
 
     async def test_corpus_like_data_returns_signal(self) -> None:
@@ -255,7 +273,9 @@ class TestCorpusCompatibility:
         registry.register("williams", WilliamsStrategy())
         engine = SignalEngine(plugin_registry=registry)
         df = _make_bullish_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, SignalResult)
         assert result.direction in ("LONG", "SHORT")
 
@@ -274,7 +294,9 @@ class TestObserverPattern:
         engine.on(SignalEvent.DETECTED, callback)
 
         df = _make_bullish_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
 
         assert isinstance(result, SignalResult)
         callback.assert_called_once()
@@ -292,7 +314,9 @@ class TestObserverPattern:
         engine.on(SignalEvent.REJECTED, callback)
 
         df = pd.DataFrame({"close": [100.0] * 10})
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
 
         assert isinstance(result, NullSignalResult)
         callback.assert_called_once()
@@ -312,7 +336,9 @@ class TestObserverPattern:
         engine.on(SignalEvent.EVALUATED, callback)
 
         df = _make_no_signal_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
 
         assert isinstance(result, NullSignalResult)
         callback.assert_called_once()
@@ -335,7 +361,9 @@ class TestObserverPattern:
         engine.on(SignalEvent.REJECTED, _broken_callback)
 
         df = _make_bullish_df()
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
 
         # Apesar de todos os observers terem lançado exceção, o resultado
         # deve ser o SignalResult normal (não NullSignalResult)

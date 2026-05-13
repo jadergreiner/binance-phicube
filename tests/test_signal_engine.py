@@ -86,62 +86,80 @@ class TestSignalEngine:
     @pytest.mark.asyncio
     async def test_returns_nosignal_on_insufficient_data(self):
         df = _flat_df(30)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
         assert result.reason == "insufficient_candles"
 
     @pytest.mark.asyncio
     async def test_returns_nosignal_for_flat_market(self):
         df = _flat_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
 
     @pytest.mark.asyncio
     async def test_returns_nosignal_reason_for_insufficient_candles(self):
         df = _flat_df(30)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
         assert result.reason == "insufficient_candles"
 
     @pytest.mark.asyncio
     async def test_long_signal_direction(self):
         df = _trending_long_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             assert result.direction == "LONG"
 
     @pytest.mark.asyncio
     async def test_short_signal_direction(self):
         df = _trending_short_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             assert result.direction == "SHORT"
 
     @pytest.mark.asyncio
     async def test_long_signal_sl_below_entry(self):
         df = _trending_long_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             assert result.stop_loss < result.entry_price
 
     @pytest.mark.asyncio
     async def test_long_signal_tp_above_entry(self):
         df = _trending_long_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             assert result.take_profit > result.entry_price
 
     @pytest.mark.asyncio
     async def test_short_signal_sl_above_entry(self):
         df = _trending_short_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             assert result.stop_loss > result.entry_price
 
     @pytest.mark.asyncio
     async def test_short_signal_tp_below_entry(self):
         df = _trending_short_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             assert result.take_profit < result.entry_price
 
@@ -152,7 +170,9 @@ class TestSignalEngine:
         registry.register("williams", WilliamsStrategy(risk_reward_ratio=rrr))
         engine = SignalEngine(plugin_registry=registry, risk_reward_ratio=rrr)
         df = _trending_long_df(200)
-        result = await engine.evaluate("BTCUSDT", "15m", df)
+        result_obj = await engine.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             realized = abs(result.take_profit - result.entry_price) / abs(
                 result.entry_price - result.stop_loss
@@ -162,7 +182,9 @@ class TestSignalEngine:
     @pytest.mark.asyncio
     async def test_signal_result_fields(self):
         df = _trending_long_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         if isinstance(result, SignalResult):
             assert result.direction in ("LONG", "SHORT")
             assert result.entry_price > 0
@@ -172,7 +194,9 @@ class TestSignalEngine:
     @pytest.mark.asyncio
     async def test_no_signal_reason_is_descriptive(self):
         df = _flat_df(200)
-        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        result_obj = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert result_obj.is_ok()
+        result = result_obj.unwrap()
         assert isinstance(result, NullSignalResult)
         assert bool(result.reason)  # reason must be non-empty
 

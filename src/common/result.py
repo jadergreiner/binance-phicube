@@ -105,6 +105,19 @@ class Result(Generic[T, E], ABC):
         """
         pass
 
+    @abstractmethod
+    def unwrap_err(self) -> E:
+        """
+        Extrai o erro se Err, caso contrário levanta exceção.
+
+        Returns:
+            E: Erro contido no Err
+
+        Raises:
+            ValueError: Se o Result é Ok
+        """
+        pass
+
 
 class Ok(Result[T, E]):
     """Variant Ok do Result - representa sucesso."""
@@ -140,6 +153,9 @@ class Ok(Result[T, E]):
     def expect(self, msg: str) -> T:
         return self.value
 
+    def unwrap_err(self) -> E:
+        raise ValueError(f"Tentativa de unwrap_err em Ok: {self.value}")
+
     def __repr__(self) -> str:
         return f"Ok({self.value!r})"
 
@@ -174,6 +190,9 @@ class Err(Result[T, E]):
     def expect(self, msg: str) -> T:
         raise ValueError(f"{msg}: {self.error}")
 
+    def unwrap_err(self) -> E:
+        return self.error
+
     def __repr__(self) -> str:
         return f"Err({self.error!r})"
 
@@ -196,16 +215,18 @@ def err(error: E) -> Result[Any, E]:
 class RiskRejection:
     """Erro específico para rejeição de risco."""
 
-    def __init__(self, reason: str, details: dict[str, Any] | None = None) -> None:
+    def __init__(self, code: str, reason: str, details: dict[str, Any] | None = None) -> None:
+        self.code = code
         self.reason = reason
         self.details = details or {}
 
     def __repr__(self) -> str:
-        return f"RiskRejection(reason='{self.reason}', details={self.details})"
+        return f"RiskRejection(code='{self.code}', reason='{self.reason}', details={self.details})"
 
     def __eq__(self, other: Any) -> bool:
         return (
             isinstance(other, RiskRejection)
+            and self.code == other.code
             and self.reason == other.reason
             and self.details == other.details
         )

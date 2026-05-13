@@ -29,6 +29,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.common.result import Result, RiskRejection, err, ok
 from src.config.settings import SizingMode
 from src.monitoring.logger import get_logger
 from src.strategy.indicators import atr as atr_func
@@ -63,13 +64,6 @@ class PositionSize:
             "take_profit": self.take_profit,
             "risk_amount": self.risk_amount,
         }
-
-
-@dataclass(frozen=True)
-class RiskRejection:
-    code: str
-    reason: str
-    details: dict[str, Any]
 
 
 class RiskManager:
@@ -150,7 +144,7 @@ class RiskManager:
         return rejection
 
     def _set_rejection(self, *, code: str, reason: str, details: dict[str, Any]) -> None:
-        self._last_rejection = RiskRejection(code=code, reason=reason, details=details)
+        self._last_rejection = RiskRejection(code, reason, details)
 
     def calculate(
         self,
@@ -160,7 +154,7 @@ class RiskManager:
         intraday_realized_pnl_usdt: float = 0.0,
         now_utc: datetime | None = None,
         df: pd.DataFrame | None = None,
-    ) -> PositionSize | None:
+    ) -> Result[PositionSize, RiskRejection]:
         """Calculate position size for a given signal and available balance.
 
         Args:
@@ -188,7 +182,7 @@ class RiskManager:
                 abs(intraday_realized_pnl_usdt) / daily_reference_capital * 100,
                 4,
             )
-            self._set_rejection(
+            rejection = RiskRejection(
                 code="INTRADAY_LOSS_LIMIT_REACHED",
                 reason="intraday_loss_limit_reached",
                 details={
@@ -198,6 +192,7 @@ class RiskManager:
                     "intraday_realized_pnl_usdt": round(intraday_realized_pnl_usdt, 4),
                 },
             )
+            self._last_rejection = rejection
             logger.warning(
                 "intraday_loss_limit_reached",
                 symbol=signal.symbol,
@@ -206,17 +201,18 @@ class RiskManager:
                 daily_reference_capital=round(daily_reference_capital, 4),
                 intraday_realized_pnl_usdt=round(intraday_realized_pnl_usdt, 4),
             )
-            return None
+            return err(rejection)
 
         stop_distance = abs(signal.entry_price - signal.stop_loss)
         if stop_distance == 0:
-            self._set_rejection(
+            rejection = RiskRejection(
                 code="ZERO_STOP_DISTANCE",
                 reason="stop_distance_zero",
                 details={},
             )
+            self._last_rejection = rejection
             logger.warning("zero_stop_distance", symbol=signal.symbol)
-            return None
+            return err(rejection)
 
         # ── SPEC_029 — ATR mode ─────────────────────────────────────────────
         if self._sizing_mode == SizingMode.ATR and df is not None:
@@ -227,13 +223,21 @@ class RiskManager:
                 df=df,
                 available_balance=available_balance,
             )
-            if result is not None:
+            # Se ATR retornou Ok, retorna direto
+            if result.is_ok():
                 return result
-            # Fallback silencioso: se ATR falhou, tenta fixed
-            logger.info(
-                "atr_fallback_to_fixed",
-                symbol=signal.symbol,
-            )
+            # Se ATR retornou Err, verifica se é fallback ou erro real
+            if result.is_err():
+                rejection = result.error  # type: ignore
+                # Se é fallback (code="ATR_FALLBACK"), tenta fixed
+                if rejection.code == "ATR_FALLBACK":
+                    logger.info(
+                        "atr_fallback_to_fixed",
+                        symbol=signal.symbol,
+                    )
+                else:
+                    # Erro real, não fallback
+                    return result
 
         return self._calculate_fixed(
             symbol=signal.symbol,
@@ -278,7 +282,7 @@ class RiskManager:
         quantity_precision: int,
         df: pd.DataFrame,
         available_balance: float = 0.0,
-    ) -> PositionSize | None:
+    ) -> Result[PositionSize, RiskRejection]:
         """Calculate position size using ATR mode (SPEC_029).
 
         effective_stop = max(fractal_sl_distance, atr_value * atr_multiplier)
@@ -296,7 +300,14 @@ class RiskManager:
                 atr_period=self._atr_period,
                 df_len=len(df),
             )
-            return None
+            # Retorna Err com code="ATR_FALLBACK" para sinalizar fallback ao fixed mode
+            return err(
+                RiskRejection(
+                    code="ATR_FALLBACK",
+                    reason="atr_value_invalid",
+                    details={"atr_value": atr_value, "atr_period": self._atr_period},
+                )
+            )
 
         # Effective stop com guard
         multiplier = self._get_effective_multiplier(signal.symbol)
@@ -320,23 +331,24 @@ class RiskManager:
         qty = round(raw_qty, quantity_precision)
 
         if qty <= 0:
-            self._set_rejection(
+            rejection = RiskRejection(
                 code="QTY_ZERO_AFTER_ROUNDING",
                 reason="quantity_zero_after_rounding",
                 details={"quantity_precision": quantity_precision},
             )
+            self._last_rejection = rejection
             logger.warning(
                 "position_size_zero_after_rounding_atr",
                 symbol=signal.symbol,
                 position_usdt=round(position_usdt, 2),
             )
-            return None
+            return err(rejection)
 
         # INV-029-05: risco real não excede 1.05x configurado
         actual_risk_usdt = qty * effective_stop
         max_risk_usdt = self.effective_risk_per_trade_usdt * 1.05
         if actual_risk_usdt > max_risk_usdt:
-            self._set_rejection(
+            rejection = RiskRejection(
                 code="INV_029_05_RISK_EXCEEDED",
                 reason="actual_risk_exceeds_tolerance",
                 details={
@@ -347,6 +359,7 @@ class RiskManager:
                     "multiplier": multiplier,
                 },
             )
+            self._last_rejection = rejection
             logger.error(
                 "atr_sizing_risk_violation",
                 symbol=signal.symbol,
@@ -356,7 +369,7 @@ class RiskManager:
                 atr_value=round(atr_value, 4),
                 multiplier=multiplier,
             )
-            return None
+            return err(rejection)
 
         # SPEC_043 — Slippage gate (Facade)
         if not self._check_slippage_gate(
@@ -367,7 +380,15 @@ class RiskManager:
             entry_price=signal.entry_price,
             atr_value=atr_value,
         ):
-            return None
+            # _check_slippage_gate já setou _last_rejection
+            rejection = self._last_rejection
+            if rejection is None:
+                rejection = RiskRejection(
+                    code="SLIPPAGE_EXCEEDS_TOLERANCE",
+                    reason="slippage_check_failed",
+                    details={},
+                )
+            return err(rejection)
 
         # Log estruturado para auditoria
         logger.info(
@@ -384,7 +405,7 @@ class RiskManager:
             sizing_mode="atr",
         )
 
-        return PositionSize(
+        pos = PositionSize(
             symbol=signal.symbol,
             direction=signal.direction,
             quantity=qty,
@@ -395,6 +416,7 @@ class RiskManager:
             take_profit=signal.take_profit,
             risk_amount=self.effective_risk_per_trade_usdt,
         )
+        return ok(pos)
 
     def _calculate_fixed(
         self,
@@ -405,7 +427,7 @@ class RiskManager:
         take_profit: float,
         available_balance: float,
         quantity_precision: int = 3,
-    ) -> PositionSize | None:
+    ) -> Result[PositionSize, RiskRejection]:
         """Comportamento legado: position sizing por % do saldo (risk_per_trade_pct)."""
         stop_distance = abs(entry_price - stop_price)
 
@@ -419,7 +441,7 @@ class RiskManager:
         max_allowed_margin = available_balance * (self._max_alloc_pct / 100.0)
 
         if margin_required > max_allowed_margin:
-            self._set_rejection(
+            rejection = RiskRejection(
                 code="MAX_CAPITAL_ALLOCATION_EXCEEDED",
                 reason="max_capital_allocation_exceeded",
                 details={
@@ -427,6 +449,7 @@ class RiskManager:
                     "max_allowed_margin": round(max_allowed_margin, 4),
                 },
             )
+            self._last_rejection = rejection
             logger.warning(
                 "position_rejected",
                 symbol=symbol,
@@ -434,23 +457,24 @@ class RiskManager:
                 margin_required=round(margin_required, 4),
                 max_allowed_margin=round(max_allowed_margin, 4),
             )
-            return None
+            return err(rejection)
 
         # Round to exchange precision
         qty = round(raw_qty, quantity_precision)
 
         if qty <= 0:
-            self._set_rejection(
+            rejection = RiskRejection(
                 code="QTY_ZERO_AFTER_ROUNDING",
                 reason="quantity_zero_after_rounding",
                 details={"quantity_precision": quantity_precision},
             )
+            self._last_rejection = rejection
             logger.warning("position_size_zero_after_rounding", symbol=symbol)
-            return None
+            return err(rejection)
 
         # Enforce minimum notional
         if qty * entry_price < self._min_notional:
-            self._set_rejection(
+            rejection = RiskRejection(
                 code="MIN_NOTIONAL_NOT_MET",
                 reason="below_min_notional",
                 details={
@@ -458,13 +482,14 @@ class RiskManager:
                     "min_notional": self._min_notional,
                 },
             )
+            self._last_rejection = rejection
             logger.warning(
                 "below_min_notional",
                 symbol=symbol,
                 notional=round(qty * entry_price, 2),
                 min_notional=self._min_notional,
             )
-            return None
+            return err(rejection)
 
         # SPEC_043 — Slippage gate (Facade)
         if not self._check_slippage_gate(
@@ -475,7 +500,15 @@ class RiskManager:
             entry_price=entry_price,
             atr_value=0.0,
         ):
-            return None
+            # _check_slippage_gate já setou _last_rejection
+            rejection = self._last_rejection
+            if rejection is None:
+                rejection = RiskRejection(
+                    code="SLIPPAGE_EXCEEDS_TOLERANCE",
+                    reason="slippage_check_failed",
+                    details={},
+                )
+            return err(rejection)
 
         pos = PositionSize(
             symbol=symbol,
@@ -490,7 +523,7 @@ class RiskManager:
         )
 
         logger.info("position_size_calculated", **pos.to_dict())
-        return pos
+        return ok(pos)
 
     def _estimate_slippage(
         self,

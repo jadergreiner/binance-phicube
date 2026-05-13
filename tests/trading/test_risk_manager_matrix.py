@@ -141,13 +141,14 @@ def test_risk_manager_matrix_50_plus_scenarios(
         quantity_precision=quantity_precision,
     )
 
-    assert (pos is not None) is expected
+    assert pos.is_ok() is expected
 
-    if pos is not None:
-        assert isinstance(pos, PositionSize)
-        assert pos.quantity > 0
-        assert pos.margin_required <= available_balance * (max_alloc_pct / 100.0) + 1e-9
-        assert pos.notional >= min_notional
+    if pos.is_ok():
+        position = pos.unwrap()
+        assert isinstance(position, PositionSize)
+        assert position.quantity > 0
+        assert position.margin_required <= available_balance * (max_alloc_pct / 100.0) + 1e-9
+        assert position.notional >= min_notional
 
 
 def test_risk_manager_matrix_include_zero_stop_distance_case() -> None:
@@ -159,4 +160,5 @@ def test_risk_manager_matrix_include_zero_stop_distance_case() -> None:
     )
     signal = _signal(entry=100.0, stop=100.0)
 
-    assert manager.calculate(signal, available_balance=1000.0, quantity_precision=3) is None
+    result = manager.calculate(signal, available_balance=1000.0, quantity_precision=3)
+    assert result.is_err()

@@ -56,10 +56,11 @@ async def test_execute_rolls_back_when_stop_loss_creation_fails() -> None:
     notifier = AsyncMock()
     manager = OrderManager(client=client, leverage=5, notifier=notifier)
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
-    assert trade.status == TradeStatus.FAILED
+    assert result.is_err()
+    error = result.unwrap_err()
+    assert error.code == "SL_TP_ORDER_FAILED"
     # Command Pattern: pipeline rollback chama cancel_all_orders para cada comando executado
     # (MarketOrder = 1 chamada)
     assert client.cancel_all_orders.call_count == 1
@@ -72,10 +73,11 @@ async def test_execute_rolls_back_when_take_profit_creation_fails() -> None:
     client.create_take_profit_order.side_effect = Exception("TP failed")
     manager = OrderManager(client=client, leverage=5, notifier=None)
 
-    trade = await manager.execute(_sample_signal(), _sample_position())
+    result = await manager.execute(_sample_signal(), _sample_position())
 
-    assert trade is not None
-    assert trade.status == TradeStatus.FAILED
+    assert result.is_err()
+    error = result.unwrap_err()
+    assert error.code == "SL_TP_ORDER_FAILED"
     # Command Pattern: pipeline rollback chama cancel_all_orders para cada comando executado
     # (StopLoss + MarketOrder = 2 chamadas)
     assert client.cancel_all_orders.call_count == 2
