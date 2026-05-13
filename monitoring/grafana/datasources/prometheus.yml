@@ -1,0 +1,16 @@
+# Grafana datasource configuration for Prometheus
+# SPEC_032 - Observabilidade com Prometheus e Grafana
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    access: proxy
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+    version: 1

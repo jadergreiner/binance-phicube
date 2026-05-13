@@ -16,13 +16,21 @@ from __future__ import annotations
 import asyncio
 import signal
 import sys
+import time
 from datetime import UTC, datetime
 from typing import Any
 
 from src.config.settings import ExitStrategy, SymbolConfig, get_settings  # noqa: F401
 from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
 from src.exchange.simulated_client import SimulatedBinanceClient
+from src.monitoring import metrics
 from src.monitoring.logger import configure_logging, get_logger
+from src.monitoring.metrics import (
+    observe_tick_duration,
+    record_signal_rejected,
+    update_heartbeat,
+    update_positions_open,
+)
 from src.monitoring.order_monitor import OrderMonitor
 from src.notifications import Notifier, NullNotifier, TelegramNotifier
 from src.notifications.events import NotificationEvent, TradeOpenedEvent
@@ -452,6 +460,12 @@ class TradingMonitor:
             await asyncio.sleep(self._interval)
 
     async def _tick(self) -> None:
+        # SPEC_032: Medir duração do tick
+        tick_start = time.time()
+
+        # SPEC_032: Atualizar heartbeat
+        update_heartbeat()
+
         # Fetch closed candles — request one extra and drop the last (open) candle
         df = await self._client.fetch_ohlcv_with_retry(
             symbol=self._symbol,
@@ -463,11 +477,20 @@ class TradingMonitor:
 
         # Check if we can open new positions
         total_open = await self._repo.count_open_trades()
+        # SPEC_032: Atualizar métrica de posições abertas
+        update_positions_open(total_open)
+
         if total_open >= self._max_positions:
             logger.debug(
                 "max_positions_reached",
                 open=total_open,
                 max=self._max_positions,
+            )
+            # SPEC_032: Registrar duração do tick antes de retornar
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
             )
             return
 
@@ -475,12 +498,24 @@ class TradingMonitor:
         symbol_trades = await self._repo.get_open_trades_for_symbol(self._symbol)
         if symbol_trades:
             logger.debug("symbol_already_in_trade", symbol=self._symbol)
+            # SPEC_032: Registrar duração do tick antes de retornar
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
             return
 
         # Evaluate signal
         signal = self._signal_engine.evaluate(self._symbol, self._timeframe, df)
         await self._persist_signal_evaluation()
         if signal is None:
+            # SPEC_032: Registrar duração do tick antes de retornar
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
             return
 
         # Persist signal regardless of execution
@@ -497,6 +532,12 @@ class TradingMonitor:
                 execution_details={"balance": balance},
             )
             logger.warning("zero_balance", symbol=self._symbol)
+            # SPEC_032: Registrar duração do tick antes de retornar
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
             return
 
         qty_precision = self._client.get_quantity_precision(self._symbol)
@@ -510,6 +551,9 @@ class TradingMonitor:
         )
         if position is None:
             rejection = self._risk_manager.consume_last_rejection()
+            # SPEC_032: Registrar sinal rejeitado pelo RiskManager
+            if rejection:
+                record_signal_rejected(self._symbol, rejection.code)
             (
                 execution_status,
                 execution_reason,
@@ -522,6 +566,12 @@ class TradingMonitor:
                 execution_details=execution_details,
             )
             logger.warning("position_size_rejected", symbol=self._symbol)
+            # SPEC_032: Registrar duração do tick antes de retornar
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
             return
 
         # Execute trade
@@ -533,6 +583,12 @@ class TradingMonitor:
                 execution_reason="order_manager_execute_returned_none",
             )
             logger.error("trade_execution_failed", symbol=self._symbol)
+            # SPEC_032: Registrar duração do tick antes de retornar
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
             return
 
         trade_id = await self._repo.save_trade(trade)
@@ -573,6 +629,13 @@ class TradingMonitor:
             )
         elif trade.status == TradeStatus.FAILED:
             logger.error("trade_saved_as_failed", symbol=self._symbol, trade_id=trade_id)
+
+        # SPEC_032: Registrar duração do tick no final do método
+        observe_tick_duration(
+            self._symbol,
+            self._timeframe,
+            time.time() - tick_start,
+        )
 
     async def _persist_signal_evaluation(self) -> None:
         consume = getattr(self._signal_engine, "consume_last_evaluation", None)
@@ -640,6 +703,16 @@ async def _main() -> None:
         settings.log_level,
         log_file="logs/bot.log" if settings.simulation_mode else None,
     )
+
+    # SPEC_032: Inicializar métricas Prometheus
+    metrics.initialize(
+        testnet=settings.binance_testnet,
+    )
+    if settings.prometheus_enabled:
+        metrics.start_metrics_server(
+            port=settings.prometheus_port,
+            bind_host=settings.prometheus_bind_host,
+        )
 
     configs = settings.symbol_timeframes
 

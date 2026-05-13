@@ -1,0 +1,16 @@
+# Grafana dashboard provider configuration
+# SPEC_032 - Observabilidade com Prometheus e Grafana
+
+apiVersion: 1
+
+providers:
+  - name: 'Phicube Dashboards'
+    orgId: 1
+    folder: ''
+    folderUid: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards

@@ -14,6 +14,7 @@ FastAPI = import_module("fastapi").FastAPI
 get_settings = import_module("src.config.settings").get_settings
 DashboardModule = import_module("src.dashboard")
 FileResponse = import_module("fastapi.responses").FileResponse
+PlainTextResponse = import_module("fastapi.responses").PlainTextResponse
 PositionStream = import_module("src.dashboard.stream").PositionStream
 positions_router = import_module("src.api.routes.positions").router
 performance_router = import_module("src.api.routes.performance").router
@@ -28,6 +29,7 @@ AdaptiveUpdater = DashboardModule.AdaptiveUpdater
 DashboardClient = DashboardModule.DashboardClient
 MongoRepository = import_module("src.storage.repository").MongoRepository
 get_logger = import_module("src.monitoring.logger").get_logger
+get_metrics = import_module("src.monitoring.metrics").get_metrics
 
 logger = get_logger(__name__)
 
@@ -151,6 +153,16 @@ def create_app() -> Any:
     async def read_index() -> FileResponse:
         """Entrega a página principal do dashboard."""
         return FileResponse(_STATIC_DIR / "index.html", media_type="text/html")
+
+    @app.get("/metrics", response_class=PlainTextResponse)
+    async def metrics_endpoint() -> str:
+        """
+        Endpoint de métricas Prometheus (SPEC_032).
+
+        Retorna todas as métricas no formato Prometheus.
+        Se o módulo de métricas não estiver inicializado, retorna string vazia.
+        """
+        return get_metrics()
 
     return app
 

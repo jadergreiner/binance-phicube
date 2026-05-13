@@ -227,6 +227,20 @@ class Settings(BaseSettings):
         description="Contexto de execucao do fluxo MCP Serena",
     )
 
+    # SPEC_032 — Prometheus Metrics
+    prometheus_enabled: bool = Field(
+        default=True,
+        description="Ativa endpoint /metrics no formato Prometheus",
+    )
+    prometheus_port: Annotated[int, Field(ge=1024, le=65535)] = Field(
+        default=8000,
+        description="Porta para o servidor de métricas Prometheus",
+    )
+    prometheus_bind_host: str = Field(
+        default="127.0.0.1",
+        description="Interface para bind do servidor de métricas (segurança: localhost padrão)",
+    )
+
     # Backtest (SPEC_028) — Slippage por tier de liquidez
     backtest_slippage_by_liq: dict[str, float] = Field(
         default_factory=lambda: {

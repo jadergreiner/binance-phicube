@@ -21,6 +21,7 @@ from typing import Any
 from src.config.settings import ExitStrategy
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import get_logger
+from src.monitoring.metrics import record_trade_executed
 from src.notifications import Notifier
 from src.notifications.events import NotificationEvent, SLProtectionFailedEvent
 from src.strategy.signal_engine import Direction, Signal
@@ -381,6 +382,12 @@ class OrderManager:
         )
 
         logger.info("trade_opened", **trade.to_dict())
+        # SPEC_032: Registrar trade executado
+        record_trade_executed(
+            symbol=symbol,
+            direction="long" if is_long else "short",
+            status="open",
+        )
         return trade
 
 

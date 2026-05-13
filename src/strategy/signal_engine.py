@@ -32,6 +32,7 @@ from enum import StrEnum
 import pandas as pd
 
 from src.monitoring.logger import get_logger
+from src.monitoring.metrics import record_signal_detected, record_signal_evaluated
 from src.strategy.indicators import (
     compute_all,
     last_valid_fractal_high,
@@ -138,6 +139,9 @@ class SignalEngine:
         the most recent *closed* candle (i.e., not the live/building candle).
         Minimum required rows: 200 (for SMMA convergence).
         """
+        # SPEC_032: Registrar avaliação de sinal
+        record_signal_evaluated(symbol, timeframe)
+
         if len(df) < 50:
             logger.debug("insufficient_candles", symbol=symbol, rows=len(df))
             self._last_evaluation = SignalEvaluation(
@@ -208,6 +212,8 @@ class SignalEngine:
                 fractal_ref=fractal_high,
             )
             logger.info("signal_detected", **signal.to_dict())
+            # SPEC_032: Registrar sinal detectado
+            record_signal_detected(symbol, timeframe, "long")
             self._last_evaluation = SignalEvaluation(
                 symbol=symbol,
                 timeframe=timeframe,
@@ -261,6 +267,8 @@ class SignalEngine:
                 fractal_ref=fractal_low_ref,
             )
             logger.info("signal_detected", **signal.to_dict())
+            # SPEC_032: Registrar sinal detectado
+            record_signal_detected(symbol, timeframe, "short")
             self._last_evaluation = SignalEvaluation(
                 symbol=symbol,
                 timeframe=timeframe,
