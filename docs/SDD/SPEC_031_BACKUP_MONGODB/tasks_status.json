@@ -1,0 +1,83 @@
+{
+  "feature": "SPEC_031_BACKUP_MONGODB",
+  "updated_at": "2026-05-12T21:17:00Z",
+  "status_geral": "concluido",
+  "tasks": [
+    {
+      "id": "SPEC_031_BACKUP_MONGODB-01",
+      "seq": "01",
+      "title": "Wire check_last_backup() no startup do bot (P-001)",
+      "status": "done",
+      "suggested_agent": "coder-agent",
+      "files_modified": ["src/main.py"],
+      "evidence": [
+        "from tools.backup_mongo import check_last_backup (L35)",
+        "await check_last_backup(\"./backups/mongo\") (L706)",
+        "ruff check src/main.py: 0 erros",
+        "pytest tests/tools/test_backup_mongo.py: 19/19"
+      ],
+      "acceptance_criteria_met": [
+        "Import adicionado em src/main.py (top-level)",
+        "await check_last_backup chamado em _main() antes das tasks assíncronas",
+        "ruff check src/main.py: 0 erros"
+      ],
+      "started_at": "2026-05-12T21:15:00Z",
+      "completed_at": "2026-05-12T21:16:00Z"
+    },
+    {
+      "id": "SPEC_031_BACKUP_MONGODB-02",
+      "seq": "02",
+      "title": "Alinhar docstring TestBackupRecord com numeração oficial (P-004)",
+      "status": "done",
+      "suggested_agent": "coder-agent",
+      "files_modified": ["tests/tools/test_backup_mongo.py"],
+      "evidence": [
+        "Docstring corrigida: TEST_031_02 → TEST_031_01",
+        "ruff check tests/tools/test_backup_mongo.py: 0 erros",
+        "pytest tests/tools/test_backup_mongo.py: 19/19"
+      ],
+      "acceptance_criteria_met": [
+        "Docstring da classe TestBackupRecord mudou para TEST_031_01",
+        "Nenhuma outra linha alterada",
+        "ruff check limpo",
+        "pytest 19/19 passando"
+      ],
+      "started_at": "2026-05-12T21:15:00Z",
+      "completed_at": "2026-05-12T21:16:00Z"
+    },
+    {
+      "id": "SPEC_031_BACKUP_MONGODB-03",
+      "seq": "03",
+      "title": "Validar integridade final — lint, testes, regressão",
+      "status": "done",
+      "suggested_agent": "test-engineer",
+      "files_modified": [],
+      "evidence": [
+        "ruff check src/ tests/: 0 erros",
+        "pytest tests/tools/test_backup_mongo.py -v: 19/19 passando",
+        "pytest tests/ -v --tb=short: 728 passed, 3 failed (3 pré-existentes em test_heartbeat_task.py, zero regressão)",
+        "Nenhuma URI MongoDB hardcoded em src/main.py",
+        "PLAN.md atualizado: D01/D02/P-001/P-004 marcados como RESOLVIDO",
+        "SPEC.md §5.4: verificação pós-startup agora funcional"
+      ],
+      "acceptance_criteria_met": [
+        "ruff check src/ tests/: 0 erros",
+        "pytest backup: 19/19",
+        "Regressão zero (mesmas 3 falhas pré-existentes)",
+        "Nenhuma credencial em logs",
+        "Documentos atualizados"
+      ],
+      "started_at": "2026-05-12T21:16:00Z",
+      "completed_at": "2026-05-12T21:17:00Z"
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "done": 3,
+    "blocked": 0,
+    "in_progress": 0
+  },
+  "divergencias_resolvidas": ["D01", "D02"],
+  "divergencias_abertas": ["D03 (aceito, melhoria futura)", "D04 (aceito, decisão arquitetural)"],
+  "pendencias_futuras": ["P-002 (structlog capture)", "P-003 (storage externo)", "P-005 (Result type)"]
+}

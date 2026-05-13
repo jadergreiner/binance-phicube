@@ -1,0 +1,30 @@
+{
+  "id": "SPEC_031_BACKUP_MONGODB-02",
+  "seq": "02",
+  "title": "Alinhar docstring TestBackupRecord com numeração oficial (P-004)",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    "docs/SDD/SPEC_031_BACKUP_MONGODB/SPEC.md",
+    "docs/SDD/SPEC_031_BACKUP_MONGODB/PLAN.md",
+    ".opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "tests/tools/test_backup_mongo.py"
+  ],
+  "acceptance_criteria": [
+    "Docstring da classe TestBackupRecord muda de \"TEST_031_02\" para \"TEST_031_01\"",
+    "Comentário \"# ─── TEST_031_01: BackupRecord frozen + field types ───\" no separador de seção também corrigido se presente",
+    "Nenhuma outra linha do test file é alterada",
+    "ruff check tests/tools/test_backup_mongo.py limpo",
+    "pytest tests/tools/test_backup_mongo.py -v continua passando 19/19"
+  ],
+  "deliverables": [
+    "tests/tools/test_backup_mongo.py — docstring corrigida"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

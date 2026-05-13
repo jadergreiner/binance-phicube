@@ -1,0 +1,32 @@
+{
+  "id": "SPEC_031_BACKUP_MONGODB-03",
+  "seq": "03",
+  "title": "Validar integridade final — lint, testes, regressão",
+  "status": "pending",
+  "depends_on": ["01", "02"],
+  "parallel": false,
+  "suggested_agent": "test-engineer",
+  "context_files": [
+    "docs/SDD/SPEC_031_BACKUP_MONGODB/SPEC.md",
+    "docs/SDD/SPEC_031_BACKUP_MONGODB/PLAN.md",
+    ".opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "src/main.py",
+    "tools/backup_mongo.py",
+    "tests/tools/test_backup_mongo.py"
+  ],
+  "acceptance_criteria": [
+    "ruff check src/ tests/ — 0 erros",
+    "pytest tests/tools/test_backup_mongo.py -v — 19/19 passando",
+    "pytest tests/ -v --tb=short — 0 regressão (mesmo número de testes passando que antes)",
+    "Nenhuma URI MongoDB ou credencial nos logs (grep -r mongodb:// src/main.py — só na linha do settings.mongodb_uri)",
+    "SPEC §5.4, PRD §5 e PLAN §2.2 (D01) podem ser atualizados se a correção resolver a divergência"
+  ],
+  "deliverables": [
+    "Relatório de validação (lint + testes + regressão)"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

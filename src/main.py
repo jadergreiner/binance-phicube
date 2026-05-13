@@ -32,6 +32,7 @@ from src.strategy.signal_engine import SignalEngine
 from src.trading.order_manager import OrderManager, TradeStatus
 from src.trading.risk_manager import RiskManager, RiskRejection
 from src.trading.trade_close_router import TradeCloseRouter
+from tools.backup_mongo import check_last_backup
 
 logger = get_logger(__name__)
 
@@ -699,6 +700,9 @@ async def _main() -> None:
         manual_close_require_dual_source=settings.order_monitor_manual_close_require_dual_source,
         on_trade_closed=trade_close_router,
     )
+
+    # SPEC_031: Verificar status do último backup no startup
+    await check_last_backup("./backups/mongo")
 
     tasks: list[asyncio.Task] = []
     runtime_sync_task: RuntimeMonitorSyncTask | None = None

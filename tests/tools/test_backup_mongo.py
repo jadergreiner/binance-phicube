@@ -54,7 +54,7 @@ def backup_instance(tmp_path, mock_notifier):
 
 
 class TestBackupRecord:
-    """TEST_031_02: BackupRecord frozen + correct field types."""
+    """TEST_031_01: BackupRecord frozen + correct field types."""
 
     def test_frozen(self, sample_record):
         with pytest.raises(AttributeError):

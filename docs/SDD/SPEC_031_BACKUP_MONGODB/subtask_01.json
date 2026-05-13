@@ -1,0 +1,32 @@
+{
+  "id": "SPEC_031_BACKUP_MONGODB-01",
+  "seq": "01",
+  "title": "Wire check_last_backup() no startup do bot (P-001)",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": false,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    "docs/SDD/SPEC_031_BACKUP_MONGODB/SPEC.md",
+    "docs/SDD/SPEC_031_BACKUP_MONGODB/PLAN.md",
+    ".opencode/context/core/standards/code-quality.md"
+  ],
+  "reference_files": [
+    "src/main.py",
+    "tools/backup_mongo.py"
+  ],
+  "acceptance_criteria": [
+    "Import de check_last_backup adicionado em src/main.py",
+    "await check_last_backup(\"./backups/mongo\") chamado em _main() antes da criação das tasks assíncronas",
+    "Import pode ser top-level (from tools.backup_mongo import check_last_backup) — tools/ já é copiado no Dockerfile (commit 112ae0d). Lazy import (try/except ImportError) aceitável mas não obrigatório.",
+    "ruff check src/main.py limpo",
+    "startup do bot com backup recente → log info backup_ok",
+    "startup do bot sem backup → log warning backup_desatualizado ou nenhum_backup_encontrado"
+  ],
+  "deliverables": [
+    "src/main.py — adicionar import e chamada de check_last_backup()"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

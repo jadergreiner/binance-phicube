@@ -132,6 +132,8 @@ logger.warning("backup_verify_failed", file, returncode, error)
 logger.info("backup_rotation_deleted", file)
 ```
 
+**Retorno de `run()`:** Atualmente retorna `BackupRecord | None`, onde `None` significa falha sem contexto do motivo (dump, verify, timeout). Futuramente (P-005 no PLAN) deve evoluir para `Result[BackupRecord, str]` seguindo o padrão Result/Monad do guia de Design Patterns, permitindo propagação explícita de erro ao caller.
+
 ### 5.2 Agendamento — `BackupTask` (`src/main.py`)
 
 Background task `asyncio` executando no mesmo processo do bot (sem container separado).
@@ -188,6 +190,20 @@ await check_last_backup("./backups/mongo")
 ```
 
 Se não existe backup nas últimas 24h → log WARNING `backup_desatualizado`.
+
+### 5.5 Padrões de Design
+
+A implementação da SPEC_031 utiliza os seguintes padrões de design, conforme classificação do guia oficial de Design Patterns do projeto:
+
+| Pattern | Local | Descrição |
+|---------|-------|-----------|
+| **Facade** | `MongoBackup.run()` (L90) | Pipeline dump → verify → rotate → notify encapsulado em única chamada. O caller não precisa conhecer os subsistemas (`mongodump`, `mongorestore`, filesystem, `Notifier`). |
+| **Strategy** | `MongoBackup.__init__(notifier)` (L71) | Notifier ABC injetado por construtor — `TelegramNotifier` ou `NullNotifier` intercambiáveis sem alterar `MongoBackup`. |
+| **Decorator** | `@retry()` em `_dump()` (L179) | `@retry(max_attempts=3, backoff_factor=2.0, exc_types=(TimeoutError,))` adiciona resiliência de rede sem modificar a lógica de dump. |
+| **Frozen Dataclass** | `BackupRecord` (L38) | `@dataclass(frozen=True)` garante imutabilidade — uma vez criado, o registro de backup não pode ser alterado (INV-031-04). |
+| **Background Task** | `BackupTask` (main.py L86) | `asyncio` task com `_sleep_until_next()` para agendamento diário — mesmo padrão de `HeartbeatTask` (SPEC_017). |
+| **Pipeline** (futuro, P-005) | `run()` inteiro | Evoluir para middleware chain quando houver steps adicionais (upload S3, criptografia). |
+| **Result/Monad** (futuro, P-005) | Retorno de `run()` | Substituir `BackupRecord | None` por `Result[BackupRecord, str]` para propagação explícita de erro. |
 
 ---
 
