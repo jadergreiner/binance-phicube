@@ -22,6 +22,7 @@ from typing import Any
 
 from src.config.settings import ExitStrategy, SymbolConfig, get_settings  # noqa: F401
 from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
+from src.exchange.resilient_binance_client import ResilientBinanceClient
 from src.exchange.simulated_client import SimulatedBinanceClient
 from src.monitoring import metrics
 from src.monitoring.logger import configure_logging, get_logger
@@ -35,7 +36,9 @@ from src.monitoring.order_monitor import OrderMonitor
 from src.notifications import Notifier, NullNotifier, TelegramNotifier
 from src.notifications.events import NotificationEvent, TradeOpenedEvent
 from src.notifications.performance_reporter import PerformanceReporter
+from src.resilience.exceptions import CircuitBreakerOpenError
 from src.storage.repository import MongoRepository
+from src.storage.resilient_repository import ResilientMongoRepository
 from src.strategy.plugin_base import SignalResult
 from src.strategy.plugin_registry import PluginRegistry
 from src.strategy.signal_engine import Direction, Signal, SignalEngine
@@ -68,13 +71,18 @@ _TIMEFRAME_SECONDS: dict[str, int] = {
 
 
 class HeartbeatTask:
-    """Grava sinal periódico de vida do processo na collection audit (SPEC_017)."""
+    """Grava sinal periódico de vida do processo na collection audit (SPEC_017).
+    
+    Também reprocessa trades journaled a cada intervalo (eventual consistency).
+    """
 
     INTERVAL_SECONDS: int = 300
+    # Reprocessa journal a cada N ciclos (300s * 3 = 900s = 15 min)
+    JOURNAL_REPROCESS_INTERVAL_CYCLES: int = 3
 
     def __init__(
         self,
-        repo: MongoRepository,
+        repo: MongoRepository | ResilientMongoRepository,
         monitor_count: int,
         monitor_count_getter: callable | None = None,
     ) -> None:
@@ -82,9 +90,10 @@ class HeartbeatTask:
         self._monitor_count = monitor_count
         self._monitor_count_getter = monitor_count_getter
         self._started_at = datetime.now(UTC)
+        self._cycle_count = 0
 
     async def _beat(self) -> None:
-        """Grava heartbeat na collection audit."""
+        """Grava heartbeat na collection audit e reprocessa journal periodicamente."""
         uptime_seconds = int((datetime.now(UTC) - self._started_at).total_seconds())
         monitor_count = (
             self._monitor_count_getter()
@@ -99,6 +108,36 @@ class HeartbeatTask:
                 "metadata": {"source": "HeartbeatTask"},
             },
         )
+        
+        # Reprocessar journal a cada N ciclos (eventual consistency)
+        self._cycle_count += 1
+        if self._cycle_count % self.JOURNAL_REPROCESS_INTERVAL_CYCLES == 0:
+            await self._reprocess_journal()
+
+    async def _reprocess_journal(self) -> None:
+        """Tenta reprocessar trades journaled do ResilientMongoRepository."""
+        # Verifica se repo tem journal (ResilientMongoRepository)
+        if not isinstance(self._repo, ResilientMongoRepository):
+            return
+        
+        try:
+            # Pega o journal do repositório resiliente
+            journal = self._repo._journal
+            reprocessed, failed = await journal.reprocess_pending_trades(self._repo)
+            
+            if reprocessed > 0 or failed > 0:
+                logger.info(
+                    "journal_reprocess_cycle",
+                    reprocessed=reprocessed,
+                    failed=failed,
+                    cycle=self._cycle_count,
+                )
+        except Exception as exc:
+            logger.warning(
+                "journal_reprocess_failed",
+                error_type=type(exc).__name__,
+                cycle=self._cycle_count,
+            )
 
     async def run(self) -> None:
         while True:
@@ -189,13 +228,18 @@ class RuntimeMonitorRegistry:
         *,
         settings: Any,
         client: Any,
-        repo: MongoRepository,
+        repo: MongoRepository | ResilientMongoRepository,
+        resilient_client: ResilientBinanceClient | None = None,
+        resilient_repo: ResilientMongoRepository | None = None,
         notifier: Notifier,
         router: TradeCloseRouter,
     ) -> None:
         self._settings = settings
         self._client = client
         self._repo = repo
+        # Facades com fallback para client/repo diretos (backward compatibility)
+        self._resilient_client = resilient_client or client
+        self._resilient_repo = resilient_repo or repo
         self._notifier = notifier
         self._router = router
         self._tasks: dict[tuple[str, str], asyncio.Task] = {}
@@ -244,6 +288,8 @@ class RuntimeMonitorRegistry:
             config=cfg,
             client=self._client,
             repo=self._repo,
+            resilient_client=self._resilient_client,
+            resilient_repo=self._resilient_repo,
             signal_engine=monitor_signal_engine,
             risk_manager=risk_manager,
             order_manager=order_manager,
@@ -464,13 +510,17 @@ def _create_notifier(settings) -> Notifier:
 
 
 class TradingMonitor:
-    """Monitors one SymbolConfig triplet and acts on closed candles."""
+    """Monitors one SymbolConfig triplet and acts on closed candles.
+    
+    Usa Facades (ResilientBinanceClient e ResilientMongoRepository) via DI
+    para tratamento de CircuitBreakerOpenError.
+    """
 
     def __init__(
         self,
         config: SymbolConfig,
         client: Any,
-        repo: MongoRepository,
+        repo: MongoRepository | ResilientMongoRepository,
         signal_engine: SignalEngine,
         risk_manager: RiskManager,
         order_manager: OrderManager,
@@ -478,12 +528,17 @@ class TradingMonitor:
         max_open_positions: int,
         warmup_candles: int,
         tick_pipeline_enabled: bool = False,
+        resilient_client: ResilientBinanceClient | None = None,
+        resilient_repo: ResilientMongoRepository | None = None,
     ) -> None:
         self._config = config
         self._symbol = config.symbol
         self._timeframe = config.timeframe
         self._client = client
         self._repo = repo
+        # Facades com fallback para client/repo diretos (backward compatibility)
+        self._resilient_client = resilient_client or client
+        self._resilient_repo = resilient_repo or repo
         self._signal_engine = signal_engine
         self._risk_manager = risk_manager
         self._order_manager = order_manager
@@ -552,16 +607,33 @@ class TradingMonitor:
         update_heartbeat()
 
         # Fetch closed candles — request one extra and drop the last (open) candle
-        df = await self._client.fetch_ohlcv_with_retry(
-            symbol=self._symbol,
-            timeframe=self._timeframe,
-            limit=self._warmup_candles + 1,
-        )
+        # TASK_034: Usar ResilientBinanceClient com tratamento de CircuitBreakerOpenError
+        try:
+            df = await self._resilient_client.fetch_ohlcv_with_retry(
+                symbol=self._symbol,
+                timeframe=self._timeframe,
+                limit=self._warmup_candles + 1,
+            )
+        except CircuitBreakerOpenError:
+            # CircuitBreaker OPEN em fetch_ohlcv: log WARNING, usar cache, continuar loop
+            logger.warning(
+                "fetch_ohlcv_circuit_breaker_open",
+                symbol=self._symbol,
+                timeframe=self._timeframe,
+            )
+            # Registrar duração do tick antes de retornar
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
+            return
+        
         # Discard the last (potentially incomplete) candle
         df = df.iloc[:-1].reset_index(drop=True)
 
         # Check if we can open new positions
-        total_open = await self._repo.count_open_trades()
+        total_open = await self._resilient_repo.count_open_trades()
         # SPEC_032: Atualizar métrica de posições abertas
         update_positions_open(total_open)
 
@@ -675,7 +747,42 @@ class TradingMonitor:
 
         position = position_result.unwrap()
         # Execute trade
-        trade_result = await self._order_manager.execute(signal, position)
+        # TASK_034: Tratar CircuitBreakerOpenError em create_order
+        try:
+            trade_result = await self._order_manager.execute(signal, position)
+        except CircuitBreakerOpenError as exc:
+            # CircuitBreaker OPEN em create_order: log ERROR, Telegram alert, PARAR loop
+            logger.error(
+                "create_order_circuit_breaker_open",
+                symbol=self._symbol,
+                timeframe=self._timeframe,
+                error=str(exc),
+            )
+            await self._set_signal_outcome(
+                signal_id,
+                execution_status="REJECTED_ORDER_EXECUTION",
+                execution_reason="circuit_breaker_open_create_order",
+            )
+            # Enviar alert via Telegram
+            await self._notifier.send(
+                NotificationEvent.CRITICAL_ERROR,
+                type("Alert", (), {
+                    "to_message": lambda: (
+                        f"🚨 **CircuitBreaker OPEN**\n"
+                        f"Símbolo: {self._symbol}\n"
+                        f"Operação: create_order\n"
+                        f"Loop parado para {self._symbol}/{self._timeframe}"
+                    )
+                })(),
+            )
+            # Registrar duração do tick antes de parar o loop
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
+            raise  # Parar o loop
+        
         if trade_result.is_err():
             await self._set_signal_outcome(
                 signal_id,
@@ -692,8 +799,9 @@ class TradingMonitor:
             return
 
         trade = trade_result.unwrap()
-        trade_id = await self._repo.save_trade(trade)
-        await self._repo.audit(
+        # TASK_034: Usar ResilientMongoRepository com fallback a journal
+        trade_id = await self._resilient_repo.save_trade(trade)
+        await self._resilient_repo.audit(
             "trade_opened",
             {"trade_id": trade_id, **trade.to_dict()},
         )
@@ -881,6 +989,16 @@ async def _main() -> None:
 
     notifier = _create_notifier(settings)
 
+    # TASK_034: Criar Facades para resiliência com Circuit Breaker
+    resilient_client = ResilientBinanceClient(
+        real_client=client,
+        settings=settings,
+    )
+    resilient_repo = ResilientMongoRepository(
+        real_repo=repo,
+        notifier=notifier,
+    )
+
     # SPEC_043 — TradeCloseRouter criado ANTES de RuntimeMonitorRegistry
     trade_close_router = TradeCloseRouter(
         portfolio_loss_threshold=settings.portfolio_loss_threshold,
@@ -889,10 +1007,13 @@ async def _main() -> None:
 
     # SPEC_033 — Cada TradingMonitor cria seu próprio SignalEngine
     # Nenhuma instância compartilhada (INV-033-06)
+    # TASK_034: Passar Facades ao RuntimeMonitorRegistry via DI
     monitor_registry = RuntimeMonitorRegistry(
         settings=settings,
         client=client,
         repo=repo,
+        resilient_client=resilient_client,
+        resilient_repo=resilient_repo,
         notifier=notifier,
         router=trade_close_router,
     )
@@ -932,10 +1053,11 @@ async def _main() -> None:
 
     tasks.append(asyncio.create_task(reporter.run()))
     tasks.append(asyncio.create_task(order_monitor.run()))
+    # TASK_034: Passar ResilientMongoRepository ao HeartbeatTask para journal reprocessing
     tasks.append(
         asyncio.create_task(
             HeartbeatTask(
-                repo=repo,
+                repo=resilient_repo,
                 monitor_count=monitor_registry.monitor_count,
                 monitor_count_getter=lambda: monitor_registry.monitor_count,
             ).run()

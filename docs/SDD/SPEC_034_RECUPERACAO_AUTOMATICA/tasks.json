@@ -1,0 +1,502 @@
+{
+  "spec_id": "SPEC_034",
+  "spec_title": "Recuperação Automática: Circuit Breaker e Graceful Degradation",
+  "generated_date": "2026-05-13",
+  "total_tasks": 10,
+  "tasks": [
+    {
+      "id": "TASK_034_01",
+      "title": "Criar módulo resilience com CircuitBreaker e Registry",
+      "description": "Implementar módulo src/resilience/ com CircuitBreakerState enum, CircuitBreaker dataclass e CircuitBreakerRegistry com suporte a recovery_timeout configurável",
+      "target_files": [
+        "src/resilience/__init__.py",
+        "src/resilience/circuit_breaker.py",
+        "src/resilience/exceptions.py"
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "estimated_effort": "4h",
+      "constraints": [
+        "CircuitBreakerState: enum com valores CLOSED, OPEN, HALF_OPEN (case-sensitive, lowercase value)",
+        "CircuitBreaker: dataclass com campos name (str), state (CircuitBreakerState), failure_count (int), last_failure_time (float), failure_threshold (int, default=3), recovery_timeout (float, default=60.0), last_state_change (float)",
+        "CircuitBreakerRegistry: classe com método get(name: str, recovery_timeout: float = None) → CircuitBreaker (idempotente, cria uma vez e retorna mesma instância); método state_summary() → dict[str, str] retornando {name: state.value}",
+        "CircuitBreakerOpenError: exceção customizada herdada de Exception",
+        "Sem imports de config ou settings — apenas tipos puros",
+        "Registry pode ter campo namespace (str, optional) para future-proofing",
+        "Sem logging interno (logging fica em Facades, não em circuit_breaker.py)"
+      ],
+      "acceptance_criteria": [
+        "✓ CircuitBreakerState.CLOSED, .OPEN, .HALF_OPEN todos acessíveis e testáveis com ==",
+        "✓ CircuitBreaker.failure_count incrementa corretamente em cada falha",
+        "✓ CircuitBreakerRegistry.get(name) é idempotente: chamadas sucessivas com mesmo name retornam mesma instância",
+        "✓ Registry.state_summary() retorna dict com keys como nomes de CB e values como strings ('closed', 'open', 'half_open')",
+        "✓ recovery_timeout pode ser passado em get() e sobrescreve default",
+        "✓ Nenhuma exceção não-tratada ao criar/acessar Registry",
+        "✓ ruff check src/resilience/ retorna 0 erros"
+      ],
+      "skill_validation": [
+        "qa-review: cobertura mínima 80% em src/resilience/"
+      ]
+    },
+    {
+      "id": "TASK_034_02",
+      "title": "Implementar ResilientBinanceClient com Facade Pattern",
+      "description": "Criar ResilientBinanceClient que wrappea BinanceClient, aplicando Circuit Breaker com recovery_timeout=30s e comportamento diferenciado por criticidade (Tipo A: fast fail, Tipo C: graceful degrade)",
+      "target_files": [
+        "src/exchange/resilient_binance_client.py"
+      ],
+      "dependencies": [
+        "TASK_034_01"
+      ],
+      "priority": "P0",
+      "estimated_effort": "6h",
+      "constraints": [
+        "Wrappear BinanceClient (composição, não herança) — armazenar em self._real_client",
+        "Injetar CircuitBreakerRegistry via __init__ (ou criar isolada com namespace='binance')",
+        "recovery_timeout_secs: default 30s (via config CIRCUIT_BREAKER_BINANCE_RECOVERY_TIMEOUT_SECS em .env, fallback 30)",
+        "Implementar métodos: fetch_ohlcv(), create_order(), create_stop_loss(), fetch_positions()",
+        "fetch_ohlcv (Tipo C — graceful degrade): Se CB aberto, log WARNING e retornar último candle em cache (implementar cache de candle); não levantar exceção",
+        "create_order (Tipo A — fast fail): Se CB aberto, levantar CircuitBreakerOpenError; log ERROR; contar como falha",
+        "create_stop_loss (Tipo A — fast fail): Se CB aberto, levantar CircuitBreakerOpenError; log ERROR",
+        "fetch_positions (Tipo A — fast fail): Se CB aberto, levantar CircuitBreakerOpenError; log ERROR",
+        "Lógica de CB: on_failure() incrementa failure_count; on_success() reseta failure_count (apenas em CLOSED/HALF_OPEN)",
+        "Transição HALF_OPEN → CLOSED ocorre após primeira chamada bem-sucedida",
+        "Timeout por chamada: 2s (vs 5s para MongoDB)",
+        "Sem retry automático (retry é SPEC futura)"
+      ],
+      "acceptance_criteria": [
+        "✓ fetch_ohlcv com CB aberto retorna cache (não levanta exceção)",
+        "✓ create_order com CB aberto levanta CircuitBreakerOpenError",
+        "✓ create_stop_loss com CB aberto levanta CircuitBreakerOpenError",
+        "✓ fetch_positions com CB aberto levanta CircuitBreakerOpenError",
+        "✓ failure_count incrementa em cada falha",
+        "✓ CB transita HALF_OPEN → CLOSED após sucesso",
+        "✓ CB transita HALF_OPEN → OPEN após falha",
+        "✓ recovery_timeout_secs de 30s é respeitado (testável com time.monotonic mock)",
+        "✓ Métodos async/await funcionam corretamente (pytest.mark.asyncio)",
+        "✓ Cache de candle é mantido (fetch_ohlcv com sucesso atualiza cache)"
+      ],
+      "skill_validation": [
+        "signal-review: validar impacto em signal_engine (deve ser nenhum, graceful degrade)",
+        "qa-review: cobertura mínima 80% em src/exchange/resilient_binance_client.py"
+      ]
+    },
+    {
+      "id": "TASK_034_03",
+      "title": "Implementar ResilientMongoRepository com Facade + Journal",
+      "description": "Criar ResilientMongoRepository que wrappea MongoRepository, aplicando Circuit Breaker com recovery_timeout=60s, retry 3x para Tipo B, graceful degrade para Tipo C, e journal local para trades não-persistidos",
+      "target_files": [
+        "src/storage/resilient_repository.py",
+        "src/storage/pending_trades_journal.py"
+      ],
+      "dependencies": [
+        "TASK_034_01"
+      ],
+      "priority": "P0",
+      "estimated_effort": "8h",
+      "constraints": [
+        "Wrappear MongoRepository (composição, não herança) — armazenar em self._real_repo",
+        "Injetar CircuitBreakerRegistry via __init__ (ou criar isolada com namespace='mongodb')",
+        "recovery_timeout_secs: default 60s (via config CIRCUIT_BREAKER_MONGO_RECOVERY_TIMEOUT_SECS em .env, fallback 60)",
+        "Timeout por chamada: 5s (vs 2s para Binance)",
+        "Implementar métodos: save_trade() [Tipo B], save_signal() [Tipo C], audit_log() [Tipo B], insert_one() [Tipo B]",
+        "save_trade (Tipo B): Tenta 3x com backoff (100ms, 200ms, 400ms) antes de falhar; se falha 3x, escreve em PendingTradesJournal; retorna Ok (não levanta exceção); log ERROR + Telegram alert em falha final",
+        "save_signal (Tipo C): Tenta 1x; se falha, log WARNING; não retenta; retorna Ok",
+        "audit_log (Tipo B): Tenta 3x com backoff; se falha 3x, Telegram alert; retorna Ok",
+        "insert_one (Tipo B): Tenta 3x com backoff; genérico para outros inserts",
+        "PendingTradesJournal: classe separada em src/storage/pending_trades_journal.py que:",
+        "  - Mantém arquivo local (src/storage/.pending_trades.jsonl) com trades não-persistidos",
+        "  - Cada linha é JSON: {trade_id, symbol, entry_price, quantity, timestamp}",
+        "  - Método add_trade(trade) → append ao arquivo",
+        "  - Método list_pending() → lê arquivo, retorna lista de trades",
+        "  - Método remove_trade(trade_id) → remove linha do arquivo",
+        "  - Idempotência: trade_id deve ser único; duplicatas ignoradas"
+      ],
+      "acceptance_criteria": [
+        "✓ save_trade com CB aberto retenta 3x com backoff (100ms, 200ms, 400ms)",
+        "✓ save_trade falha 3x → journaled em PendingTradesJournal, retorna Ok",
+        "✓ save_signal com CB aberto retorna Ok (graceful degrade)",
+        "✓ audit_log retenta 3x; falha 3x → Telegram alert",
+        "✓ insert_one retenta 3x; genérico funciona",
+        "✓ PendingTradesJournal escreve trades em arquivo .jsonl",
+        "✓ PendingTradesJournal é idempotente (mesma trade 2x não duplica)",
+        "✓ recovery_timeout_secs de 60s é respeitado",
+        "✓ Backoff: 100ms + 200ms + 400ms = 700ms total antes de abort",
+        "✓ Sem exceção levantada em save_trade (mesmo com todas as tentativas falhando)"
+      ],
+      "skill_validation": [
+        "security-audit: validar que nenhum segredo (DB credentials) é exposto em logs ou journal",
+        "qa-review: cobertura mínima 80% em src/storage/resilient_repository.py e src/storage/pending_trades_journal.py"
+      ]
+    },
+    {
+      "id": "TASK_034_04",
+      "title": "Integrar Facades em TradingMonitor e HeartbeatTask",
+      "description": "Atualizar TradingMonitor._tick() para usar ResilientBinanceClient e ResilientMongoRepository via DI, implementar tratamento de CircuitBreakerOpenError, e adicionar journal reprocessing em HeartbeatTask",
+      "target_files": [
+        "src/main.py"
+      ],
+      "dependencies": [
+        "TASK_034_02",
+        "TASK_034_03"
+      ],
+      "priority": "P0",
+      "estimated_effort": "6h",
+      "constraints": [
+        "TradingMonitor.__init__: aceitar ResilientBinanceClient (não BinanceClient direto) e ResilientMongoRepository (não MongoRepository direto) via DI",
+        "TradingMonitor._tick(): remover dependência direta de BinanceClient e MongoRepository; usar Facades",
+        "Em _tick(), capturar CircuitBreakerOpenError de create_order → log ERROR, Telegram alert (usando Notifier), PARAR loop (break ou raise, conforme design atual)",
+        "Em _tick(), capturar CircuitBreakerOpenError de fetch_ohlcv → log WARNING, usar cache, continuar loop (não parar)",
+        "Invariante: Nenhuma ordem é criada sem SL já enviado (manter invariante existente, validar em testes)",
+        "HeartbeatTask._beat(): adicionar chamada a resilient_mongo_repo.journal.reprocess_pending_trades() a cada ciclo (ou a cada N ciclos para não sobrecarregar)",
+        "journal.reprocess_pending_trades(): tenta inserir trades journaled novamente; se sucesso, remove do journal; se falha, mantém em journal para próximo ciclo",
+        "Logging: use structlog, nunca print ou logging.basicConfig"
+      ],
+      "acceptance_criteria": [
+        "✓ TradingMonitor recebe ResilientBinanceClient via __init__",
+        "✓ TradingMonitor recebe ResilientMongoRepository via __init__",
+        "✓ CircuitBreakerOpenError em create_order para o loop + Telegram alert",
+        "✓ CircuitBreakerOpenError em fetch_ohlcv continua loop (com cache)",
+        "✓ HeartbeatTask chama journal.reprocess_pending_trades() periodicamente",
+        "✓ Journaled trades são reprocessados e removidos do journal após sucesso",
+        "✓ Invariante testada: zero orphaned orders (ordens criadas com SL, storage falha, depois recovery)",
+        "✓ Nenhuma ordem fica pendente indefinidamente (eventual consistency em max 1 min via heartbeat)"
+      ],
+      "skill_validation": [
+        "qa-review: validação de invariantes em testes de integração"
+      ]
+    },
+    {
+      "id": "TASK_034_05",
+      "title": "Estender Healthcheck com Circuit Breaker State",
+      "description": "Adicionar endpoint /health que retorna estado dos circuit breakers por namespace (binance, mongodb) e status geral (healthy/degraded/critical)",
+      "target_files": [
+        "src/api/routes/health.py"
+      ],
+      "dependencies": [
+        "TASK_034_02",
+        "TASK_034_03"
+      ],
+      "priority": "P1",
+      "estimated_effort": "3h",
+      "constraints": [
+        "Injetar ResilientBinanceClient e ResilientMongoRepository via DI em route handler",
+        "Retornar JSON: {status: string, circuit_breakers: {binance: {...}, mongodb: {...}}}",
+        "circuit_breakers.binance: resultado de resilient_binance_client._cb_registry.state_summary()",
+        "circuit_breakers.mongodb: resultado de resilient_mongo_repo._cb_registry.state_summary()",
+        "Status geral: 'healthy' se todos CLOSED; 'degraded' se algum OPEN mas nenhum Tipo A; 'critical' se algum Tipo A aberto",
+        "Endpoint não deve levantar exceção (robustez) — se algo falha, retorna valores default"
+      ],
+      "acceptance_criteria": [
+        "✓ GET /health retorna HTTP 200 com JSON válido",
+        "✓ circuit_breakers.binance e .mongodb presentes",
+        "✓ Status = healthy quando todos CLOSED",
+        "✓ Status = degraded quando algum OPEN (Tipo B/C)",
+        "✓ Status = critical quando Tipo A aberto",
+        "✓ Endpoint é robusto (nunca levanta exception)"
+      ],
+      "skill_validation": [
+        "qa-review: testabilidade do endpoint com diferentes estados de CB"
+      ]
+    },
+    {
+      "id": "TASK_034_06",
+      "title": "Testes Unitários para Circuit Breaker",
+      "description": "Escrever 7 testes unitários cobrindo estados, transições e comportamentos de circuit breaker",
+      "target_files": [
+        "tests/resilience/test_circuit_breaker.py"
+      ],
+      "dependencies": [
+        "TASK_034_01",
+        "TASK_034_02",
+        "TASK_034_03"
+      ],
+      "priority": "P0",
+      "estimated_effort": "5h",
+      "constraints": [
+        "Usar pytest com @pytest.mark.asyncio para testes async",
+        "Usar unittest.mock.patch/MagicMock para mockar dependências",
+        "TEST_034_01: CB CLOSED → 3 falhas consecutivas → transita para OPEN",
+        "TEST_034_02: CB OPEN → chamada levanta CircuitBreakerOpenError (fast fail)",
+        "TEST_034_03: CB HALF_OPEN → chamada bem-sucedida → transita para CLOSED",
+        "TEST_034_04: CB HALF_OPEN → chamada falha → transita para OPEN",
+        "TEST_034_05: Tipo C (graceful degrade) — log WARNING, loop continua (mock Binance offline)",
+        "TEST_034_06: Tipo A (fast fail) — log ERROR, Telegram alert (mock), loop para (mock create_order offline)",
+        "TEST_034_07: Registry.state_summary() reflete estados corretamente (verificar dict retornado)",
+        "Cada teste deve ter setup (arrange), execução (act), validação (assert) clara",
+        "Use time.monotonic mock para testar recovery_timeout sem esperar 30s real"
+      ],
+      "acceptance_criteria": [
+        "✓ Todos 7 testes passam com pytest -v",
+        "✓ Cobertura ≥80% em src/resilience/ (verificado com pytest --cov)",
+        "✓ Sem warnings de ruff check",
+        "✓ Testes determinísticos (não flaky, rodam múltiplas vezes com mesmo resultado)",
+        "✓ Testes usam pytest fixtures para setup comum",
+        "✓ Cada teste isola sua Registry (não compartilha estado)"
+      ],
+      "skill_validation": [
+        "qa-review: cobertura ≥80%, todos testes passando"
+      ]
+    },
+    {
+      "id": "TASK_034_07",
+      "title": "Testes de Integração (TradingMonitor com Resilience)",
+      "description": "Escrever testes de integração validando behavior de TradingMonitor com Facades, eventual consistency, e invariantes",
+      "target_files": [
+        "tests/trading/test_trading_monitor_resilience.py"
+      ],
+      "dependencies": [
+        "TASK_034_02",
+        "TASK_034_03",
+        "TASK_034_04"
+      ],
+      "priority": "P0",
+      "estimated_effort": "6h",
+      "constraints": [
+        "Usar pytest com @pytest.mark.asyncio",
+        "Simular Binance offline: mock ResilientBinanceClient.create_order() para levantar CircuitBreakerOpenError",
+        "Validar: TradingMonitor._tick() para loop (não tenta novo trade)",
+        "Simular MongoDB offline: mock ResilientMongoRepository.save_trade() para falhar 3x",
+        "Validar: trade é journaled, PendingTradesJournal.add_trade() é chamado",
+        "Simular MongoDB volta: mock reprocessamento de journal",
+        "Validar: journaled trades são reinseridos e removidos do journal",
+        "Invariante crítica: Nenhuma ordem fica orphaned (trade criado com SL, storage falha, depois recovery)",
+        "Use fixtures para setup de mocks, transações, limpeza"
+      ],
+      "acceptance_criteria": [
+        "✓ Teste Binance offline: TradingMonitor._tick() para com CircuitBreakerOpenError",
+        "✓ Teste MongoDB offline (Tipo C): sinais continuam sendo avaliados (log WARNING)",
+        "✓ Teste save_trade retry 3x: journaled após falhas",
+        "✓ Teste eventual consistency: journaled trades reprocessados com sucesso",
+        "✓ Invariante: zero orphaned orders em todos os cenários",
+        "✓ Cobertura ≥80% em src/main.py (_tick method)",
+        "✓ Sem flakiness (async handling, mocks determinísticos)"
+      ],
+      "skill_validation": [
+        "qa-review: invariantes validadas, cobertura ≥80%, sem flakiness"
+      ]
+    },
+    {
+      "id": "TASK_034_08",
+      "title": "Validação com Skills Especializadas",
+      "description": "Executar validações com @qa-review, @signal-review, @security-audit para garantir qualidade, impacto em sinais e segurança",
+      "target_files": [
+        "N/A (validação)"
+      ],
+      "dependencies": [
+        "TASK_034_06",
+        "TASK_034_07"
+      ],
+      "priority": "P0",
+      "estimated_effort": "4h",
+      "constraints": [
+        "Skill @qa-review: validar cobertura ≥80% (pytest --cov), todos 7 testes (034_01..07) passando, ruff check limpo, sem warnings",
+        "Skill @signal-review: validar impacto em signal_engine (esperado: nenhum, fetch_ohlcv degrada gracefully, sem afetar sinais)",
+        "Skill @security-audit: validar que nenhum segredo (API key, token, DB password) é exposto em logs, exceções ou journal",
+        "Skills devem retornar parecer documentado (aprovado / com observações / rejeitado)"
+      ],
+      "acceptance_criteria": [
+        "✓ @qa-review: aprovado (cobertura ≥80%, testes passando, ruff limpo)",
+        "✓ @signal-review: aprovado (sem impacto em signal_engine, graceful degrade funciona)",
+        "✓ @security-audit: aprovado (nenhum secret exposto)"
+      ],
+      "skill_validation": [
+        "@qa-review, @signal-review, @security-audit (este próprio task é validação)"
+      ]
+    },
+    {
+      "id": "TASK_034_09",
+      "title": "Componente PendingTradesJournal (Isolado)",
+      "description": "Implementar classe PendingTradesJournal separada com persistência local, idempotência e reprocessamento de trades não-persistidos",
+      "target_files": [
+        "src/storage/pending_trades_journal.py"
+      ],
+      "dependencies": [
+        "TASK_034_01"
+      ],
+      "priority": "P1",
+      "estimated_effort": "3h",
+      "constraints": [
+        "Classe PendingTradesJournal: gerencia arquivo .pending_trades.jsonl em src/storage/",
+        "Método add_trade(trade: Trade) → escreve linha JSON ao arquivo; idempotente (se trade_id já existe, ignora)",
+        "Método list_pending() → async, lê arquivo, retorna list[Trade]",
+        "Método remove_trade(trade_id: str) → async, remove linha correspondente",
+        "Método reprocess_pending_trades(mongo_repo: ResilientMongoRepository) → async, tenta reinsertar todos pending; remove do journal se sucesso",
+        "Arquivo é append-only (sempre escreve ao final), idempotência via trade_id único",
+        "Sem logging direto (logging fica em quem chama, ex: ResilientMongoRepository)",
+        "Trade deve ser serializable (Pydantic model ou dataclass com asdict)"
+      ],
+      "acceptance_criteria": [
+        "✓ add_trade escreve JSON ao arquivo .jsonl",
+        "✓ add_trade idempotente (mesma trade_id 2x não duplica)",
+        "✓ list_pending lê corretamente todas as linhas",
+        "✓ remove_trade remove exatamente uma linha (sem corromper arquivo)",
+        "✓ reprocess_pending_trades tenta reinsertar, remove se sucesso",
+        "✓ Arquivo é atômico (não corrompe parcialmente)",
+        "✓ Sem exceções não-tratadas (robustez)"
+      ],
+      "skill_validation": [
+        "qa-review: testes de idempotência, file handling, atomicidade"
+      ]
+    },
+    {
+      "id": "TASK_034_10",
+      "title": "Validação de Idempotência em save_trade",
+      "description": "Escrever testes validando que save_trade é idempotente em MongoDB (duplicate key não causa erro) e que PendingTradesJournal não duplica trades",
+      "target_files": [
+        "tests/storage/test_pending_trades_journal.py",
+        "tests/storage/test_resilient_repository_idempotence.py"
+      ],
+      "dependencies": [
+        "TASK_034_03",
+        "TASK_034_09"
+      ],
+      "priority": "P1",
+      "estimated_effort": "3h",
+      "constraints": [
+        "Teste 1 (test_pending_trades_journal.py): PendingTradesJournal.add_trade() 2x com mesma trade_id → arquivo tem apenas 1 linha",
+        "Teste 2 (test_resilient_repository_idempotence.py): ResilientMongoRepository.save_trade() 2x com mesma trade → nenhum erro, idempotente (MongoDB duplicate key é tratado gracefully)",
+        "Usar pytest + mock de MongoDB (ou testcontainer se quiser real MongoDB em testes)",
+        "Validar que journaled trades não criam duplicatas ao reprocessar"
+      ],
+      "acceptance_criteria": [
+        "✓ PendingTradesJournal.add_trade() é idempotente",
+        "✓ save_trade retorna Ok mesmo se trade_id duplicado (sem levantar duplicate key error para caller)",
+        "✓ Reprocessamento de journal não cria duplicatas em BD",
+        "✓ Cobertura ≥80% em tests/storage/"
+      ],
+      "skill_validation": [
+        "qa-review: testes de idempotência, cobertura"
+      ]
+    }
+  ],
+  "interdependencies": [
+    {
+      "from": "TASK_034_02",
+      "to": "TASK_034_01",
+      "reason": "ResilientBinanceClient depende de CircuitBreaker e Registry"
+    },
+    {
+      "from": "TASK_034_03",
+      "to": "TASK_034_01",
+      "reason": "ResilientMongoRepository depende de CircuitBreaker e Registry"
+    },
+    {
+      "from": "TASK_034_04",
+      "to": [
+        "TASK_034_02",
+        "TASK_034_03"
+      ],
+      "reason": "TradingMonitor integra ambas as Facades"
+    },
+    {
+      "from": "TASK_034_05",
+      "to": [
+        "TASK_034_02",
+        "TASK_034_03"
+      ],
+      "reason": "Healthcheck agrega state de ambas as Registries"
+    },
+    {
+      "from": "TASK_034_06",
+      "to": [
+        "TASK_034_01",
+        "TASK_034_02",
+        "TASK_034_03"
+      ],
+      "reason": "Testes unitários cobrem todos os componentes de resiliência"
+    },
+    {
+      "from": "TASK_034_07",
+      "to": [
+        "TASK_034_02",
+        "TASK_034_03",
+        "TASK_034_04"
+      ],
+      "reason": "Testes de integração validam TradingMonitor com Facades"
+    },
+    {
+      "from": "TASK_034_08",
+      "to": [
+        "TASK_034_06",
+        "TASK_034_07"
+      ],
+      "reason": "Validação com skills depende de testes completos"
+    },
+    {
+      "from": "TASK_034_09",
+      "to": "TASK_034_01",
+      "reason": "Journal é componente isolado, pode ser desenvolvido em paralelo"
+    },
+    {
+      "from": "TASK_034_10",
+      "to": [
+        "TASK_034_03",
+        "TASK_034_09"
+      ],
+      "reason": "Validação de idempotência depende de ambos os componentes"
+    }
+  ],
+  "execution_strategy": {
+    "phase_1": {
+      "name": "Infraestrutura Base",
+      "tasks": [
+        "TASK_034_01",
+        "TASK_034_09"
+      ],
+      "duration": "7h",
+      "parallelizable": true,
+      "description": "Criar CircuitBreaker + Registry e PendingTradesJournal (independentes)"
+    },
+    "phase_2": {
+      "name": "Facades (Binance + MongoDB)",
+      "tasks": [
+        "TASK_034_02",
+        "TASK_034_03"
+      ],
+      "duration": "14h",
+      "parallelizable": true,
+      "description": "Implementar ambas as Facades com resiliência (podem ser feitas em paralelo)"
+    },
+    "phase_3": {
+      "name": "Integração + Healthcheck",
+      "tasks": [
+        "TASK_034_04",
+        "TASK_034_05"
+      ],
+      "duration": "9h",
+      "parallelizable": true,
+      "description": "Integrar Facades em TradingMonitor e estender Healthcheck"
+    },
+    "phase_4": {
+      "name": "Testes",
+      "tasks": [
+        "TASK_034_06",
+        "TASK_034_07",
+        "TASK_034_10"
+      ],
+      "duration": "14h",
+      "parallelizable": true,
+      "description": "Testes unitários, integração e idempotência"
+    },
+    "phase_5": {
+      "name": "Validação Final",
+      "tasks": [
+        "TASK_034_08"
+      ],
+      "duration": "4h",
+      "parallelizable": false,
+      "description": "Skills de validação (após todos os testes)"
+    }
+  },
+  "total_estimated_effort": "57h",
+  "critical_path": [
+    "TASK_034_01",
+    "TASK_034_02",
+    "TASK_034_03",
+    "TASK_034_04",
+    "TASK_034_06",
+    "TASK_034_07",
+    "TASK_034_08"
+  ]
+}

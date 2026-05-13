@@ -1,11 +1,14 @@
 """Testes para ResilientBinanceClient com Circuit Breaker."""
-import pytest
+
 from unittest.mock import AsyncMock
-from src.config.settings import SymbolConfig, Settings
+
+import pandas as pd
+import pytest
+
+from src.config.settings import Settings, SymbolConfig
 from src.exchange.binance_client import BinanceClient
 from src.exchange.resilient_binance_client import ResilientBinanceClient
 from src.resilience import CircuitBreakerOpenError, CircuitBreakerRegistry, CircuitBreakerState
-import pandas as pd
 
 
 @pytest.fixture

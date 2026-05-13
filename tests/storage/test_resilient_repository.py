@@ -18,11 +18,10 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.notifications.events import NotificationEvent
 from src.resilience.circuit_breaker import CircuitBreakerRegistry, CircuitBreakerState
 from src.storage.pending_trades_journal import PendingTradesJournal
 from src.storage.resilient_repository import ResilientMongoRepository
@@ -145,7 +144,6 @@ class TestSaveTradeRetryLogic:
         )
 
         trade = _make_trade()
-        start_time = time.time()
         await resilient.save_trade(trade)
 
         # Validar que houve 3 chamadas
@@ -524,3 +522,118 @@ class TestPassthroughMethods:
         )
 
         assert resilient.database == mock_db
+
+
+@pytest.mark.asyncio
+class TestAuditLogWithOpenCB:
+    """TEST_034_03_08 — audit_log com CB aberto (cobertura adicional)."""
+
+    async def test_audit_log_with_open_cb_attempts_half_open(self) -> None:
+        """audit_log com CB aberto tenta transição HALF_OPEN."""
+        real_repo = _make_real_repo()
+        real_repo.audit = AsyncMock()
+
+        cb_registry = CircuitBreakerRegistry(namespace="mongodb")
+        cb = cb_registry.get("mongodb:audit_log", recovery_timeout=60)
+        # Força CB para OPEN
+        cb.state = CircuitBreakerState.OPEN
+
+        resilient = ResilientMongoRepository(
+            real_repo=real_repo,
+            notifier=_make_notifier(),
+            cb_registry=cb_registry,
+        )
+
+        await resilient.audit_log("test_event", {})
+
+        # Com CB aberto, não deve tentar real_repo
+        assert real_repo.audit.call_count == 0
+
+
+@pytest.mark.asyncio
+class TestSaveSignalWithOpenCB:
+    """TEST_034_03_09 — save_signal com CB aberto (cobertura adicional)."""
+
+    async def test_save_signal_with_open_cb_returns_none_immediately(self) -> None:
+        """save_signal com CB aberto retorna None sem tomar ação."""
+        real_repo = _make_real_repo()
+        real_repo.save_signal = AsyncMock()
+
+        cb_registry = CircuitBreakerRegistry(namespace="mongodb")
+        cb = cb_registry.get("mongodb:save_signal", recovery_timeout=60)
+        # Força CB para OPEN
+        cb.state = CircuitBreakerState.OPEN
+
+        resilient = ResilientMongoRepository(
+            real_repo=real_repo,
+            notifier=_make_notifier(),
+            cb_registry=cb_registry,
+        )
+
+        signal_dict = {"symbol": "BTCUSDT"}
+        result = await resilient.save_signal(signal_dict)
+
+        assert result is None
+        assert real_repo.save_signal.call_count == 0
+
+
+@pytest.mark.asyncio
+class TestSaveTradeJournalFallback:
+    """TEST_034_03_10 — save_trade journal fallback exception handling."""
+
+    async def test_save_trade_journal_fallback_exception(self) -> None:
+        """save_trade com CB aberto e journal exception é tratado."""
+        real_repo = _make_real_repo()
+        real_repo.save_trade = AsyncMock(side_effect=Exception("MongoDB error"))
+
+        journal = AsyncMock(spec=PendingTradesJournal)
+        # Journal também falha
+        journal.add_trade = AsyncMock(side_effect=Exception("Journal write failed"))
+
+        resilient = ResilientMongoRepository(
+            real_repo=real_repo,
+            notifier=_make_notifier(),
+            journal=journal,
+        )
+
+        # Força CB para OPEN
+        cb_registry = CircuitBreakerRegistry(namespace="mongodb")
+        cb = cb_registry.get("mongodb:save_trade", recovery_timeout=60)
+        cb.state = CircuitBreakerState.OPEN
+        resilient._cb_registry = cb_registry
+
+        trade = _make_trade()
+        result = await resilient.save_trade(trade)
+
+        # Mesmo com exception no journal, não levanta
+        assert result is None
+
+
+@pytest.mark.asyncio
+class TestSaveTradeWithCBRecovery:
+    """TEST_034_03_11 — save_trade com CB em recuperação."""
+
+    async def test_save_trade_with_half_open_cb_success(self) -> None:
+        """save_trade com CB em HALF_OPEN sucede e fecha o CB."""
+        real_repo = _make_real_repo()
+        real_repo.save_trade = AsyncMock(return_value="doc_456")
+
+        cb_registry = CircuitBreakerRegistry(namespace="mongodb")
+        resilient = ResilientMongoRepository(
+            real_repo=real_repo,
+            notifier=_make_notifier(),
+            cb_registry=cb_registry,
+        )
+
+        # Obtém o CB e força para HALF_OPEN
+        cb = cb_registry.get("mongodb:save_trade", recovery_timeout=60)
+        cb.state = CircuitBreakerState.HALF_OPEN
+
+        trade = _make_trade()
+        result = await resilient.save_trade(trade)
+
+        # Deve ter sucesso e fechado o CB
+        assert result == "doc_456"
+        assert real_repo.save_trade.call_count == 1
+        # Após sucesso em HALF_OPEN, CB deve estar CLOSED
+        assert cb.state == CircuitBreakerState.CLOSED

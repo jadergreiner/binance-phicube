@@ -554,6 +554,10 @@ class ResilientMongoRepository:
         """Delegate: diagnóstico de signals recentes."""
         return await self._real_repo.get_latest_signal_diagnostics(limit)
 
+    async def audit(self, event: str, data: dict[str, Any]) -> None:
+        """Alias para audit_log com tipo B (retry 3x)."""
+        await self.audit_log(event, data)
+
     # ─── Private methods ───────────────────────────────────────────────────────
 
     async def _send_alert(self, message: str) -> None:
