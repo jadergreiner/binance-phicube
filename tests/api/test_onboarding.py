@@ -24,6 +24,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.routes.onboarding import _approved_triplets, _merge_triplets, router
+from src.common.result import ok
+from src.strategy.plugin_base import NullSignalResult
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -639,7 +641,7 @@ class TestMarketAnalysisOnboarding:
         )
 
         with (
-            patch("src.api.routes.onboarding.SignalEngine.evaluate", return_value=None),
+            patch("src.api.routes.onboarding.SignalEngine.evaluate") as mock_evaluate,
             patch("src.exchange.binance_client.BinanceClient") as MockClient,
             patch("src.config.settings.get_settings") as mock_settings,
         ):
@@ -647,6 +649,11 @@ class TestMarketAnalysisOnboarding:
             mock_client_inst = AsyncMock()
             mock_client_inst.fetch_ohlcv_with_retry = AsyncMock(return_value=frame)
             MockClient.return_value = mock_client_inst
+            
+            async def mock_eval(*args, **kwargs):
+                return ok(NullSignalResult(reason="no_signal"))
+            
+            mock_evaluate.side_effect = mock_eval
 
             resp = client.post("/onboarding/ATOMUSDT/market-analysis")
 

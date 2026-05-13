@@ -83,6 +83,23 @@ class HeartbeatTask:
         self._monitor_count_getter = monitor_count_getter
         self._started_at = datetime.now(UTC)
 
+    async def _beat(self) -> None:
+        """Grava heartbeat na collection audit."""
+        uptime_seconds = int((datetime.now(UTC) - self._started_at).total_seconds())
+        monitor_count = (
+            self._monitor_count_getter()
+            if self._monitor_count_getter
+            else self._monitor_count
+        )
+        await self._repo.audit(
+            "heartbeat",
+            {
+                "process_uptime_seconds": uptime_seconds,
+                "monitor_count": monitor_count,
+                "metadata": {"source": "HeartbeatTask"},
+            },
+        )
+
     async def run(self) -> None:
         while True:
             try:
@@ -624,15 +641,15 @@ class TradingMonitor:
 
         qty_precision = self._client.get_quantity_precision(self._symbol)
         intraday_realized_pnl_usdt = await self._repo.get_intraday_realized_pnl_usdt()
-        position = self._risk_manager.calculate(
+        position_result = self._risk_manager.calculate(
             signal,
             balance,
             qty_precision,
             intraday_realized_pnl_usdt=intraday_realized_pnl_usdt,
             df=df,
         )
-        if position is None:
-            rejection = self._risk_manager.consume_last_rejection()
+        if position_result.is_err():
+            rejection = position_result.unwrap_err()
             # SPEC_032: Registrar sinal rejeitado pelo RiskManager
             if rejection:
                 record_signal_rejected(self._symbol, rejection.code)
@@ -656,13 +673,14 @@ class TradingMonitor:
             )
             return
 
+        position = position_result.unwrap()
         # Execute trade
-        trade = await self._order_manager.execute(signal, position)
-        if trade is None:
+        trade_result = await self._order_manager.execute(signal, position)
+        if trade_result.is_err():
             await self._set_signal_outcome(
                 signal_id,
                 execution_status="REJECTED_ORDER_EXECUTION",
-                execution_reason="order_manager_execute_returned_none",
+                execution_reason="order_manager_execute_returned_error",
             )
             logger.error("trade_execution_failed", symbol=self._symbol)
             # SPEC_032: Registrar duração do tick antes de retornar
@@ -673,6 +691,7 @@ class TradingMonitor:
             )
             return
 
+        trade = trade_result.unwrap()
         trade_id = await self._repo.save_trade(trade)
         await self._repo.audit(
             "trade_opened",

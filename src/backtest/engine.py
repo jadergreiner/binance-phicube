@@ -232,11 +232,15 @@ class BacktestEngine:
                     take_profit=tp,
                     fractal_ref=entry,
                 )
-                position = self._risk_manager.calculate(
+                position_result = self._risk_manager.calculate(
                     signal=trade_signal,
                     available_balance=initial_balance,
                 )
-                qty = position.quantity if position is not None else (initial_balance / entry_adj)
+                qty = (
+                    position_result.unwrap().quantity
+                    if position_result.is_ok()
+                    else (initial_balance / entry_adj)
+                )
             else:
                 qty = initial_balance / entry_adj
 

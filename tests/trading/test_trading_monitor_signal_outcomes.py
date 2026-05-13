@@ -58,13 +58,15 @@ async def test_tick_registra_desfecho_rejeicao_risco() -> None:
     )
     signal_result = _build_signal_result()
     signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
+    from src.common.result import err
+    rejection = RiskRejection(
+        code="MAX_CAPITAL_ALLOCATION_EXCEEDED",
+        reason="max_capital_allocation_exceeded",
+        details={"margin_required": 10.0, "max_allowed_margin": 5.0},
+    )
     risk_manager = SimpleNamespace(
-        calculate=MagicMock(return_value=None),
-        consume_last_rejection=lambda: RiskRejection(
-            code="MAX_CAPITAL_ALLOCATION_EXCEEDED",
-            reason="max_capital_allocation_exceeded",
-            details={"margin_required": 10.0, "max_allowed_margin": 5.0},
-        ),
+        calculate=MagicMock(return_value=err(rejection)),
+        consume_last_rejection=lambda: rejection,
     )
     order_manager = SimpleNamespace(execute=AsyncMock(return_value=None))
 
@@ -96,17 +98,19 @@ async def test_tick_registra_desfecho_rejeicao_intraday_loss_limit() -> None:
     )
     signal_result = _build_signal_result()
     signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
+    from src.common.result import err
+    rejection = RiskRejection(
+        code="INTRADAY_LOSS_LIMIT_REACHED",
+        reason="intraday_loss_limit_reached",
+        details={
+            "intraday_loss_pct": 12.0,
+            "threshold_pct": 10.0,
+            "daily_reference_capital": 1000.0,
+        },
+    )
     risk_manager = SimpleNamespace(
-        calculate=MagicMock(return_value=None),
-        consume_last_rejection=lambda: RiskRejection(
-            code="INTRADAY_LOSS_LIMIT_REACHED",
-            reason="intraday_loss_limit_reached",
-            details={
-                "intraday_loss_pct": 12.0,
-                "threshold_pct": 10.0,
-                "daily_reference_capital": 1000.0,
-            },
-        ),
+        calculate=MagicMock(return_value=err(rejection)),
+        consume_last_rejection=lambda: rejection,
     )
     order_manager = SimpleNamespace(execute=AsyncMock(return_value=None))
 
@@ -138,8 +142,10 @@ async def test_tick_registra_desfecho_trade_opened() -> None:
     )
     signal_result = _build_signal_result()
     signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
+    from src.common.result import ok, err
+    position = SimpleNamespace(quantity=1.0)
     risk_manager = SimpleNamespace(
-        calculate=MagicMock(return_value=SimpleNamespace(quantity=1.0)),
+        calculate=MagicMock(return_value=ok(position)),
         consume_last_rejection=lambda: None,
     )
     trade = SimpleNamespace(
@@ -154,7 +160,7 @@ async def test_tick_registra_desfecho_trade_opened() -> None:
         opened_at=datetime.now(UTC),
         to_dict=lambda: {"symbol": "BTCUSDT", "status": "OPEN"},
     )
-    order_manager = SimpleNamespace(execute=AsyncMock(return_value=trade))
+    order_manager = SimpleNamespace(execute=AsyncMock(return_value=ok(trade)))
 
     monitor = _build_monitor(repo, client, signal_engine, risk_manager, order_manager)
     await monitor._tick()

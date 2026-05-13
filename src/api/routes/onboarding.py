@@ -237,7 +237,8 @@ def _validate_leverage(leverage_raw: Any) -> tuple[int | None, JSONResponse | No
 
 
 def _serialize_signal(signal: Any) -> dict[str, Any]:
-    payload = signal.to_dict()
+    from dataclasses import asdict
+    payload = asdict(signal)
     detected_at = payload.get("detected_at")
     if isinstance(detected_at, datetime):
         payload["detected_at"] = detected_at.isoformat().replace("+00:00", "Z")
@@ -971,14 +972,15 @@ async def run_market_analysis(request: Request, symbol: str) -> JSONResponse:
 
         enriched = compute_all(closed_df)
         signal_engine = SignalEngine(risk_reward_ratio=float(settings.risk_reward_ratio))
-        signal = signal_engine.evaluate(sym, str(session["timeframe"]), closed_df)
+        signal_result = await signal_engine.evaluate(sym, str(session["timeframe"]), closed_df)
+        signal = signal_result.unwrap() if signal_result.is_ok() else None
 
         payload = {
             "symbol": sym,
             "timeframe": session["timeframe"],
             "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            "signal_detected": signal is not None,
-            "signal": _serialize_signal(signal) if signal is not None else None,
+            "signal_detected": bool(signal),
+            "signal": _serialize_signal(signal) if signal else None,
             "context": _serialize_market_context(enriched),
         }
         return JSONResponse(status_code=200, content=payload)

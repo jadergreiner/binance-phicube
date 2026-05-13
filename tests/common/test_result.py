@@ -196,18 +196,26 @@ class TestDomainErrors:
 
     def test_risk_rejection(self):
         """Testa RiskRejection."""
-        rejection = RiskRejection("saldo insuficiente", {"balance": 100, "required": 200})
+        rejection = RiskRejection(
+            code="saldo_insuficiente",
+            reason="saldo insuficiente",
+            details={"balance": 100, "required": 200}
+        )
         assert rejection.reason == "saldo insuficiente"
         assert rejection.details["balance"] == 100
         assert rejection.details["required"] == 200
 
         # Teste de igualdade
-        rejection2 = RiskRejection("saldo insuficiente", {"balance": 100, "required": 200})
+        rejection2 = RiskRejection(
+            code="saldo_insuficiente",
+            reason="saldo insuficiente",
+            details={"balance": 100, "required": 200}
+        )
         assert rejection == rejection2
 
         # Teste de repr
         expected_repr = (
-            "RiskRejection(reason='saldo insuficiente', details={'balance': 100, 'required': 200})"
+            "RiskRejection(code='saldo_insuficiente', reason='saldo insuficiente', details={'balance': 100, 'required': 200})"
         )
         assert repr(rejection) == expected_repr
 
@@ -252,10 +260,10 @@ class TestResultIntegration:
             balance: float, risk_pct: float
         ) -> Result[float, RiskRejection]:
             if balance <= 0:
-                return Err(RiskRejection("saldo inválido", {"balance": balance}))
+                return Err(RiskRejection(code="saldo_invalido", reason="saldo inválido", details={"balance": balance}))
 
             if risk_pct <= 0 or risk_pct > 100:
-                return Err(RiskRejection("percentual de risco inválido", {"risk_pct": risk_pct}))
+                return Err(RiskRejection(code="risco_invalido", reason="percentual de risco inválido", details={"risk_pct": risk_pct}))
 
             position_size = balance * (risk_pct / 100)
             return Ok(position_size)

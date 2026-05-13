@@ -85,7 +85,8 @@ class TestOrderManagerNotifications:
 
         # Assert
         assert result is not None
-        assert result.status.name == "OPEN"
+        assert result.is_ok()
+        assert result.unwrap().status.name == "OPEN"
         mock_notifier.send.assert_not_called()
 
     @pytest.mark.asyncio
@@ -103,7 +104,7 @@ class TestOrderManagerNotifications:
 
         # Assert
         assert result is not None
-        assert result.status.name == "FAILED"
+        assert result.is_err()
         mock_notifier.send.assert_called_once()
 
         # Verificar parâmetros da notificação
