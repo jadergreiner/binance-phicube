@@ -8,14 +8,28 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.strategies.williams_strategy import WilliamsStrategy
+from src.strategy.indicators import compute_all_optimized
+from src.strategy.plugin_base import NullSignalResult, SignalResult
+from src.strategy.plugin_registry import PluginRegistry
 from src.strategy.signal_engine import Direction, SignalEngine
+
+# ─── Engine fixture ────────────────────────────────────────────────────────────
+
+_REGISTRY = PluginRegistry(plugin_timeout=2.0)
+_REGISTRY.register("williams", WilliamsStrategy(risk_reward_ratio=2.0))
+_ENGINE = SignalEngine(
+    plugin_registry=_REGISTRY,
+    default_strategy="williams",
+    risk_reward_ratio=2.0,
+)
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
 def _flat_df(n: int = 200, price: float = 100.0) -> pd.DataFrame:
     """Flat market — should never produce a signal."""
-    return pd.DataFrame(
+    raw = pd.DataFrame(
         {
             "open": [price] * n,
             "high": [price + 0.1] * n,
@@ -24,17 +38,17 @@ def _flat_df(n: int = 200, price: float = 100.0) -> pd.DataFrame:
             "volume": [500.0] * n,
         }
     )
+    return compute_all_optimized(raw)
 
 
 def _trending_long_df(n: int = 200) -> pd.DataFrame:
     """Strong uptrend designed to trigger a LONG signal eventually."""
     prices = np.linspace(80, 130, n)
-    # Add a clear fractal-high spike early to give the engine a reference to break
     prices[50] = prices[50] - 5.0  # local dip (bullish fractal support)
     high = prices + 0.5
     low = prices - 0.5
     high[40] = high[40] + 3.0  # bearish fractal (resistance to break)
-    return pd.DataFrame(
+    raw = pd.DataFrame(
         {
             "open": prices,
             "high": high,
@@ -43,6 +57,7 @@ def _trending_long_df(n: int = 200) -> pd.DataFrame:
             "volume": np.ones(n) * 500,
         }
     )
+    return compute_all_optimized(raw)
 
 
 def _trending_short_df(n: int = 200) -> pd.DataFrame:
@@ -52,7 +67,7 @@ def _trending_short_df(n: int = 200) -> pd.DataFrame:
     low = prices - 0.5
     low[40] = low[40] - 3.0  # bullish fractal (support to break)
     high[50] = high[50] + 3.0  # bearish fractal (resistance for SL)
-    return pd.DataFrame(
+    raw = pd.DataFrame(
         {
             "open": prices,
             "high": high,
@@ -61,115 +76,116 @@ def _trending_short_df(n: int = 200) -> pd.DataFrame:
             "volume": np.ones(n) * 500,
         }
     )
+    return compute_all_optimized(raw)
 
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
 
 
 class TestSignalEngine:
-    def setup_method(self):
-        self.engine = SignalEngine(risk_reward_ratio=2.0)
-
-    def test_returns_none_on_insufficient_data(self):
+    @pytest.mark.asyncio
+    async def test_returns_nosignal_on_insufficient_data(self):
         df = _flat_df(30)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        assert result is None
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert isinstance(result, NullSignalResult)
+        assert result.reason == "insufficient_candles"
 
-    def test_returns_none_for_flat_market(self):
+    @pytest.mark.asyncio
+    async def test_returns_nosignal_for_flat_market(self):
         df = _flat_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        assert result is None
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert isinstance(result, NullSignalResult)
 
-    def test_signal_has_correct_symbol_and_timeframe(self):
-        """If a signal is returned, metadata must match inputs."""
+    @pytest.mark.asyncio
+    async def test_returns_nosignal_reason_for_insufficient_candles(self):
+        df = _flat_df(30)
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert isinstance(result, NullSignalResult)
+        assert result.reason == "insufficient_candles"
+
+    @pytest.mark.asyncio
+    async def test_long_signal_direction(self):
         df = _trending_long_df(200)
-        result = self.engine.evaluate("ETHUSDT", "1h", df)
-        if result is not None:
-            assert result.symbol == "ETHUSDT"
-            assert result.timeframe == "1h"
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
+            assert result.direction == "LONG"
 
-    def test_long_signal_direction(self):
-        df = _trending_long_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
-            assert result.direction == Direction.LONG
-
-    def test_short_signal_direction(self):
+    @pytest.mark.asyncio
+    async def test_short_signal_direction(self):
         df = _trending_short_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
-            assert result.direction == Direction.SHORT
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
+            assert result.direction == "SHORT"
 
-    def test_long_signal_sl_below_entry(self):
+    @pytest.mark.asyncio
+    async def test_long_signal_sl_below_entry(self):
         df = _trending_long_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
             assert result.stop_loss < result.entry_price
 
-    def test_long_signal_tp_above_entry(self):
+    @pytest.mark.asyncio
+    async def test_long_signal_tp_above_entry(self):
         df = _trending_long_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
             assert result.take_profit > result.entry_price
 
-    def test_short_signal_sl_above_entry(self):
+    @pytest.mark.asyncio
+    async def test_short_signal_sl_above_entry(self):
         df = _trending_short_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
             assert result.stop_loss > result.entry_price
 
-    def test_short_signal_tp_below_entry(self):
+    @pytest.mark.asyncio
+    async def test_short_signal_tp_below_entry(self):
         df = _trending_short_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
             assert result.take_profit < result.entry_price
 
-    def test_risk_reward_ratio_respected(self):
+    @pytest.mark.asyncio
+    async def test_risk_reward_ratio_respected(self):
         rrr = 2.5
-        engine = SignalEngine(risk_reward_ratio=rrr)
+        registry = PluginRegistry(plugin_timeout=2.0)
+        registry.register("williams", WilliamsStrategy(risk_reward_ratio=rrr))
+        engine = SignalEngine(plugin_registry=registry, risk_reward_ratio=rrr)
         df = _trending_long_df(200)
-        result = engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
-            assert pytest.approx(result.risk_reward_ratio, rel=1e-3) == rrr
+        result = await engine.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
+            realized = abs(result.take_profit - result.entry_price) / abs(
+                result.entry_price - result.stop_loss
+            )
+            assert pytest.approx(realized, rel=1e-3) == rrr
 
-    def test_signal_to_dict_keys(self):
+    @pytest.mark.asyncio
+    async def test_signal_result_fields(self):
         df = _trending_long_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        if result is not None:
-            d = result.to_dict()
-            for key in [
-                "symbol",
-                "timeframe",
-                "direction",
-                "entry_price",
-                "stop_loss",
-                "take_profit",
-                "fractal_ref",
-                "risk",
-                "reward",
-                "risk_reward_ratio",
-                "detected_at",
-            ]:
-                assert key in d
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        if isinstance(result, SignalResult):
+            assert result.direction in ("LONG", "SHORT")
+            assert result.entry_price > 0
+            assert result.stop_loss > 0
+            assert result.take_profit > 0
 
-    def test_consume_last_evaluation_retorna_no_signal_details(self):
+    @pytest.mark.asyncio
+    async def test_no_signal_reason_is_descriptive(self):
         df = _flat_df(200)
-        result = self.engine.evaluate("BTCUSDT", "15m", df)
-        assert result is None
+        result = await _ENGINE.evaluate("BTCUSDT", "15m", df)
+        assert isinstance(result, NullSignalResult)
+        assert bool(result.reason)  # reason must be non-empty
 
-        evaluation = self.engine.consume_last_evaluation()
-        assert evaluation is not None
-        assert evaluation.symbol == "BTCUSDT"
-        assert evaluation.timeframe == "15m"
-        assert evaluation.signal_generated is False
-        assert evaluation.decision == "NO_SIGNAL"
-        assert evaluation.reason
+    @pytest.mark.asyncio
+    async def test_engine_is_stateless_no_last_evaluation(self):
+        import inspect
 
-    def test_consume_last_evaluation_limpa_buffer(self):
-        df = _flat_df(200)
-        self.engine.evaluate("BTCUSDT", "15m", df)
-        assert self.engine.consume_last_evaluation() is not None
-        assert self.engine.consume_last_evaluation() is None
+        assert not hasattr(_ENGINE, "_last_evaluation") or inspect.isroutine(
+            getattr(_ENGINE, "_last_evaluation", None)
+        )
+        assert not hasattr(_ENGINE, "consume_last_evaluation") or inspect.isroutine(
+            getattr(_ENGINE, "consume_last_evaluation", None)
+        )
 
 
 class TestAlligatorHelpers:

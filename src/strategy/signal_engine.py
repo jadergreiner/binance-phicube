@@ -1,26 +1,16 @@
 """
-Motor de detecção de sinais — Estratégia BO Williams (Phicube).
+Motor de detecção de sinais — Chain of Responsibility + Observer.
 
-Regras de entrada (Long / Short) baseadas nos três pilares da estratégia:
-    1. Alligator — determina a direção e se o mercado está "acordado"
-    2. Awesome Oscillator (AO) — confirma o momentum
-    3. Fractais — define o ponto de rompimento e o nível de stop
+Chain of Responsibility:
+    Handle 1 — plugin configurado (SYMBOL_STRATEGY_MAP)
+    Handle 2 — Williams fallback (sempre disponível)
 
-Regra Long (compra):
-    - Alligator bullish: lips > teeth > jaw
-    - Alligator "acordado": preço de fechamento acima das três linhas
-    - AO positivo (acima de zero) na candle confirmada
-    - Preço de fechamento rompe acima do último fractal de resistência (fractal_high)
+Observer:
+    Emite eventos EVALUATED, DETECTED, REJECTED para subscribers.
 
-Regra Short (venda):
-    - Alligator bearish: lips < teeth < jaw
-    - Alligator "acordado": preço de fechamento abaixo das três linhas
-    - AO negativo (abaixo de zero) na candle confirmada
-    - Preço de fechamento rompe abaixo do último fractal de suporte (fractal_low)
-
-Stop Loss:
-    - Long: fractal_low imediatamente anterior à entrada (suporte mais recente)
-    - Short: fractal_high imediatamente anterior à entrada (resistência mais recente)
+Compatibilidade retroativa:
+    Direction e Signal mantidos como re-exports neste módulo até
+    SPEC futura removê-los definitivamente.
 """
 
 from __future__ import annotations
@@ -28,18 +18,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from src.monitoring.logger import get_logger
-from src.monitoring.metrics import record_signal_detected, record_signal_evaluated
-from src.strategy.indicators import (
-    compute_all,
-    last_valid_fractal_high,
-    last_valid_fractal_low,
-)
+from src.strategy.plugin_base import NullSignalResult, SignalResult
+from src.strategy.plugin_registry import PluginRegistry
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = get_logger(__name__)
+
+
+# ─── Re-exports (compatibilidade retroativa) ───────────────────────────────
 
 
 class Direction(StrEnum):
@@ -88,246 +81,142 @@ class Signal:
         }
 
 
+# ─── Observers ────────────────────────────────────────────────────────────────
+
+
+class SignalEvent(StrEnum):
+    EVALUATED = "evaluated"
+    DETECTED = "detected"
+    REJECTED = "rejected"
+
+
 @dataclass(frozen=True)
-class SignalEvaluation:
+class SignalEventData:
+    event: SignalEvent
     symbol: str
     timeframe: str
-    decision: str
-    signal_generated: bool
-    reason: str
-    evaluated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    candle_open_time: datetime | None = None
-    long_conditions: dict[str, bool] | None = None
-    short_conditions: dict[str, bool] | None = None
+    result: SignalResult | NullSignalResult
+    duration_ms: float = 0.0
 
-    def to_dict(self) -> dict:
-        payload: dict[str, object] = {
-            "symbol": self.symbol,
-            "timeframe": self.timeframe,
-            "decision": self.decision,
-            "signal_generated": self.signal_generated,
-            "reason": self.reason,
-            "evaluated_at": self.evaluated_at,
-            "candle_open_time": self.candle_open_time,
-            "long_conditions": self.long_conditions,
-            "short_conditions": self.short_conditions,
-        }
-        return payload
+
+# ─── Module-level helpers (importáveis por plugins) ─────────────────────────
+
+
+def is_alligator_bullish(jaw: float, teeth: float, lips: float, close: float) -> bool:
+    """Bullish: lips > teeth > jaw and price above all three lines."""
+    return lips > teeth > jaw and close > lips
+
+
+def is_alligator_bearish(jaw: float, teeth: float, lips: float, close: float) -> bool:
+    """Bearish: lips < teeth < jaw and price below all three lines."""
+    return lips < teeth < jaw and close < lips
+
+
+# ─── SignalEngine ─────────────────────────────────────────────────────────────
 
 
 class SignalEngine:
-    """Evaluates a closed OHLCV DataFrame and returns a Signal or None."""
+    """Chain of Responsibility: config-plugin → williams-fallback + Observer events.
 
-    def __init__(self, risk_reward_ratio: float = 2.0) -> None:
+    Stateless: nenhum _last_evaluation (INV-033-07).
+    evaluate() sempre retorna SignalResult | NullSignalResult, nunca None.
+    """
+
+    def __init__(
+        self,
+        plugin_registry: PluginRegistry | None = None,
+        default_strategy: str = "williams",
+        risk_reward_ratio: float = 2.0,
+        symbol_strategy_map: dict[str, str] | None = None,
+    ) -> None:
+        self._registry = plugin_registry
+        self._default_strategy = default_strategy
         self._rrr = risk_reward_ratio
-        self._last_evaluation: SignalEvaluation | None = None
+        self._symbol_strategy_map = symbol_strategy_map or {}
+        self._observers: dict[SignalEvent, list[Callable[[SignalEventData], None]]] = {
+            e: [] for e in SignalEvent
+        }
 
-    def consume_last_evaluation(self) -> SignalEvaluation | None:
-        evaluation = self._last_evaluation
-        self._last_evaluation = None
-        return evaluation
+    # Backward compat: staticmethods que delegam para as functions module-level
+    _is_alligator_bullish = staticmethod(is_alligator_bullish)
+    _is_alligator_bearish = staticmethod(is_alligator_bearish)
 
-    def evaluate(
+    def on(self, evt: SignalEvent, callback: Callable[[SignalEventData], None]) -> None:
+        self._observers[evt].append(callback)
+
+    def _emit(self, data: SignalEventData) -> None:
+        for cb in self._observers[data.event]:
+            try:
+                cb(data)
+            except Exception as exc:
+                logger.warning(
+                    "observer_failed",
+                    event_name=data.event.value,
+                    error_type=type(exc).__name__,
+                )
+
+    async def evaluate(
         self,
         symbol: str,
         timeframe: str,
         df: pd.DataFrame,
-    ) -> Signal | None:
-        """Evaluate the last *closed* candle for an entry signal.
-
-        The caller must pass a DataFrame where the last row (index -1) is
-        the most recent *closed* candle (i.e., not the live/building candle).
-        Minimum required rows: 200 (for SMMA convergence).
-        """
-        # SPEC_032: Registrar avaliação de sinal
-        record_signal_evaluated(symbol, timeframe)
+    ) -> SignalResult | NullSignalResult:
+        if self._registry is None:
+            logger.warning("no_plugin_registry", symbol=symbol, timeframe=timeframe)
+            result: SignalResult | NullSignalResult = NullSignalResult(reason="no_plugin_registry")
+            self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
+            return result
 
         if len(df) < 50:
             logger.debug("insufficient_candles", symbol=symbol, rows=len(df))
-            self._last_evaluation = SignalEvaluation(
-                symbol=symbol,
-                timeframe=timeframe,
-                decision="SKIPPED_INSUFFICIENT_CANDLES",
-                signal_generated=False,
-                reason="insufficient_candles",
-            )
-            return None
+            result = NullSignalResult(reason="insufficient_candles")
+            self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
+            return result
 
-        enriched = compute_all(df)
+        required_cols = ["jaw", "teeth", "lips", "ao"]
+        if not all(c in df.columns for c in required_cols):
+            logger.debug("indicators_not_enriched", symbol=symbol)
+            result = NullSignalResult(reason="indicators_not_enriched")
+            self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
+            return result
 
-        # Last closed candle
-        last = enriched.iloc[-1]
-        close = float(last["close"])
+        # Chain of Responsibility
+        chain = self._build_chain(symbol)
+        result = NullSignalResult(reason="no_plugin_matched")
+        for handler in chain:
+            candidate = await handler.evaluate(symbol, timeframe, df)
+            if isinstance(candidate, SignalResult):
+                result = candidate
+                break
+            if isinstance(candidate, NullSignalResult):
+                result = candidate  # keep last handler's reason
 
-        jaw = last.get("jaw")
-        teeth = last.get("teeth")
-        lips = last.get("lips")
-        ao = last.get("ao")
+        if result and isinstance(result, SignalResult):
+            self._emit(SignalEventData(SignalEvent.DETECTED, symbol, timeframe, result))
+        else:
+            self._emit(SignalEventData(SignalEvent.EVALUATED, symbol, timeframe, result))
 
-        if any(pd.isna(v) for v in [jaw, teeth, lips, ao]):
-            logger.debug("indicators_not_ready", symbol=symbol)
-            candle_open_time = last.get("open_time")
-            self._last_evaluation = SignalEvaluation(
-                symbol=symbol,
-                timeframe=timeframe,
-                decision="SKIPPED_INDICATORS_NOT_READY",
-                signal_generated=False,
-                reason="indicators_not_ready",
-                candle_open_time=(
-                    candle_open_time if isinstance(candle_open_time, datetime) else None
-                ),
-            )
-            return None
+        return result
 
-        jaw, teeth, lips, ao = float(jaw), float(teeth), float(lips), float(ao)
+    def _build_chain(self, symbol: str) -> list:
+        handlers = []
+        if self._registry is not None:
+            strategy_name = self._symbol_strategy_map.get(symbol, self._default_strategy)
+            plugin = self._registry.get(strategy_name)
+            if plugin is not None:
+                handlers.append(plugin)
+                if strategy_name == "williams":
+                    return handlers
+            fallback = self._registry.get("williams")
+            if fallback is not None and fallback not in handlers:
+                handlers.append(fallback)
+        return handlers
 
-        # ─── Long signal ──────────────────────────────────────────────────────
-        alligator_bullish = self._is_alligator_bullish(jaw, teeth, lips, close)
-        ao_positive = ao > 0
-        fractal_high = last_valid_fractal_high(enriched)
-        close_above_fractal = fractal_high is not None and close > fractal_high
-        fractal_low = last_valid_fractal_low(enriched)
-        valid_sl = fractal_low is not None and fractal_low < close
+    @staticmethod
+    def last_evaluation() -> None:
+        """Placeholder — SignalEngine é stateless desde SPEC_033.
 
-        logger.debug(
-            "long_conditions_check",
-            symbol=symbol,
-            alligator_bullish=alligator_bullish,
-            ao_positive=ao_positive,
-            fractal_high=fractal_high,
-            close_above_fractal=close_above_fractal,
-            fractal_low=fractal_low,
-            valid_sl=valid_sl,
-        )
-
-        if alligator_bullish and ao_positive and close_above_fractal and valid_sl:
-            tp = close + (close - fractal_low) * self._rrr
-            signal = Signal(
-                symbol=symbol,
-                timeframe=timeframe,
-                direction=Direction.LONG,
-                entry_price=close,
-                stop_loss=fractal_low,
-                take_profit=tp,
-                fractal_ref=fractal_high,
-            )
-            logger.info("signal_detected", **signal.to_dict())
-            # SPEC_032: Registrar sinal detectado
-            record_signal_detected(symbol, timeframe, "long")
-            self._last_evaluation = SignalEvaluation(
-                symbol=symbol,
-                timeframe=timeframe,
-                decision="SIGNAL_LONG",
-                signal_generated=True,
-                reason="long_conditions_met",
-                candle_open_time=last.get("open_time"),
-                long_conditions={
-                    "alligator_bullish": alligator_bullish,
-                    "ao_positive": ao_positive,
-                    "close_above_fractal": close_above_fractal,
-                    "valid_sl": valid_sl,
-                },
-                short_conditions={
-                    "alligator_bearish": False,
-                    "ao_negative": False,
-                    "close_below_fractal": False,
-                    "valid_sl": False,
-                },
-            )
-            return signal
-
-        # ─── Short signal ─────────────────────────────────────────────────────
-        alligator_bearish = self._is_alligator_bearish(jaw, teeth, lips, close)
-        ao_negative = ao < 0
-        fractal_low_ref = last_valid_fractal_low(enriched)
-        close_below_fractal = fractal_low_ref is not None and close < fractal_low_ref
-        fractal_high_ref = last_valid_fractal_high(enriched)
-        valid_sl_short = fractal_high_ref is not None and fractal_high_ref > close
-
-        logger.debug(
-            "short_conditions_check",
-            symbol=symbol,
-            alligator_bearish=alligator_bearish,
-            ao_negative=ao_negative,
-            fractal_low=fractal_low_ref,
-            close_below_fractal=close_below_fractal,
-            fractal_high=fractal_high_ref,
-            valid_sl=valid_sl_short,
-        )
-
-        if alligator_bearish and ao_negative and close_below_fractal and valid_sl_short:
-            tp = close - (fractal_high_ref - close) * self._rrr
-            signal = Signal(
-                symbol=symbol,
-                timeframe=timeframe,
-                direction=Direction.SHORT,
-                entry_price=close,
-                stop_loss=fractal_high_ref,
-                take_profit=tp,
-                fractal_ref=fractal_low_ref,
-            )
-            logger.info("signal_detected", **signal.to_dict())
-            # SPEC_032: Registrar sinal detectado
-            record_signal_detected(symbol, timeframe, "short")
-            self._last_evaluation = SignalEvaluation(
-                symbol=symbol,
-                timeframe=timeframe,
-                decision="SIGNAL_SHORT",
-                signal_generated=True,
-                reason="short_conditions_met",
-                candle_open_time=last.get("open_time"),
-                long_conditions={
-                    "alligator_bullish": alligator_bullish,
-                    "ao_positive": ao_positive,
-                    "close_above_fractal": close_above_fractal,
-                    "valid_sl": valid_sl,
-                },
-                short_conditions={
-                    "alligator_bearish": alligator_bearish,
-                    "ao_negative": ao_negative,
-                    "close_below_fractal": close_below_fractal,
-                    "valid_sl": valid_sl_short,
-                },
-            )
-            return signal
-
-        long_conditions = {
-            "alligator_bullish": alligator_bullish,
-            "ao_positive": ao_positive,
-            "close_above_fractal": close_above_fractal,
-            "valid_sl": valid_sl,
-        }
-        short_conditions = {
-            "alligator_bearish": alligator_bearish,
-            "ao_negative": ao_negative,
-            "close_below_fractal": close_below_fractal,
-            "valid_sl": valid_sl_short,
-        }
-        missing_long = [k for k, ok in long_conditions.items() if not ok]
-        missing_short = [k for k, ok in short_conditions.items() if not ok]
-        self._last_evaluation = SignalEvaluation(
-            symbol=symbol,
-            timeframe=timeframe,
-            decision="NO_SIGNAL",
-            signal_generated=False,
-            reason=(
-                f"long_missing:{','.join(missing_long)};short_missing:{','.join(missing_short)}"
-            ),
-            candle_open_time=last.get("open_time"),
-            long_conditions=long_conditions,
-            short_conditions=short_conditions,
-        )
-        logger.debug("no_signal", symbol=symbol, timeframe=timeframe)
+        Antigo _last_evaluation removido. Consumidores devem usar
+        Observer events ou o retorno direto de evaluate().
+        """
         return None
-
-    # ─── Alligator state helpers ──────────────────────────────────────────────
-
-    @staticmethod
-    def _is_alligator_bullish(jaw: float, teeth: float, lips: float, close: float) -> bool:
-        """Bullish: lips > teeth > jaw and price above all three lines."""
-        return lips > teeth > jaw and close > lips
-
-    @staticmethod
-    def _is_alligator_bearish(jaw: float, teeth: float, lips: float, close: float) -> bool:
-        """Bearish: lips < teeth < jaw and price below all three lines."""
-        return lips < teeth < jaw and close < lips

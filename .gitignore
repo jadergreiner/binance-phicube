@@ -51,6 +51,8 @@ backups/
 
 # Task management artifacts
 .tmp/
+task.json
+subtask_*.json
 
 # Memoria local de agentes
 .ai/

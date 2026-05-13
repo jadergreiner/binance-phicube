@@ -19,10 +19,17 @@ import pandas as pd
 import pytest
 from pydantic import BaseModel, field_validator
 
-from src.strategy.signal_engine import Direction, SignalEngine
+from src.strategies.williams_strategy import WilliamsStrategy
+from src.strategy.indicators import compute_all_optimized
+from src.strategy.plugin_base import SignalResult
+from src.strategy.plugin_registry import PluginRegistry
+from src.strategy.signal_engine import SignalEngine
 
 CORPUS_PATH = Path("docs/corpus/signal_corpus_v1.json")
-_ENGINE = SignalEngine(risk_reward_ratio=2.0)
+
+_REGISTRY = PluginRegistry(plugin_timeout=30.0)
+_REGISTRY.register("williams", WilliamsStrategy(risk_reward_ratio=2.0))
+_ENGINE = SignalEngine(plugin_registry=_REGISTRY, risk_reward_ratio=2.0)
 
 
 # ─── Schema Pydantic do corpus (RNF-003) ─────────────────────────────────────
@@ -126,7 +133,7 @@ _PARAMS = _corpus_params()
     _PARAMS,
     ids=[p[0] for p in _PARAMS] if _PARAMS else [],
 )
-def test_signal_engine_conforma_corpus(case_id: str, case: dict) -> None:
+async def test_signal_engine_conforma_corpus(case_id: str, case: dict) -> None:
     """Valida que SignalEngine produz o sinal esperado para cada caso do corpus."""
     if "ohlcv_snapshot" not in case:
         pytest.skip(f"{case_id}: sem ohlcv_snapshot — regenere com --generate-v1")
@@ -136,22 +143,27 @@ def test_signal_engine_conforma_corpus(case_id: str, case: dict) -> None:
     if len(df) < 50:
         pytest.skip(f"{case_id}: snapshot com {len(df)} candles — insuficiente")
 
-    signal = _ENGINE.evaluate(case["symbol"], case["timeframe"], df)
+    enriched = compute_all_optimized(df)
+    signal = await _ENGINE.evaluate(case["symbol"], case["timeframe"], enriched)
     expected = case["expected_signal"]
-    obtained = signal.direction.value.lower() if signal else None
+
+    if not isinstance(signal, SignalResult):
+        obtained = None
+    else:
+        obtained = signal.direction.lower()
 
     if expected is None:
-        assert signal is None, (
+        assert not isinstance(signal, SignalResult), (
             f"{case_id} [{case['symbol']} {case['timeframe']} {case['date']}]: "
             f"esperado None, obtido {obtained}"
         )
     elif expected.upper() == "LONG":
-        assert signal is not None and signal.direction == Direction.LONG, (
+        assert isinstance(signal, SignalResult) and signal.direction == "LONG", (
             f"{case_id} [{case['symbol']} {case['timeframe']} {case['date']}]: "
             f"esperado LONG, obtido {obtained}"
         )
     elif expected.upper() == "SHORT":
-        assert signal is not None and signal.direction == Direction.SHORT, (
+        assert isinstance(signal, SignalResult) and signal.direction == "SHORT", (
             f"{case_id} [{case['symbol']} {case['timeframe']} {case['date']}]: "
             f"esperado SHORT, obtido {obtained}"
         )

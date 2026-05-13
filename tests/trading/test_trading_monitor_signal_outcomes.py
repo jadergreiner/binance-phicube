@@ -9,21 +9,19 @@ import pytest
 
 from src.config.settings import SymbolConfig
 from src.main import TradingMonitor
-from src.strategy.signal_engine import Direction, Signal
+from src.strategy.plugin_base import NullSignalResult, SignalResult
+from src.strategy.signal_engine import Direction
 from src.trading.order_manager import TradeStatus
 from src.trading.risk_manager import RiskRejection
 
 
-def _build_signal() -> Signal:
-    return Signal(
-        symbol="BTCUSDT",
-        timeframe="15m",
-        direction=Direction.LONG,
+def _build_signal_result() -> SignalResult:
+    return SignalResult(
+        direction="LONG",
         entry_price=100.0,
         stop_loss=95.0,
         take_profit=110.0,
-        fractal_ref=99.0,
-        detected_at=datetime.now(UTC),
+        metadata={"fractal_ref": 99.0},
     )
 
 
@@ -58,8 +56,8 @@ async def test_tick_registra_desfecho_rejeicao_risco() -> None:
         fetch_usdt_balance=AsyncMock(return_value=100.0),
         get_quantity_precision=MagicMock(return_value=3),
     )
-    signal = _build_signal()
-    signal_engine = SimpleNamespace(evaluate=MagicMock(return_value=signal))
+    signal_result = _build_signal_result()
+    signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
     risk_manager = SimpleNamespace(
         calculate=MagicMock(return_value=None),
         consume_last_rejection=lambda: RiskRejection(
@@ -96,8 +94,8 @@ async def test_tick_registra_desfecho_rejeicao_intraday_loss_limit() -> None:
         fetch_usdt_balance=AsyncMock(return_value=1000.0),
         get_quantity_precision=MagicMock(return_value=3),
     )
-    signal = _build_signal()
-    signal_engine = SimpleNamespace(evaluate=MagicMock(return_value=signal))
+    signal_result = _build_signal_result()
+    signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
     risk_manager = SimpleNamespace(
         calculate=MagicMock(return_value=None),
         consume_last_rejection=lambda: RiskRejection(
@@ -138,8 +136,8 @@ async def test_tick_registra_desfecho_trade_opened() -> None:
         fetch_usdt_balance=AsyncMock(return_value=100.0),
         get_quantity_precision=MagicMock(return_value=3),
     )
-    signal = _build_signal()
-    signal_engine = SimpleNamespace(evaluate=MagicMock(return_value=signal))
+    signal_result = _build_signal_result()
+    signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
     risk_manager = SimpleNamespace(
         calculate=MagicMock(return_value=SimpleNamespace(quantity=1.0)),
         consume_last_rejection=lambda: None,
@@ -195,7 +193,7 @@ async def test_tick_persiste_diagnostico_de_avaliacao_sem_sinal() -> None:
         }
     )
     signal_engine = SimpleNamespace(
-        evaluate=MagicMock(return_value=None),
+        evaluate=AsyncMock(return_value=NullSignalResult(reason="conditions_not_met")),
         consume_last_evaluation=MagicMock(return_value=evaluation),
     )
     risk_manager = SimpleNamespace(

@@ -36,6 +36,9 @@ dev = [
     "ruff>=0.4.0",
 ]
 
+[project.entry-points."phicube.strategies"]
+williams = "src.strategies.williams_strategy:WilliamsStrategy"
+
 [project.scripts]
 phicube = "src.main:entrypoint"
 

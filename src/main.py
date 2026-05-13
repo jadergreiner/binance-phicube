@@ -36,7 +36,9 @@ from src.notifications import Notifier, NullNotifier, TelegramNotifier
 from src.notifications.events import NotificationEvent, TradeOpenedEvent
 from src.notifications.performance_reporter import PerformanceReporter
 from src.storage.repository import MongoRepository
-from src.strategy.signal_engine import SignalEngine
+from src.strategy.plugin_base import SignalResult
+from src.strategy.plugin_registry import PluginRegistry
+from src.strategy.signal_engine import Direction, Signal, SignalEngine
 from src.trading.order_manager import OrderManager, TradeStatus
 from src.trading.risk_manager import RiskManager, RiskRejection
 from src.trading.trade_close_router import TradeCloseRouter
@@ -158,7 +160,12 @@ class BackupTask:
 
 
 class RuntimeMonitorRegistry:
-    """Gerencia ciclo de vida de TradingMonitors em runtime."""
+    """Gerencia ciclo de vida de TradingMonitors em runtime.
+
+    Cada TradingMonitor recebe sua própria instância de SignalEngine
+    (INV-033-06). PluginRegistry é inicializado no construtor e
+    plugins são descobertos via entry_points na inicialização.
+    """
 
     def __init__(
         self,
@@ -166,18 +173,17 @@ class RuntimeMonitorRegistry:
         settings: Any,
         client: Any,
         repo: MongoRepository,
-        signal_engine: SignalEngine,
         notifier: Notifier,
         router: TradeCloseRouter,
     ) -> None:
         self._settings = settings
         self._client = client
         self._repo = repo
-        self._signal_engine = signal_engine
         self._notifier = notifier
         self._router = router
         self._tasks: dict[tuple[str, str], asyncio.Task] = {}
         self._configs: dict[tuple[str, str], SymbolConfig] = {}
+        self._plugin_registry = PluginRegistry(plugin_timeout=settings.plugin_timeout)
 
     @property
     def monitor_count(self) -> int:
@@ -205,7 +211,6 @@ class RuntimeMonitorRegistry:
                 router.portfolio_risk_reduction_factor if router.portfolio_breaker_active else 1.0
             ),
         )
-        # Registrar no router
         router.register(cfg.symbol, risk_manager)
         order_manager = OrderManager(
             self._client,
@@ -216,16 +221,46 @@ class RuntimeMonitorRegistry:
             trailing_activation_pct=self._settings.trailing_activation_pct,
             trailing_callback_rate=self._settings.trailing_callback_rate,
         )
+        # Cada monitor com sua própria instância de SignalEngine (INV-033-06)
+        monitor_signal_engine = self._make_signal_engine()
         return TradingMonitor(
             config=cfg,
             client=self._client,
             repo=self._repo,
-            signal_engine=self._signal_engine,
+            signal_engine=monitor_signal_engine,
             risk_manager=risk_manager,
             order_manager=order_manager,
             notifier=self._notifier,
             max_open_positions=self._settings.max_open_positions,
             warmup_candles=self._settings.warmup_candles,
+        )
+
+    def _init_plugin_registry(self) -> None:
+        """Inicializa o PluginRegistry: discovery via entry_points + fallback.
+
+        Se discovery falhar, registra WilliamsStrategy manualmente
+        como fallback (Regra Mestre — INV-033-03).
+        """
+        try:
+            self._plugin_registry.discover_and_register_all()
+            logger.info("plugin_registry_initialized_via_discovery")
+        except RuntimeError:
+            logger.warning(
+                "no_plugins_discovered_via_entry_points_registering_williams_fallback"
+            )
+            from src.strategies.williams_strategy import WilliamsStrategy
+
+            self._plugin_registry.register("williams", WilliamsStrategy())
+            logger.info("plugin_williams_registered_as_fallback")
+
+        self._plugin_registry.validate_master()
+
+    def _make_signal_engine(self) -> SignalEngine:
+        return SignalEngine(
+            plugin_registry=self._plugin_registry,
+            default_strategy=self._settings.default_strategy,
+            risk_reward_ratio=self._settings.risk_reward_ratio,
+            symbol_strategy_map=self._settings.symbol_strategy_map,
         )
 
     async def add(self, cfg: SymbolConfig) -> None:
@@ -507,16 +542,30 @@ class TradingMonitor:
             return
 
         # Evaluate signal
-        signal = self._signal_engine.evaluate(self._symbol, self._timeframe, df)
+        signal_result = await self._signal_engine.evaluate(self._symbol, self._timeframe, df)
         await self._persist_signal_evaluation()
-        if signal is None:
-            # SPEC_032: Registrar duração do tick antes de retornar
+        if not signal_result:
             observe_tick_duration(
                 self._symbol,
                 self._timeframe,
                 time.time() - tick_start,
             )
             return
+
+        # SignalResult → Signal legado (compatibilidade retroativa)
+        if not isinstance(signal_result, SignalResult):
+            raise TypeError(
+                f"Expected SignalResult after falsy check, got {type(signal_result).__name__}"
+            )
+        signal = Signal(
+            symbol=self._symbol,
+            timeframe=self._timeframe,
+            direction=Direction(signal_result.direction),
+            entry_price=signal_result.entry_price,
+            stop_loss=signal_result.stop_loss,
+            take_profit=signal_result.take_profit,
+            fractal_ref=(signal_result.metadata or {}).get("fractal_ref", 0.0),
+        )
 
         # Persist signal regardless of execution
         signal_id = await self._repo.save_signal(signal.to_dict())
@@ -740,7 +789,6 @@ async def _main() -> None:
     )
     await repo.setup_indexes()
 
-    signal_engine = SignalEngine(risk_reward_ratio=settings.risk_reward_ratio)
     notifier = _create_notifier(settings)
 
     # SPEC_043 — TradeCloseRouter criado ANTES de RuntimeMonitorRegistry
@@ -749,14 +797,16 @@ async def _main() -> None:
         portfolio_risk_reduction_factor=settings.portfolio_risk_reduction_factor,
     )
 
+    # SPEC_033 — Cada TradingMonitor cria seu próprio SignalEngine
+    # Nenhuma instância compartilhada (INV-033-06)
     monitor_registry = RuntimeMonitorRegistry(
         settings=settings,
         client=client,
         repo=repo,
-        signal_engine=signal_engine,
         notifier=notifier,
         router=trade_close_router,
     )
+    monitor_registry._init_plugin_registry()
 
     reporter = PerformanceReporter(
         repository=repo,

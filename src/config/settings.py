@@ -227,6 +227,20 @@ class Settings(BaseSettings):
         description="Contexto de execucao do fluxo MCP Serena",
     )
 
+    # SPEC_033 — Strategy Plugin Architecture
+    symbol_strategy_map: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapeamento símbolo → nome do plugin. Ex: BTCUSDT:williams,ETHUSDT:williams",
+    )
+    default_strategy: str = Field(
+        default="williams",
+        description="Plugin padrão para símbolos não mapeados em SYMBOL_STRATEGY_MAP",
+    )
+    plugin_timeout: Annotated[float, Field(ge=1.0, le=120.0)] = Field(
+        default=30.0,
+        description="Timeout em segundos para evaluate() de plugins de estratégia",
+    )
+
     # SPEC_032 — Prometheus Metrics
     prometheus_enabled: bool = Field(
         default=True,
@@ -324,6 +338,19 @@ class Settings(BaseSettings):
     def parse_symbol_timeframes_csv(cls, v: str | list) -> list[SymbolConfig]:
         if isinstance(v, str):
             return [SymbolConfig.from_triplet(t.strip()) for t in v.split(",") if t.strip()]
+        return v
+
+    @field_validator("symbol_strategy_map", mode="before")
+    @classmethod
+    def parse_symbol_strategy_map(cls, v: str | dict) -> dict[str, str]:
+        if isinstance(v, str):
+            result: dict[str, str] = {}
+            for pair in v.split(","):
+                pair = pair.strip()
+                if ":" in pair:
+                    sym, strat = pair.split(":", 1)
+                    result[sym.strip().upper()] = strat.strip()
+            return result
         return v
 
     @field_validator("log_level")
