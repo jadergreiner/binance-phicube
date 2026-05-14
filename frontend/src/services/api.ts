@@ -8,6 +8,7 @@ import axios from 'axios';
 import type { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { API_BASE_URL, REQUEST_TIMEOUT, MAX_RETRIES } from './config';
 import type { Position, PerformanceResponse, HealthStatus, ApiError } from './types';
+import { authStore } from '@/stores/authStore';
 
 // Cria instância axios com configuração base
 const api: AxiosInstance = axios.create({
@@ -16,6 +17,15 @@ const api: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Interceptor de request — adiciona token de autenticação
+api.interceptors.request.use((config) => {
+  const token = authStore.token;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 // Interceptor de resposta com retry e backoff exponencial
@@ -29,9 +39,9 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    // Tratamento 401 — dispara evento customizado
+    // Tratamento 401 — dispara evento para token expirado
     if (error.response?.status === 401) {
-      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      authStore.emit('tokenExpired');
       return Promise.reject(error);
     }
 

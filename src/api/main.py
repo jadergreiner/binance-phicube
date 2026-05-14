@@ -24,6 +24,7 @@ trades_router = import_module("src.api.routes.trades").router
 onboarding_router = import_module("src.api.routes.onboarding").router
 signals_router = import_module("src.api.routes.signals").router
 customers_router = import_module("src.api.routes.customers").router
+auth_router = import_module("src.api.routes.auth").router
 StaticFiles = import_module("fastapi.staticfiles").StaticFiles
 AdaptiveUpdater = DashboardModule.AdaptiveUpdater
 DashboardClient = DashboardModule.DashboardClient
@@ -140,9 +141,11 @@ def create_app() -> Any:
     )
 
     app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+    app.include_router(auth_router)  # Auth routes (public)
+    app.include_router(health_router)  # Health (public)
+    # Rotas protegidas via Depends(get_current_user) em cada route
     app.include_router(positions_router)
     app.include_router(performance_router)
-    app.include_router(health_router)
     app.include_router(backtest_router)
     app.include_router(trades_router)
     app.include_router(onboarding_router)

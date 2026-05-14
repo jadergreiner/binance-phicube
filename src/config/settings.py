@@ -341,6 +341,44 @@ class Settings(BaseSettings):
         description="Token Bearer para endpoints de escrita quando auth estiver habilitada",
     )
 
+    # SPEC_036 — OAuth Google Authentication
+    google_client_id: str | None = Field(
+        default=None,
+        description="Google OAuth Client ID",
+    )
+    google_client_secret: str | None = Field(
+        default=None,
+        description="Google OAuth Client Secret",
+    )
+    google_redirect_uri: str | None = Field(
+        default=None,
+        description="Google OAuth Redirect URI",
+    )
+    auth_allowed_emails: list[str] = Field(
+        default_factory=list,
+        description="Lista de emails autorizados a acessar o dashboard",
+    )
+    auth_dev_bypass: bool = Field(
+        default=False,
+        description="Ativa modo dev bypass (login simples sem OAuth)",
+    )
+    auth_fallback_user: str = Field(
+        default="",
+        description="Usuário fallback para recovery",
+    )
+    auth_fallback_password_hash: str = Field(
+        default="",
+        description="Bcrypt hash da senha fallback",
+    )
+    jwt_secret: str | None = Field(
+        default=None,
+        description="JWT Secret para autenticação",
+    )
+    jwt_expiry_hours: int = Field(
+        default=24,
+        description="Tempo de expiração do JWT em horas",
+    )
+
     @field_validator("symbol_timeframes", mode="before")
     @classmethod
     def parse_symbol_timeframes_csv(cls, v: str | list) -> list[SymbolConfig]:
