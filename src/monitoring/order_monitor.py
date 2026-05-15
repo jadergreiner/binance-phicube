@@ -28,6 +28,7 @@ import ccxt.async_support as ccxt
 
 from src.common.decorators import retry
 from src.common.loops import safe_loop
+from src.exchange.base_client import TradingClient
 from src.monitoring.logger import get_logger
 from src.monitoring.metrics import record_pnl_realized, record_trade_executed
 from src.notifications.events import (
@@ -87,7 +88,7 @@ class OrderMonitor:
 
     def __init__(
         self,
-        client: Any,
+        client: TradingClient,
         repository: MongoRepository,
         notifier: Notifier,
         interval_seconds: int = 60,

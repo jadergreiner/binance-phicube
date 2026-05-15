@@ -18,6 +18,7 @@ from typing import Any
 import ccxt.async_support as ccxt
 import pandas as pd
 
+from src.exchange.base_client import TradingClient
 from src.exchange.binance_client import (
     BinanceClient,
 )
@@ -28,7 +29,7 @@ logger = get_logger(__name__)
 _SLIPPAGE_PCT = 0.02  # 0.02% de slippage simulado
 
 
-class SimulatedBinanceClient:
+class SimulatedBinanceClient(TradingClient):
     """Substituto para BinanceClient que simula operações localmente.
 
     Usa BinanceClient real para dados públicos (OHLCV, ticker).

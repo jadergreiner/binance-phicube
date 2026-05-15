@@ -23,6 +23,7 @@ from typing import Any
 from src.common.loops import safe_loop
 from src.common.serialization import SerializationFacade
 from src.config.settings import ExitStrategy, SymbolConfig, get_settings  # noqa: F401
+from src.exchange.base_client import TradingClient
 from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
 from src.exchange.resilient_binance_client import ResilientBinanceClient
 from src.exchange.simulated_client import SimulatedBinanceClient
@@ -229,7 +230,7 @@ class RuntimeMonitorRegistry:
         self,
         *,
         settings: Any,
-        client: Any,
+        client: TradingClient,
         repo: MongoRepository | ResilientMongoRepository,
         resilient_client: ResilientBinanceClient | None = None,
         resilient_repo: ResilientMongoRepository | None = None,

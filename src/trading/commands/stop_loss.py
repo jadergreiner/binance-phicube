@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.config.settings import ExitStrategy
-from src.exchange.binance_client import BinanceClient
+from src.exchange.base_client import TradingClient
 from src.monitoring.logger import get_logger
 from src.trading.commands.base import Command
 
@@ -17,7 +17,7 @@ class CreateStopLossCommand(Command):
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: TradingClient,
         symbol: str,
         side: str,
         quantity: float,

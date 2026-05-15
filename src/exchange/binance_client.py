@@ -9,6 +9,7 @@ import pandas as pd
 
 from src.common.decorators import retry
 from src.config.settings import Settings
+from src.exchange.base_client import TradingClient
 from src.monitoring.logger import get_logger
 
 logger = get_logger(__name__)
@@ -72,7 +73,7 @@ _TIMEFRAME_MAP: dict[str, str] = {
 }
 
 
-class BinanceClient:
+class BinanceClient(TradingClient):
     """Async wrapper around ccxt binanceusdm for Futures USDT-M."""
 
     def __init__(self, settings: Settings) -> None:
@@ -386,7 +387,7 @@ class BinanceClient:
         logger.debug("fetch_open_orders_ok", symbol=symbol, count=len(orders))
         return orders
 
-    async def fetch_order(self, order_id: str, symbol: str) -> dict:
+    async def fetch_order(self, order_id: str, symbol: str) -> dict[str, Any]:
         """Busca detalhes de uma ordem pelo ID.
 
         Retorna o objeto de ordem ccxt, incluindo o campo `average`

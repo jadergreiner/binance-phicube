@@ -21,7 +21,7 @@ from typing import Any
 from src.common.result import OrderError, Result, err, ok
 from src.common.serialization import auto_dict
 from src.config.settings import ExitStrategy
-from src.exchange.binance_client import BinanceClient
+from src.exchange.base_client import TradingClient
 from src.monitoring.logger import get_logger
 from src.monitoring.metrics import record_trade_executed
 from src.notifications import Notifier
@@ -76,12 +76,13 @@ class Trade:
     tp_levels: list[dict[str, float]] | None = None
     tp_order_ids: list[str] | None = None
 
+
 class OrderManager:
     """Executes trades on Binance Futures based on validated signals."""
 
     def __init__(
         self,
-        client: BinanceClient,
+        client: TradingClient,
         leverage: int,
         notifier: Notifier | None = None,
         exit_strategy: ExitStrategy = ExitStrategy.FIXED,
