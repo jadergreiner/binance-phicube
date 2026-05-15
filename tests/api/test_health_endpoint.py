@@ -50,6 +50,7 @@ class TestHealthEndpoint:
         assert data["mongodb"] == "ok"
         assert "bot_process" in data
         assert "timestamp" in data
+        assert "predictive_circuit_breaker_skips_total" in data
 
     def test_retorna_503_quando_mongodb_falha(self) -> None:
         """TEST_007_08: MongoDB inacessível → 503 com status error."""
@@ -63,6 +64,7 @@ class TestHealthEndpoint:
         data = response.json()
         assert data["status"] == "error"
         assert data["mongodb"] == "error"
+        assert "predictive_circuit_breaker_skips_total" in data
 
     def test_retorna_503_sem_repositorio(self) -> None:
         """Repositório ausente em app.state → 503 gracioso."""
@@ -75,3 +77,4 @@ class TestHealthEndpoint:
         assert data["status"] == "error"
         assert data["mongodb"] == "error"
         assert data["bot_process"] == "unknown"
+        assert "predictive_circuit_breaker_skips_total" in data

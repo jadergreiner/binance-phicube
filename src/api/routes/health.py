@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from src.api.datetime_utils import BRAZIL_TIMEZONE, to_brazil_datetime_str, to_iso8601_utc
 from src.monitoring.logger import get_logger
 from src.resilience import CircuitBreakerState
+from src.trading.risk_manager import RiskManager
 
 if TYPE_CHECKING:
     from src.exchange.resilient_binance_client import ResilientBinanceClient
@@ -142,6 +143,7 @@ async def health_check(request: Request) -> JSONResponse:
                 "timestamp": timestamp,
                 "timestamp_br": timestamp_br,
                 "timezone": BRAZIL_TIMEZONE,
+                "predictive_circuit_breaker_skips_total": RiskManager.get_predictive_skips_total(),
             },
         )
 
@@ -168,6 +170,7 @@ async def health_check(request: Request) -> JSONResponse:
                 "timestamp": timestamp,
                 "timestamp_br": timestamp_br,
                 "timezone": BRAZIL_TIMEZONE,
+                "predictive_circuit_breaker_skips_total": RiskManager.get_predictive_skips_total(),
             },
         )
 
@@ -190,6 +193,7 @@ async def health_check(request: Request) -> JSONResponse:
             "timestamp": timestamp,
             "timestamp_br": timestamp_br,
             "timezone": BRAZIL_TIMEZONE,
+            "predictive_circuit_breaker_skips_total": RiskManager.get_predictive_skips_total(),
         },
     )
 

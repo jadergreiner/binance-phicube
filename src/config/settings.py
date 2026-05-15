@@ -182,6 +182,22 @@ class Settings(BaseSettings):
         default=False,
         description="Feature flag: ativa circuit breaker de perdas consecutivas",
     )
+    predictive_breaker_enabled: bool = Field(
+        default=False,
+        description="Feature flag: ativa circuit breaker preditivo pré-trade",
+    )
+    predictive_breaker_percentile: Annotated[float, Field(gt=0.0, lt=1.0)] = Field(
+        default=0.85,
+        description="Percentil para gatilho do ATR ratio no breaker preditivo (0-1)",
+    )
+    predictive_breaker_window: Annotated[int, Field(ge=20, le=500)] = Field(
+        default=100,
+        description="Janela histórica de candles usada no cálculo do percentil preditivo",
+    )
+    predictive_breaker_tiers: list[str] = Field(
+        default_factory=lambda: ["low"],
+        description="Tiers de liquidez elegíveis ao breaker preditivo",
+    )
 
     # Commodities — gate de segurança: ativar apenas após backtest aprovado (INV-018-01)
     commodities_backtest_validated: bool = False

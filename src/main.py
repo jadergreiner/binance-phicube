@@ -271,6 +271,10 @@ class RuntimeMonitorRegistry:
             slippage_tolerance_reduced=self._settings.slippage_tolerance_reduced,
             liq_map=self._settings.backtest_slippage_liq_map,
             slippage_map=self._settings.backtest_slippage_by_liq,
+            predictive_breaker_enabled=self._settings.predictive_breaker_enabled,
+            predictive_breaker_percentile=self._settings.predictive_breaker_percentile,
+            predictive_breaker_window=self._settings.predictive_breaker_window,
+            predictive_breaker_tiers=self._settings.predictive_breaker_tiers,
             get_portfolio_reduction=lambda: (
                 router.portfolio_risk_reduction_factor if router.portfolio_breaker_active else 1.0
             ),
@@ -949,6 +953,7 @@ class TradingMonitor:
             "INTRADAY_LOSS_LIMIT_REACHED": "REJECTED_RISK_INTRADAY_LOSS_LIMIT",
             "SLIPPAGE_EXCEEDS_TOLERANCE": "REJECTED_RISK_SLIPPAGE",
             "CIRCUIT_BREAKER_ACTIVE": "REJECTED_RISK_CIRCUIT_BREAKER",
+            "PREDICTIVE_CIRCUIT_BREAKER_SKIPPED": "REJECTED_RISK_PREDICTIVE_CIRCUIT_BREAKER",
         }
         execution_status = mapping.get(rejection.code, "REJECTED_UNKNOWN")
         details = rejection.details or None

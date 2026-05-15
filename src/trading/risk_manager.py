@@ -41,6 +41,20 @@ logger = get_logger(__name__)
 DEAD_ZONE: float = 0.001  # D10: PnL abaixo deste valor não altera contadores CB
 
 
+class _PredictiveBreakerStrategy:
+    """Strategy para decidir skip preditivo baseado em ATR ratio histórico."""
+
+    def should_skip(
+        self,
+        *,
+        current_ratio: float,
+        ratio_history: pd.Series,
+        percentile: float,
+    ) -> tuple[bool, float]:
+        threshold = float(ratio_history.quantile(percentile))
+        return current_ratio > threshold, threshold
+
+
 @auto_dict
 @dataclass(frozen=True)
 class PositionSize:
@@ -54,8 +68,11 @@ class PositionSize:
     take_profit: float
     risk_amount: float  # USDT arriscados nesta operação
 
+
 class RiskManager:
     """Calcula o tamanho de posição respeitando todos os limites de risco."""
+
+    _predictive_skips_total: int = 0
 
     def __init__(
         self,
@@ -85,6 +102,10 @@ class RiskManager:
         slippage_tolerance_reduced: float = 1.05,
         liq_map: dict[str, str] | None = None,
         slippage_map: dict[str, float] | None = None,
+        predictive_breaker_enabled: bool = False,
+        predictive_breaker_percentile: float = 0.85,
+        predictive_breaker_window: int = 100,
+        predictive_breaker_tiers: list[str] | None = None,
     ) -> None:
         self._risk_pct = risk_per_trade_pct
         self._leverage = leverage
@@ -119,8 +140,17 @@ class RiskManager:
         self._slippage_tolerance_reduced = slippage_tolerance_reduced
         self._liq_map = liq_map or {}
         self._slippage_map = slippage_map or {}
+        self._predictive_breaker_enabled = predictive_breaker_enabled
+        self._predictive_breaker_percentile = predictive_breaker_percentile
+        self._predictive_breaker_window = predictive_breaker_window
+        self._predictive_breaker_tiers = set(predictive_breaker_tiers or ["low"])
+        self._predictive_breaker_strategy = _PredictiveBreakerStrategy()
         # SPEC_043 — Portfolio CB Observer
         self._get_portfolio_reduction = get_portfolio_reduction
+
+    @classmethod
+    def get_predictive_skips_total(cls) -> int:
+        return cls._predictive_skips_total
 
     @property
     def last_rejection(self) -> RiskRejection | None:
@@ -201,6 +231,16 @@ class RiskManager:
             self._last_rejection = rejection
             logger.warning("zero_stop_distance", symbol=signal.symbol)
             return err(rejection)
+
+        gate_result = self._run_pre_trade_gates(
+            signal=signal,
+            available_balance=available_balance,
+            stop_distance=stop_distance,
+            quantity_precision=quantity_precision,
+            df=df,
+        )
+        if gate_result is not None:
+            return gate_result
 
         # ── SPEC_029 — ATR mode ─────────────────────────────────────────────
         if self._sizing_mode == SizingMode.ATR and df is not None:
@@ -512,6 +552,111 @@ class RiskManager:
 
         logger.info("position_size_calculated", **pos.to_dict())
         return ok(pos)
+
+    def _run_pre_trade_gates(
+        self,
+        *,
+        signal: Signal,
+        available_balance: float,
+        stop_distance: float,
+        quantity_precision: int,
+        df: pd.DataFrame | None,
+    ) -> Result[PositionSize, RiskRejection] | None:
+        gates = (self._gate_predictive_circuit_breaker,)
+        for gate in gates:
+            rejection = gate(
+                signal=signal,
+                available_balance=available_balance,
+                stop_distance=stop_distance,
+                quantity_precision=quantity_precision,
+                df=df,
+            )
+            if rejection is not None:
+                self._last_rejection = rejection
+                return err(rejection)
+        return None
+
+    def _gate_predictive_circuit_breaker(
+        self,
+        *,
+        signal: Signal,
+        available_balance: float,
+        stop_distance: float,
+        quantity_precision: int,
+        df: pd.DataFrame | None,
+    ) -> RiskRejection | None:
+        del available_balance, stop_distance, quantity_precision
+        if not self._predictive_breaker_enabled:
+            return None
+        tier = self._liq_map.get(signal.symbol, "medium")
+        if tier not in self._predictive_breaker_tiers:
+            return None
+        if df is None or df.empty or len(df) < self._predictive_breaker_window:
+            logger.info(
+                "predictive_circuit_breaker_bypassed",
+                symbol=signal.symbol,
+                reason="insufficient_history",
+                required_window=self._predictive_breaker_window,
+                received_window=0 if df is None else len(df),
+            )
+            return None
+        if "close" not in df.columns:
+            logger.info(
+                "predictive_circuit_breaker_bypassed",
+                symbol=signal.symbol,
+                reason="missing_close_column",
+            )
+            return None
+        close_price = float(df["close"].iloc[-1]) if len(df) > 0 else 0.0
+        if close_price <= 0:
+            logger.info(
+                "predictive_circuit_breaker_bypassed",
+                symbol=signal.symbol,
+                reason="invalid_close_price",
+                close_price=close_price,
+            )
+            return None
+        atr_series = atr_func(df["close"], df["high"], df["low"], self._atr_period)
+        atr_ratio_series = (atr_series / df["close"]).tail(self._predictive_breaker_window).dropna()
+        if len(atr_ratio_series) < max(2, self._predictive_breaker_window // 2):
+            logger.info(
+                "predictive_circuit_breaker_bypassed",
+                symbol=signal.symbol,
+                reason="insufficient_valid_ratio_history",
+                valid_points=len(atr_ratio_series),
+            )
+            return None
+        current_ratio = float(atr_ratio_series.iloc[-1])
+        should_skip, threshold = self._predictive_breaker_strategy.should_skip(
+            current_ratio=current_ratio,
+            ratio_history=atr_ratio_series,
+            percentile=self._predictive_breaker_percentile,
+        )
+        if not should_skip:
+            return None
+        RiskManager._predictive_skips_total += 1
+        self._set_rejection(
+            code="PREDICTIVE_CIRCUIT_BREAKER_SKIPPED",
+            reason="predictive_circuit_breaker_skipped",
+            details={
+                "tier": tier,
+                "atr_ratio": round(current_ratio, 6),
+                "threshold": round(threshold, 6),
+                "percentile": self._predictive_breaker_percentile,
+                "window": self._predictive_breaker_window,
+            },
+        )
+        logger.warning(
+            "predictive_circuit_breaker_skipped",
+            symbol=signal.symbol,
+            tier=tier,
+            atr_ratio=round(current_ratio, 6),
+            threshold=round(threshold, 6),
+            percentile=self._predictive_breaker_percentile,
+            window=self._predictive_breaker_window,
+            predictive_skips_total=RiskManager._predictive_skips_total,
+        )
+        return self._last_rejection
 
     def _estimate_slippage(
         self,

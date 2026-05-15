@@ -864,3 +864,86 @@ class TestCircuitBreaker:
 
         assert rm.circuit_breaker_active
         assert rm.effective_risk_per_trade_usdt == 1.0
+
+
+class TestPredictiveCircuitBreaker:
+    def _df_with_ratio_ramp(self, rows: int = 140) -> pd.DataFrame:
+        close = pd.Series(np.full(rows, 100.0))
+        # ATR ratio cresce de ~0.005 até ~0.020 no final
+        ratio = np.linspace(0.005, 0.020, rows)
+        high = close + (ratio * close / 2)
+        low = close - (ratio * close / 2)
+        return pd.DataFrame(
+            {
+                "open": close,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": 1.0,
+            }
+        )
+
+    def test_predictive_skip_para_tier_low_acima_percentil(self) -> None:
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=50.0,
+            predictive_breaker_enabled=True,
+            predictive_breaker_percentile=0.85,
+            predictive_breaker_window=100,
+            predictive_breaker_tiers=["low"],
+            liq_map={"BTCUSDT": "low"},
+        )
+        signal = _signal(entry=100.0, stop=95.0)
+        result = rm.calculate(
+            signal,
+            available_balance=1000.0,
+            quantity_precision=3,
+            df=self._df_with_ratio_ramp(),
+        )
+        assert result.is_err()
+        rejection = rm.consume_last_rejection()
+        assert rejection is not None
+        assert rejection.code == "PREDICTIVE_CIRCUIT_BREAKER_SKIPPED"
+        assert rejection.reason == "predictive_circuit_breaker_skipped"
+
+    def test_predictive_nao_bloqueia_tier_nao_elegivel(self) -> None:
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=50.0,
+            predictive_breaker_enabled=True,
+            predictive_breaker_percentile=0.85,
+            predictive_breaker_window=100,
+            predictive_breaker_tiers=["low"],
+            liq_map={"BTCUSDT": "high"},
+        )
+        signal = _signal(entry=100.0, stop=95.0)
+        result = rm.calculate(
+            signal,
+            available_balance=1000.0,
+            quantity_precision=3,
+            df=self._df_with_ratio_ramp(),
+        )
+        assert result.is_ok()
+
+    def test_predictive_bypass_com_historico_insuficiente(self) -> None:
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=50.0,
+            predictive_breaker_enabled=True,
+            predictive_breaker_percentile=0.85,
+            predictive_breaker_window=100,
+            predictive_breaker_tiers=["low"],
+            liq_map={"BTCUSDT": "low"},
+        )
+        signal = _signal(entry=100.0, stop=95.0)
+        short_df = self._df_with_ratio_ramp(rows=30)
+        result = rm.calculate(
+            signal,
+            available_balance=1000.0,
+            quantity_precision=3,
+            df=short_df,
+        )
+        assert result.is_ok()

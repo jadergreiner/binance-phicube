@@ -29,7 +29,7 @@ def test_system_health_permanece_acessivel_quando_positions_router_ja_registrou_
     app.state.position_stream = _FakeStream()
 
     with TestClient(app) as client:
-        stream_health = client.get("/health")
+        stream_health = client.get("/positions/health")
         system_health = client.get("/system/health")
 
     assert stream_health.status_code == 200
