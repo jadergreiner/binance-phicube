@@ -5,6 +5,8 @@
  * Componentes (Router, Navbar, API client) reagem ao mesmo estado sem conhecer-se.
  */
 
+import { AUTH_BASE_URL } from '@/services/config';
+
 type EventCallback = (...args: unknown[]) => void;
 
 export interface User {
@@ -58,34 +60,17 @@ class AuthStore {
   /**
    * Inicia login OAuth - redireciona para Google
    */
-  async loginWithGoogle(): Promise<void> {
-    window.location.href = '/api/v1/auth/login';
+  async loginWithGoogle(redirect = '/'): Promise<void> {
+    const encodedRedirect = encodeURIComponent(redirect);
+    window.location.href = `${AUTH_BASE_URL}/auth/login?redirect=${encodedRedirect}`;
   }
 
   /**
-   * Trata callback do OAuth - troca código por JWT
+   * Finaliza login a partir do JWT retornado pelo backend.
    */
-  async handleCallback(code: string, state?: string | null): Promise<void> {
-    try {
-      const response = await fetch('/api/v1/auth/callback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code, state }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Falha na autenticação');
-      }
-
-      const data = await response.json();
-      this.setToken(data.access_token);
-      this.emit('loginSuccess', this._user!);
-    } catch (error) {
-      this.emit('loginFailed', error as Error);
-      throw error;
-    }
+  completeLogin(accessToken: string): void {
+    this.setToken(accessToken);
+    this.emit('loginSuccess', this._user!);
   }
 
   /**

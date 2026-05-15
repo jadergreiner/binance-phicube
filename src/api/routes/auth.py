@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 
 from src.api.auth.authenticator import get_authenticator
@@ -16,6 +16,7 @@ from src.config.settings import get_settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _OAUTH_STATE_COOKIE = "phicube_oauth_state"
+_POST_LOGIN_REDIRECT_COOKIE = "phicube_post_login_redirect"
 _OAUTH_STATE_COOKIE_PATH = "/"
 _OAUTH_STATE_COOKIE_MAX_AGE_SECONDS = 300
 
@@ -27,21 +28,11 @@ class LoginFallbackRequest(BaseModel):
     password: str
 
 
-class CallbackRequest(BaseModel):
-    """Requisição de callback OAuth."""
-
-    code: str
-    state: str | None = None
-
-
-@dataclass(slots=True)
-class _QueryRequest:
-    query_params: dict[str, str]
-
-
-def _frontend_callback_url() -> str:
-    settings = get_settings()
-    return settings.google_redirect_uri or "/api/auth/callback"
+def _post_login_redirect_target(request: Request) -> str:
+    redirect_target = request.query_params.get("redirect")
+    if redirect_target and redirect_target.startswith("/"):
+        return redirect_target
+    return "/"
 
 
 def _cookie_matches_state(request: Request, state: str | None) -> bool:
@@ -49,27 +40,15 @@ def _cookie_matches_state(request: Request, state: str | None) -> bool:
     return bool(state and cookie_state and state == cookie_state)
 
 
-def _clear_state_cookie(response: JSONResponse) -> None:
+def _clear_state_cookie(response: Response) -> None:
     response.delete_cookie(_OAUTH_STATE_COOKIE, path=_OAUTH_STATE_COOKIE_PATH)
+    response.delete_cookie(_POST_LOGIN_REDIRECT_COOKIE, path=_OAUTH_STATE_COOKIE_PATH)
 
 
-async def _complete_callback(request: Request, code: str, state: str | None) -> JSONResponse:
+def _build_frontend_redirect_url(access_token: str, redirect_target: str) -> str:
     settings = get_settings()
-
-    if not settings.auth_dev_bypass and not _cookie_matches_state(request, state):
-        raise HTTPException(status_code=401, detail="State inválido")
-
-    authenticator = get_authenticator()
-    result = await authenticator.authenticate(
-        _QueryRequest(query_params={"code": code, "state": state or ""})
-    )
-
-    if not result.success:
-        raise HTTPException(status_code=401, detail=result.error)
-
-    response = JSONResponse({"access_token": result.token, "token_type": "bearer"})
-    _clear_state_cookie(response)
-    return response
+    query = urlencode({"access_token": access_token, "redirect": redirect_target})
+    return f"{settings.auth_post_login_redirect_uri}?{query}"
 
 
 @router.get("/login")
@@ -78,8 +57,12 @@ async def login(request: Request):
     settings = get_settings()
 
     if settings.auth_dev_bypass:
-        callback_url = _frontend_callback_url()
-        return RedirectResponse(url=f"{callback_url}?code=dev&state=dev")
+        jwt_token = create_token(subject="dev@localhost", auth_method="dev_bypass")
+        redirect_target = request.cookies.get(_POST_LOGIN_REDIRECT_COOKIE) or "/"
+        return RedirectResponse(
+            url=_build_frontend_redirect_url(jwt_token, redirect_target),
+            status_code=302,
+        )
 
     authenticator = get_authenticator()
     result = await authenticator.authenticate(request)
@@ -94,6 +77,14 @@ async def login(request: Request):
         response.set_cookie(
             key=_OAUTH_STATE_COOKIE,
             value=result.state,
+            max_age=_OAUTH_STATE_COOKIE_MAX_AGE_SECONDS,
+            httponly=True,
+            samesite="lax",
+            path=_OAUTH_STATE_COOKIE_PATH,
+        )
+        response.set_cookie(
+            key=_POST_LOGIN_REDIRECT_COOKIE,
+            value=_post_login_redirect_target(request),
             max_age=_OAUTH_STATE_COOKIE_MAX_AGE_SECONDS,
             httponly=True,
             samesite="lax",
@@ -116,13 +107,35 @@ async def callback_get(request: Request):
     if not code:
         raise HTTPException(status_code=400, detail="Código não fornecido")
 
-    return await _complete_callback(request, code, state)
+    settings = get_settings()
+    if settings.auth_dev_bypass:
+        jwt_token = create_token(subject="dev@localhost", auth_method="dev_bypass")
+        redirect_target = request.cookies.get(_POST_LOGIN_REDIRECT_COOKIE) or "/"
+        response = RedirectResponse(
+            url=_build_frontend_redirect_url(jwt_token, redirect_target), status_code=302
+        )
+        _clear_state_cookie(response)
+        return response
 
+    if not _cookie_matches_state(request, state):
+        raise HTTPException(status_code=401, detail="State inválido")
 
-@router.post("/callback")
-async def callback_post(request: Request, payload: CallbackRequest):
-    """Callback do OAuth via POST (para frontend)."""
-    return await _complete_callback(request, payload.code, payload.state)
+    authenticator = get_authenticator()
+    result = await authenticator.authenticate(request)
+
+    if not result.success:
+        raise HTTPException(status_code=401, detail=result.error)
+
+    if not result.token:
+        raise HTTPException(status_code=500, detail="Token JWT ausente")
+
+    redirect_target = request.cookies.get(_POST_LOGIN_REDIRECT_COOKIE) or "/"
+    response = RedirectResponse(
+        url=_build_frontend_redirect_url(result.token, redirect_target),
+        status_code=302,
+    )
+    _clear_state_cookie(response)
+    return response
 
 
 @router.post("/refresh")

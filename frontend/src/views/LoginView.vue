@@ -13,29 +13,18 @@ const fallbackUsername = ref('');
 const fallbackPassword = ref('');
 
 onMounted(() => {
-  // Verificar se há código de callback na URL
   const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get('code');
-  const state = urlParams.get('state');
+  const accessToken = urlParams.get('access_token');
+  const redirect = (route.query.redirect as string) || urlParams.get('redirect') || '/';
 
-  if (code) {
-    handleCallback(code, state);
+  if (accessToken) {
+    completeLogin(accessToken, redirect);
   }
 });
 
-async function handleCallback(code: string, state: string | null) {
-  isLoading.value = true;
-  error.value = null;
-
-  try {
-    await authStore.handleCallback(code, state);
-    const redirect = (route.query.redirect as string) || '/';
-    router.push(redirect);
-  } catch (e) {
-    error.value = 'Falha na autenticação. Tente novamente.';
-  } finally {
-    isLoading.value = false;
-  }
+function completeLogin(accessToken: string, redirect: string) {
+  authStore.completeLogin(accessToken);
+  router.push(redirect);
 }
 
 async function loginWithGoogle() {
@@ -43,7 +32,8 @@ async function loginWithGoogle() {
   error.value = null;
 
   try {
-    await authStore.loginWithGoogle();
+    const redirect = (route.query.redirect as string) || '/';
+    await authStore.loginWithGoogle(redirect);
   } catch (e) {
     error.value = 'Falha ao redirecionar para Google.';
     isLoading.value = false;

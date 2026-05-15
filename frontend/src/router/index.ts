@@ -10,7 +10,7 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false },
   },
   {
-    path: '/api/auth/callback',
+    path: '/auth/callback',
     name: 'AuthCallback',
     component: () => import('@/views/LoginView.vue'),
     meta: { requiresAuth: false },

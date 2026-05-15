@@ -355,6 +355,10 @@ class Settings(BaseSettings):
         default=None,
         description="Google OAuth Redirect URI",
     )
+    auth_post_login_redirect_uri: str = Field(
+        default="http://localhost:3000/auth/callback",
+        description="URL da SPA para receber o JWT após o login OAuth",
+    )
     auth_allowed_emails: list[str] = Field(
         default_factory=list,
         description="Lista de emails autorizados a acessar o dashboard",

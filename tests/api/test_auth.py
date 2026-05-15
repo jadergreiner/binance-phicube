@@ -31,8 +31,8 @@ def _patch_lifespan(monkeypatch) -> None:
     monkeypatch.setattr(api_main.AdaptiveUpdater, "stop", AsyncMock(return_value=None))
 
 
-def test_login_redireciona_e_callback_autentica(monkeypatch) -> None:
-    """GET /auth/login deve emitir state e o callback deve concluir a autenticação."""
+def test_login_redireciona_e_callback_redireciona_para_frontend(monkeypatch) -> None:
+    """GET /auth/login deve emitir state e o callback deve redirecionar para a SPA."""
     _patch_lifespan(monkeypatch)
 
     class _FakeAuthenticator:
@@ -60,7 +60,11 @@ def test_login_redireciona_e_callback_autentica(monkeypatch) -> None:
     monkeypatch.setattr("src.api.routes.auth.get_authenticator", lambda: fake_authenticator)
     monkeypatch.setattr(
         "src.api.routes.auth.get_settings",
-        lambda: SimpleNamespace(auth_dev_bypass=False, google_redirect_uri=None),
+        lambda: SimpleNamespace(
+            auth_dev_bypass=False,
+            google_redirect_uri=None,
+            auth_post_login_redirect_uri="http://localhost:3000/auth/callback",
+        ),
     )
 
     with TestClient(api_main.create_app()) as client:
@@ -71,17 +75,18 @@ def test_login_redireciona_e_callback_autentica(monkeypatch) -> None:
             "https://accounts.google.com/o/oauth2/v2/auth?state=state-123"
         )
         assert client.cookies.get("phicube_oauth_state") == "state-123"
+        assert client.cookies.get("phicube_post_login_redirect").strip('"') == "/"
 
-        callback_response = client.post(
+        callback_response = client.get(
             "/auth/callback",
-            json={"code": "code-123", "state": "state-123"},
+            params={"code": "code-123", "state": "state-123"},
+            follow_redirects=False,
         )
 
-    assert callback_response.status_code == 200
-    assert callback_response.json() == {
-        "access_token": "jwt-token",
-        "token_type": "bearer",
-    }
+    assert callback_response.status_code in (302, 307)
+    assert callback_response.headers["location"] == (
+        "http://localhost:3000/auth/callback?access_token=jwt-token&redirect=%2F"
+    )
     assert fake_authenticator.calls == 2
 
 
@@ -106,15 +111,20 @@ def test_callback_rejeita_state_invalido(monkeypatch) -> None:
     monkeypatch.setattr("src.api.routes.auth.get_authenticator", lambda: fake_authenticator)
     monkeypatch.setattr(
         "src.api.routes.auth.get_settings",
-        lambda: SimpleNamespace(auth_dev_bypass=False, google_redirect_uri=None),
+        lambda: SimpleNamespace(
+            auth_dev_bypass=False,
+            google_redirect_uri=None,
+            auth_post_login_redirect_uri="http://localhost:3000/auth/callback",
+        ),
     )
 
     with TestClient(api_main.create_app()) as client:
         client.cookies.set("phicube_oauth_state", "state-123")
 
-        response = client.post(
+        response = client.get(
             "/auth/callback",
-            json={"code": "code-123", "state": "state-diferente"},
+            params={"code": "code-123", "state": "state-diferente"},
+            follow_redirects=False,
         )
 
     assert response.status_code == 401

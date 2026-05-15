@@ -9,7 +9,7 @@ describe('authStore', () => {
     vi.restoreAllMocks();
   });
 
-  it('handleCallback envia code e state para a API e armazena o token', async () => {
+  it('completeLogin armazena o token retornado pelo backend', () => {
     const tokenPayload = {
       sub: 'user@example.com',
       role: 'admin',
@@ -17,27 +17,8 @@ describe('authStore', () => {
     };
     const token = ['header', btoa(JSON.stringify(tokenPayload)), 'signature'].join('.');
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        access_token: token,
-      }),
-    });
+    authStore.completeLogin(token);
 
-    vi.stubGlobal('fetch', fetchMock);
-
-    await authStore.handleCallback('code-123', 'state-123');
-
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/callback', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        code: 'code-123',
-        state: 'state-123',
-      }),
-    });
     expect(authStore.token).toBe(token);
     expect(authStore.user?.email).toBe('user@example.com');
     expect(authStore.user?.authMethod).toBe('google');
