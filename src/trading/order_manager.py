@@ -19,6 +19,7 @@ from enum import StrEnum
 from typing import Any
 
 from src.common.result import OrderError, Result, err, ok
+from src.common.serialization import auto_dict
 from src.config.settings import ExitStrategy
 from src.exchange.binance_client import BinanceClient
 from src.monitoring.logger import get_logger
@@ -48,6 +49,7 @@ class TradeStatus(StrEnum):
     FAILED = "FAILED"
 
 
+@auto_dict
 @dataclass
 class Trade:
     symbol: str
@@ -73,34 +75,6 @@ class Trade:
     exit_strategy: ExitStrategy | None = None
     tp_levels: list[dict[str, float]] | None = None
     tp_order_ids: list[str] | None = None
-
-    def to_dict(self) -> dict:
-        return {
-            "symbol": self.symbol,
-            "timeframe": self.timeframe,
-            "direction": self.direction.value,
-            "quantity": self.quantity,
-            "entry_price": self.entry_price,
-            "stop_loss": self.stop_loss,
-            "take_profit": self.take_profit,
-            "risk_amount": self.risk_amount,
-            "margin_used": self.margin_used,
-            "entry_order_id": self.entry_order_id,
-            "sl_order_id": self.sl_order_id,
-            "tp_order_id": self.tp_order_id,
-            "status": self.status.value,
-            "opened_at": self.opened_at,
-            "closed_at": self.closed_at,
-            "pnl": self.pnl,
-            "exit_price": self.exit_price,
-            "pnl_usdt": self.pnl_usdt,
-            "close_reason": self.close_reason,
-            "signal": self.signal,
-            "exit_strategy": self.exit_strategy.value if self.exit_strategy else None,
-            "tp_levels": self.tp_levels,
-            "tp_order_ids": self.tp_order_ids,
-        }
-
 
 class OrderManager:
     """Executes trades on Binance Futures based on validated signals."""

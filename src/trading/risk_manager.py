@@ -30,6 +30,7 @@ from typing import Any
 import pandas as pd
 
 from src.common.result import Result, RiskRejection, err, ok
+from src.common.serialization import auto_dict
 from src.config.settings import SizingMode
 from src.monitoring.logger import get_logger
 from src.strategy.indicators import atr as atr_func
@@ -40,6 +41,7 @@ logger = get_logger(__name__)
 DEAD_ZONE: float = 0.001  # D10: PnL abaixo deste valor não altera contadores CB
 
 
+@auto_dict
 @dataclass(frozen=True)
 class PositionSize:
     symbol: str
@@ -51,20 +53,6 @@ class PositionSize:
     stop_loss: float
     take_profit: float
     risk_amount: float  # USDT arriscados nesta operação
-
-    def to_dict(self) -> dict:
-        return {
-            "symbol": self.symbol,
-            "direction": self.direction.value,
-            "quantity": self.quantity,
-            "notional": self.notional,
-            "margin_required": self.margin_required,
-            "entry_price": self.entry_price,
-            "stop_loss": self.stop_loss,
-            "take_profit": self.take_profit,
-            "risk_amount": self.risk_amount,
-        }
-
 
 class RiskManager:
     """Calcula o tamanho de posição respeitando todos os limites de risco."""

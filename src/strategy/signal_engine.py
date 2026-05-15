@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from src.common.result import Result, SignalError, ok
+from src.common.serialization import auto_dict
 from src.monitoring.logger import get_logger
 from src.strategy.plugin_base import NullSignalResult, SignalResult
 from src.strategy.plugin_registry import PluginRegistry
@@ -41,6 +42,7 @@ class Direction(StrEnum):
     SHORT = "SHORT"
 
 
+@auto_dict
 @dataclass(frozen=True)
 class Signal:
     symbol: str
@@ -91,6 +93,7 @@ class SignalEvent(StrEnum):
     REJECTED = "rejected"
 
 
+@auto_dict
 @dataclass(frozen=True)
 class SignalEventData:
     event: SignalEvent
