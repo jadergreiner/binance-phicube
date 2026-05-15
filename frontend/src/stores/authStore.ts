@@ -65,14 +65,14 @@ class AuthStore {
   /**
    * Trata callback do OAuth - troca código por JWT
    */
-  async handleCallback(code: string): Promise<void> {
+  async handleCallback(code: string, state?: string | null): Promise<void> {
     try {
       const response = await fetch('/api/v1/auth/callback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, state }),
       });
 
       if (!response.ok) {

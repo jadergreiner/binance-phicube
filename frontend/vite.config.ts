@@ -13,9 +13,10 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': {
+      '/api/v1': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1/, ''),
       },
       '/health': {
         target: 'http://localhost:8080',

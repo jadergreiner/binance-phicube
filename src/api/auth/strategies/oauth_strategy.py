@@ -55,6 +55,7 @@ class OAuthStrategy(AuthStrategy):
                 success=False,
                 error="redirect",
                 user=auth_url,  # Usar campo user para retornar URL
+                state=state,
             )
 
         # Validar state (simplificado - em produção usar sessão)

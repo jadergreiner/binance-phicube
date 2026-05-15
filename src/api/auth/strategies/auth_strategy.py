@@ -18,6 +18,7 @@ class AuthResult:
     user: str | None = None
     error: str | None = None
     auth_method: str | None = None
+    state: str | None = None
 
 
 class AuthStrategy(ABC):

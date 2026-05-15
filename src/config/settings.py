@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
@@ -459,6 +460,13 @@ class Settings(BaseSettings):
             raise ValueError(
                 "DASHBOARD_WRITE_AUTH_TOKEN obrigatorio quando DASHBOARD_WRITE_AUTH_REQUIRED=true."
             )
+        return self
+
+    @model_validator(mode="after")
+    def ensure_jwt_secret(self) -> Settings:
+        """Garante segredo JWT mesmo quando o .env não define um valor explícito."""
+        if not self.jwt_secret:
+            self.jwt_secret = secrets.token_urlsafe(48)
         return self
 
     @model_validator(mode="after")
