@@ -15,8 +15,9 @@ from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
-from src.strategies.williams_strategy import WilliamsStrategy
+from src.strategies.williams_strategy import WilliamsStrategy, calculate_targets
 from src.strategy.plugin_base import NullSignalResult, SignalResult
 from src.strategy.plugin_decorator import (
     MetricsDecorator,
@@ -142,6 +143,10 @@ class TestWilliamsStrategy:
             f"Expected NullSignalResult, got {type(result)}: {result}"
         )
         assert result.reason == "conditions_not_met"
+
+    def test_calculate_targets_rejects_invalid_direction(self) -> None:
+        with pytest.raises(ValueError, match="Direção inválida"):
+            calculate_targets("NEUTRAL", 100.0, 95.0, 2.0)
 
 
 # ─── TEST_033_08: Fractal caching ──────────────────────────────────────────────

@@ -7,19 +7,99 @@ pilares: Alligator (SMMA), Awesome Oscillator, e Fractais de 5 barras.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+
 import pandas as pd
 
 from src.monitoring.logger import get_logger
 from src.strategy.indicators import (
     _count_recent_crosses,
     compute_all_optimized,
-    last_valid_fractal_high,
-    last_valid_fractal_low,
 )
 from src.strategy.plugin_base import StrategyPlugin
 from src.strategy.signal_engine import is_alligator_bearish, is_alligator_bullish
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class _EvaluationContext:
+    close: float
+    jaw: float
+    teeth: float
+    lips: float
+    ao: float
+    fractal_high: float | None
+    fractal_low: float | None
+
+
+@dataclass(frozen=True)
+class _DirectionParams:
+    direction: str
+    event_name: str
+    alligator_check: Callable[[float, float, float, float], bool]
+    ao_check: Callable[[float], bool]
+    breakout_fractal_getter: Callable[[_EvaluationContext], float | None]
+    breakout_check: Callable[[float, float], bool]
+    stop_fractal_getter: Callable[[_EvaluationContext], float | None]
+    stop_valid_check: Callable[[float, float], bool]
+
+
+def _is_ao_positive(ao: float) -> bool:
+    return ao > 0
+
+
+def _is_ao_negative(ao: float) -> bool:
+    return ao < 0
+
+
+def _get_fractal_high(context: _EvaluationContext) -> float | None:
+    return context.fractal_high
+
+
+def _get_fractal_low(context: _EvaluationContext) -> float | None:
+    return context.fractal_low
+
+
+def _breakout_above(close: float, fractal: float) -> bool:
+    return close > fractal
+
+
+def _breakout_below(close: float, fractal: float) -> bool:
+    return close < fractal
+
+
+def _stop_below(close: float, stop: float) -> bool:
+    return stop < close
+
+
+def _stop_above(close: float, stop: float) -> bool:
+    return stop > close
+
+
+_DIRECTION_PARAMS: tuple[_DirectionParams, ...] = (
+    _DirectionParams(
+        direction="LONG",
+        event_name="long_conditions_check",
+        alligator_check=is_alligator_bullish,
+        ao_check=_is_ao_positive,
+        breakout_fractal_getter=_get_fractal_high,
+        breakout_check=_breakout_above,
+        stop_fractal_getter=_get_fractal_low,
+        stop_valid_check=_stop_below,
+    ),
+    _DirectionParams(
+        direction="SHORT",
+        event_name="short_conditions_check",
+        alligator_check=is_alligator_bearish,
+        ao_check=_is_ao_negative,
+        breakout_fractal_getter=_get_fractal_low,
+        breakout_check=_breakout_below,
+        stop_fractal_getter=_get_fractal_high,
+        stop_valid_check=_stop_above,
+    ),
+)
 
 
 def calculate_targets(
@@ -30,8 +110,10 @@ def calculate_targets(
 ) -> dict:
     if direction == "LONG":
         take_profit = entry_price + (entry_price - stop_loss) * risk_reward_ratio
-    else:
+    elif direction == "SHORT":
         take_profit = entry_price - (stop_loss - entry_price) * risk_reward_ratio
+    else:
+        raise ValueError(f"Direção inválida: {direction!r}")
     return {
         "entry_price": entry_price,
         "stop_loss": stop_loss,
@@ -55,75 +137,105 @@ class WilliamsStrategy(StrategyPlugin):
 
     def _check_conditions(self, symbol: str, timeframe: str, df: pd.DataFrame) -> dict | None:
         last = df.iloc[-1]
-        close = float(last["close"])
-        jaw = float(last["jaw"])
-        teeth = float(last["teeth"])
-        lips = float(last["lips"])
-        ao = float(last["ao"])
-
-        fractal_high_val = last_valid_fractal_high(df)
-        fractal_low_val = last_valid_fractal_low(df)
+        fractal_window = df[["fractal_high", "fractal_low"]].iloc[-102:-2]
+        context = _EvaluationContext(
+            close=float(last["close"]),
+            jaw=float(last["jaw"]),
+            teeth=float(last["teeth"]),
+            lips=float(last["lips"]),
+            ao=float(last["ao"]),
+            fractal_high=self._last_valid_fractal_value(fractal_window["fractal_high"]),
+            fractal_low=self._last_valid_fractal_value(fractal_window["fractal_low"]),
+        )
 
         logger.debug(
             "williams_check",
             symbol=symbol,
-            close=close,
-            jaw=jaw,
-            teeth=teeth,
-            lips=lips,
-            ao=ao,
-            fractal_high=fractal_high_val,
-            fractal_low=fractal_low_val,
+            close=context.close,
+            jaw=context.jaw,
+            teeth=context.teeth,
+            lips=context.lips,
+            ao=context.ao,
+            fractal_high=context.fractal_high,
+            fractal_low=context.fractal_low,
         )
 
-        alligator_bullish = is_alligator_bullish(jaw, teeth, lips, close)
-        alligator_bearish = is_alligator_bearish(jaw, teeth, lips, close)
-
-        if (
-            alligator_bullish
-            and ao > 0
-            and fractal_high_val is not None
-            and close > fractal_high_val
-            and fractal_low_val is not None
-            and fractal_low_val < close
-        ):
-            return {
-                "direction": "LONG",
-                "entry_price": close,
-                "stop_loss": fractal_low_val,
-                "metadata": {
-                    "indicators": {
-                        "alligator_jaws": {"jaw": jaw, "teeth": teeth, "lips": lips},
-                        "ao_value": ao,
-                        "fractal_high": fractal_high_val,
-                        "fractal_low": fractal_low_val,
-                    }
-                },
-            }
-
-        if (
-            alligator_bearish
-            and ao < 0
-            and fractal_low_val is not None
-            and close < fractal_low_val
-            and fractal_high_val is not None
-            and fractal_high_val > close
-        ):
-            return {
-                "direction": "SHORT",
-                "entry_price": close,
-                "stop_loss": fractal_high_val,
-                "metadata": {
-                    "indicators": {
-                        "alligator_jaws": {"jaw": jaw, "teeth": teeth, "lips": lips},
-                        "ao_value": ao,
-                        "fractal_high": fractal_high_val,
-                        "fractal_low": fractal_low_val,
-                    }
-                },
-            }
+        for params in self._direction_params():
+            signal = self._evaluate_direction(symbol, timeframe, context, params)
+            if signal is not None:
+                return signal
 
         return None
+
+    def _direction_params(self) -> tuple[_DirectionParams, ...]:
+        return _DIRECTION_PARAMS
+
+    def _evaluate_direction(
+        self,
+        symbol: str,
+        timeframe: str,
+        context: _EvaluationContext,
+        params: _DirectionParams,
+    ) -> dict | None:
+        alligator_ok = params.alligator_check(
+            context.jaw, context.teeth, context.lips, context.close
+        )
+        ao_ok = params.ao_check(context.ao)
+        breakout_ref = params.breakout_fractal_getter(context)
+        breakout_ok = breakout_ref is not None and params.breakout_check(
+            context.close, breakout_ref
+        )
+        stop_ref = params.stop_fractal_getter(context)
+        stop_ok = stop_ref is not None and params.stop_valid_check(context.close, stop_ref)
+
+        logger.debug(
+            params.event_name,
+            symbol=symbol,
+            timeframe=timeframe,
+            direction=params.direction,
+            close=context.close,
+            jaw=context.jaw,
+            teeth=context.teeth,
+            lips=context.lips,
+            ao=context.ao,
+            breakout_ref=breakout_ref,
+            stop_ref=stop_ref,
+            alligator_ok=alligator_ok,
+            ao_ok=ao_ok,
+            breakout_ok=breakout_ok,
+            stop_ok=stop_ok,
+        )
+
+        if not (alligator_ok and ao_ok and breakout_ok and stop_ok):
+            return None
+
+        entry_price = context.close
+        stop_loss = stop_ref
+        if stop_loss is None:
+            return None
+
+        return {
+            "direction": params.direction,
+            "entry_price": entry_price,
+            "stop_loss": stop_loss,
+            "metadata": {
+                "indicators": {
+                    "alligator_jaws": {
+                        "jaw": context.jaw,
+                        "teeth": context.teeth,
+                        "lips": context.lips,
+                    },
+                    "ao_value": context.ao,
+                    "fractal_high": context.fractal_high,
+                    "fractal_low": context.fractal_low,
+                }
+            },
+        }
+
+    @staticmethod
+    def _last_valid_fractal_value(series: pd.Series) -> float | None:
+        valid = series.dropna()
+        return float(valid.iloc[-1]) if not valid.empty else None
 
     def _calculate_targets(self, conditions: dict, df: pd.DataFrame) -> dict:
         return calculate_targets(
