@@ -5,7 +5,7 @@
  * Componentes (Router, Navbar, API client) reagem ao mesmo estado sem conhecer-se.
  */
 
-import { EventEmitter } from 'events';
+type EventCallback = (...args: unknown[]) => void;
 
 export interface User {
   email: string;
@@ -14,24 +14,33 @@ export interface User {
   authMethod: 'google' | 'fallback' | 'dev_bypass';
 }
 
-interface AuthEvents {
-  loginSuccess: User;
-  loginFailed: Error;
-  logout: void;
-  tokenExpired: void;
-}
-
-class AuthStore extends EventEmitter<AuthEvents> {
+class AuthStore {
   private _token: string | null = null;
   private _user: User | null = null;
+  private _listeners: Map<string, Set<EventCallback>> = new Map();
 
   constructor() {
-    super();
     // Restaurar token do localStorage se existir
     this._token = localStorage.getItem('auth_token');
     if (this._token) {
       this._user = this._getUserFromToken(this._token);
     }
+  }
+
+  on(event: string, callback: EventCallback): () => void {
+    if (!this._listeners.has(event)) {
+      this._listeners.set(event, new Set());
+    }
+    this._listeners.get(event)!.add(callback);
+    return () => this.off(event, callback);
+  }
+
+  off(event: string, callback: EventCallback): void {
+    this._listeners.get(event)?.delete(callback);
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    this._listeners.get(event)?.forEach((cb) => cb(...args));
   }
 
   get token(): string | null {

@@ -17,11 +17,11 @@ Extração do padrão `safe_loop` para módulo `common/loops.py`
 
 ### 1.2 Resumo
 
-**O que é:** Uma função utilitária assíncrona que encapsula o padrão repetitivo de loop infinito com tratamento de `CancelledError`, log de exceções e sleep entre iterações — eliminando ~25 linhas duplicadas em cada um dos 6 módulos que atualmente reimplementam esse pattern manualmente.
+**O que é:** Uma função utilitária assíncrona que encapsula o padrão repetitivo de loop infinito com tratamento de `CancelledError`, log de exceções e sleep entre iterações — eliminando boilerplate nos loops periódicos que compartilham o mesmo contrato operacional.
 
-**Por que estamos fazendo:** O padrão `while True: try: ... except CancelledError: return except Exception: log + sleep` aparece em 6 arquivos com pequenas variações. Cada nova task que precisa de um loop periódico replica o mesmo boilerplate. Extrair para um utilitário reduz duplicação, garante tratamento de erro consistente e acelera desenvolvimento.
+**Por que estamos fazendo:** O padrão `while True: try: ... except CancelledError: return except Exception: log + sleep` aparece em vários loops periódicos com pequenas variações. Cada nova task que precisa de um loop com contrato equivalente replica o mesmo boilerplate. Extrair para um utilitário reduz duplicação, garante tratamento de erro consistente e acelera desenvolvimento.
 
-**Valor de negócio:** Elimina ~150 linhas de boilerplate, garante consistência no tratamento de erros, reduz superfície de bugs em novos loops.
+**Valor de negócio:** Reduz uma quantidade relevante de boilerplate repetido, garante consistência no tratamento de erros e reduz a superfície de bugs em novos loops.
 
 **Conexão com PRD/SPEC:** Refatoração técnica transversal — aplica-se a todos os módulos com loops de monitoramento.
 
@@ -31,8 +31,8 @@ Extração do padrão `safe_loop` para módulo `common/loops.py`
 
 ### 2.1 Objetivos
 
-- [ ] Criar `common/loops.py` com função `safe_loop()` e overloads para diferentes patterns de iteração
-- [ ] Refatorar 6 módulos para usar o utilitário
+- [ ] Criar `common/loops.py` com função `safe_loop()` para loops assíncronos de cadência fixa
+- [ ] Refatorar os módulos compatíveis com o contrato do utilitário
 - [ ] Zero mudança de comportamento em runtime
 - [ ] Testes unitários para o utilitário
 
@@ -40,6 +40,9 @@ Extração do padrão `safe_loop` para módulo `common/loops.py`
 
 - **Não inclui:** Mudança na lógica de intervalo ou heartbeat — cada caller mantém controle do intervalo
 - **Não inclui:** Mudança na estratégia de logging — cada caller fornece seu logger
+- **Não inclui:** `BackupTask` com agendamento dinâmico para horário específico
+- **Não inclui:** `_health_server()` e outros servidores/lifecycles que não são loops periódicos de iteração fixa
+- **Não inclui:** loops com “primeira execução atrasada” como contrato primário, a menos que sejam adaptados explicitamente por um wrapper do caller
 
 ---
 
@@ -54,9 +57,9 @@ Extração do padrão `safe_loop` para módulo `common/loops.py`
 
 ## 4. Histórias de Usuário e Requisitos
 
-### US-037-01: Função `safe_loop` para iterações síncronas
+### US-037-01: Função `safe_loop` para iterações assíncronas
 
-> Como **desenvolvedor**, quero **invocar `safe_loop(iteration_fn, interval, logger, error_event)`** para **executar um loop periódico com tratamento consistente de erros**.
+> Como **desenvolvedor**, quero **invocar `safe_loop(iteration_fn, interval, logger, error_event)`** para **executar um loop periódico assíncrono com tratamento consistente de erros**.
 
 **Critérios de Aceitação:**
 
@@ -82,23 +85,27 @@ ENTÃO  a função retorna imediatamente sem propagar o erro
 - [ ] AC-02: Exceções são logadas sem interromper o loop
 - [ ] AC-03: CancelledError interrompe o loop silenciosamente
 
-### US-037-02: Refatoração dos 6 módulos
+### US-037-02: Refatoração dos loops compatíveis
 
-> Como **desenvolvedor**, quero **substituir o boilerplate manual de loop nos 6 módulos por `safe_loop()`** para **reduzir duplicação e garantir tratamento consistente**.
+> Como **desenvolvedor**, quero **substituir o boilerplate manual dos loops compatíveis por `safe_loop()`** para **reduzir duplicação e garantir tratamento consistente**.
 
 **Módulos afetados:**
 
 | Módulo | Arquivo | Linhas de boilerplate | Função atual |
 |---|---|---|---|
-| HeartbeatTask | `src/main.py:70-78` | ~9 | `run()` |
-| RuntimeMonitorSyncTask | `src/main.py:278-287` | ~11 | `run()` |
-| TradingMonitor | `src/main.py:357-375` | ~11 | `run()` |
-| OrderMonitor | `src/monitoring/order_monitor.py` | ~15 | `run()` |
-| PerformanceReporter | `src/notifications/performance_reporter.py` | ~11 | `run()` |
-| Health server | `src/main.py:307-315` | ~9 | `_health_server()` (leve variação) |
+| HeartbeatTask | `src/main.py:142-150` | ~9 | `run()` |
+| RuntimeMonitorSyncTask | `src/main.py:462-471` | ~11 | `run()` |
+| TradingMonitor | `src/main.py:577-595` | ~11 | `run()` |
+| OrderMonitor | `src/monitoring/order_monitor.py:115-138` | ~15 | `run()` |
 
-- [ ] AC-01: Todos os 6 módulos usam `safe_loop()` após refatoração
+- [ ] AC-01: Todos os loops compatíveis usam `safe_loop()` após refatoração
 - [ ] AC-02: Comportamento idêntico verificado por testes existentes
+
+**Loops explicitamente excluídos desta refatoração:**
+
+- `PerformanceReporter` — primeira execução é atrasada por contrato; requer adaptação explícita se vier a usar o helper
+- `BackupTask` — agendamento dinâmico em horário específico, não é loop de cadência fixa
+- `_health_server()` — lifecycle de servidor, não loop periódico de iteração fixa
 
 ---
 
@@ -113,8 +120,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from src.monitoring.logger import get_logger
-
 
 async def safe_loop(
     iteration_fn: Callable[[], Awaitable[Any]],
@@ -126,7 +131,7 @@ async def safe_loop(
     on_start: Callable[[], Awaitable[Any]] | None = None,
     on_stop: Callable[[], Awaitable[Any]] | None = None,
 ) -> None:
-    """Executa iteration_fn em loop com tratamento padronizado de erros.
+    """Executa iteration_fn em loop assíncrono com tratamento padronizado de erros.
 
     Args:
         iteration_fn: Coroutine chamada a cada iteração.
@@ -178,6 +183,11 @@ async def safe_loop(
 
 **Saída:** `None` — a função executa até ser cancelada.
 
+**Contrato dos hooks:**
+
+- `on_start`: se falhar, a exceção é propagada e o loop não inicia
+- `on_stop`: se falhar durante cancelamento, a falha é logada e suprimida para preservar shutdown gracioso
+
 ### 5.3 Fluxo de Dados / Sequência
 
 ```mermaid
@@ -207,6 +217,7 @@ sequenceDiagram
 | INV-037-01 | `interval > 0` | `ValueError` na inicialização |
 | INV-037-02 | `iteration_fn` nunca é chamada concorrentemente | Garantido por `await` sequencial |
 | INV-037-03 | Exceções em `on_stop` não interrompem o shutdown | Log + continue |
+| INV-037-04 | `on_start` falha antes de entrar no loop | Propaga exceção e impede início |
 
 ### 6.2 Padrões de Segurança
 
@@ -230,7 +241,7 @@ sequenceDiagram
 ### 7.2 Evidências Requeridas na PR
 
 - [ ] `pytest tests/common/` passando
-- [ ] Nenhum teste existente quebrado (todos os 6 módulos refatorados mantêm comportamento)
+- [ ] Nenhum teste existente quebrado nos módulos compatíveis com o contrato de `safe_loop()`
 
 ---
 
@@ -241,6 +252,8 @@ sequenceDiagram
 | `CancelledError` | Shutdown do bot | Retorna imediatamente, executa `on_stop` |
 | Qualquer `Exception` | Erro interno da iteração | Loga com `error_event` + `exc_info=True`, continua |
 | `iteration_fn` infinitamente lenta | Erro de design | Não tratado — responsabilidade do caller |
+| `on_start` falha | Erro de inicialização | Propaga exceção e aborta o loop |
+| `on_stop` falha | Erro de cleanup | Loga e suprime a falha para não quebrar shutdown |
 
 ---
 
@@ -249,14 +262,14 @@ sequenceDiagram
 | Risco | Impacto | Mitigação |
 |---|---|---|
 | Mudança silenciosa de comportamento | Médio | Testes existentes devem passar sem alteração |
-| Um módulo tem pattern diferente demais | Baixo | `safe_loop` aceita hooks opcionais para cobrir variantes |
+| Um módulo tem pattern diferente demais | Baixo | Manter o loop específico no caller ou criar um wrapper adaptador explícito |
 
 ---
 
 ## 10. Definição de Pronto (DoD)
 
 - [ ] `common/loops.py` criado com `safe_loop()` e cobertura de testes > 90%
-- [ ] 6 módulos refatorados para usar `safe_loop()`
+- [ ] Apenas os módulos com contrato compatível foram refatorados para `safe_loop()`
 - [ ] `pytest` suite completa passando
 - [ ] Zero mudança de comportamento verificada por CI
 

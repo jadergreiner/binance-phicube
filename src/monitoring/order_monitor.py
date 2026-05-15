@@ -27,6 +27,7 @@ from typing import Any
 import ccxt.async_support as ccxt
 
 from src.common.decorators import retry
+from src.common.loops import safe_loop
 from src.monitoring.logger import get_logger
 from src.monitoring.metrics import record_pnl_realized, record_trade_executed
 from src.notifications.events import (
@@ -117,25 +118,28 @@ class OrderMonitor:
 
         Encerra graciosamente ao receber CancelledError.
         """
-        logger.info("order_monitor_started", interval_seconds=self._interval_seconds)
 
-        while True:
-            try:
-                await self._check_all_open_trades()
-            except asyncio.CancelledError:
-                logger.info("order_monitor_stopped")
-                return
-            except Exception as exc:
-                logger.error(
-                    "order_monitor_cycle_error",
-                    error_type=type(exc).__name__,
-                )
+        async def _on_start() -> None:
+            logger.info("order_monitor_started", interval_seconds=self._interval_seconds)
 
-            try:
-                await asyncio.sleep(self._interval_seconds)
-            except asyncio.CancelledError:
-                logger.info("order_monitor_stopped")
-                return
+        async def _on_stop() -> None:
+            logger.info("order_monitor_stopped")
+
+        def _log_cycle_error(exc: BaseException) -> None:
+            logger.error(
+                "order_monitor_cycle_error",
+                error_type=type(exc).__name__,
+            )
+
+        await safe_loop(
+            self._check_all_open_trades,
+            interval=self._interval_seconds,
+            logger=logger,
+            loop_name="order_monitor",
+            on_start=_on_start,
+            on_stop=_on_stop,
+            on_error=_log_cycle_error,
+        )
 
     async def _check_all_open_trades(self) -> None:
         """Busca todos os trades OPEN no MongoDB e verifica cada um."""

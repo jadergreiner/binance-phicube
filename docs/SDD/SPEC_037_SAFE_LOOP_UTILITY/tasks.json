@@ -1,0 +1,108 @@
+{
+  "spec_id": "SPEC_037",
+  "generated_at": "2026-05-14T00:00:00Z",
+  "tasks": [
+    {
+      "id": "task_001",
+      "title": "Criar o utilitario assincrono safe_loop",
+      "description": "Implementar src/common/loops.py com safe_loop() para loops assincronos de cadencia fixa, incluindo contrato de hooks e testes unitarios do helper.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [],
+      "target_files": [
+        "src/common/loops.py",
+        "tests/common/test_loops.py"
+      ],
+      "constraints": [
+        "Aceitar apenas iteration_fn assincro como contrato principal",
+        "Manter interval > 0 como precondicao dura",
+        "CancelledError encerra silenciosamente o loop",
+        "on_start propaga erro e impede o loop de iniciar",
+        "on_stop nao pode quebrar o shutdown gracioso",
+        "Nao embutir politica de retry, backoff ou logging de dominio",
+        "Manter logger e error_event sob responsabilidade do caller"
+      ],
+      "acceptance_criteria": [
+        "safe_loop executa iteration_fn repetidamente com sleep apos cada iteracao",
+        "Exceptions comuns sao logadas com error_event, loop continua",
+        "CancelledError encerra sem propagar excecao",
+        "on_start e on_stop respeitam o contrato definido na SPEC",
+        "pytest tests/common/ passa",
+        "ruff check em src/common/ e tests/common/ passa sem erros"
+      ],
+      "evidence_required": [
+        "unit_test_result",
+        "lint_result"
+      ]
+    },
+    {
+      "id": "task_002",
+      "title": "Refatorar loops de src/main.py para safe_loop",
+      "description": "Substituir o boilerplate de loop compatível em HeartbeatTask, RuntimeMonitorSyncTask e TradingMonitor por safe_loop(), preservando logs, cancelamento e semantica de execucao.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/main.py",
+        "tests/main/test_safe_loop_refactor.py"
+      ],
+      "constraints": [
+        "Refatorar apenas loops de cadencia fixa com contrato equivalente ao safe_loop",
+        "Manter BackupTask fora do escopo desta tarefa",
+        "Manter _health_server() fora do escopo desta tarefa",
+        "Manter a ordem de log e o comportamento de cancelamento de cada classe",
+        "Nao alterar o contrato de TradingMonitor._tick() nem a logica de negocio interna",
+        "Nao introduzir comportamento novo de delay antes da primeira execucao"
+      ],
+      "acceptance_criteria": [
+        "HeartbeatTask, RuntimeMonitorSyncTask e TradingMonitor usam safe_loop",
+        "Logs de start/stop e de erro permanecem equivalentes ao comportamento anterior",
+        "Nenhum teste existente de src/main.py quebra",
+        "Novos testes cobrem cancelamento e excecao para cada loop refatorado",
+        "pytest tests/ -v passa nos casos afetados"
+      ],
+      "evidence_required": [
+        "regression_test_result",
+        "unit_test_result"
+      ]
+    },
+    {
+      "id": "task_003",
+      "title": "Refatorar OrderMonitor para safe_loop",
+      "description": "Substituir o loop manual de OrderMonitor por safe_loop(), preservando a verificacao sequencial de trades, o isolamento de falhas por trade e o comportamento de cancelamento.",
+      "owner": "time-b-execucao",
+      "priority": "P0",
+      "status": "todo",
+      "depends_on": [
+        "task_001"
+      ],
+      "target_files": [
+        "src/monitoring/order_monitor.py",
+        "tests/monitoring/test_order_monitor_safe_loop.py"
+      ],
+      "constraints": [
+        "Preservar a chamada sequencial de _check_all_open_trades()",
+        "Manter o isolamento de falhas por trade dentro de _check_all_open_trades()",
+        "Preservar o log order_monitor_started e order_monitor_stopped",
+        "Cancelar silenciosamente sem vazar CancelledError",
+        "Nao alterar a logica de SL/TP/manual close",
+        "Nao mover a responsabilidade de retry ou tratamento de dominio para o helper"
+      ],
+      "acceptance_criteria": [
+        "OrderMonitor passa a usar safe_loop sem mudar a semantica do ciclo",
+        "Uma falha em um trade continua nao afetando os demais",
+        "Cancelamento encerra o monitor de forma limpa",
+        "Novos testes validam ordem de execucao, erro e cancelamento",
+        "Nenhum teste existente de monitoring quebra"
+      ],
+      "evidence_required": [
+        "regression_test_result",
+        "unit_test_result"
+      ]
+    }
+  ]
+}

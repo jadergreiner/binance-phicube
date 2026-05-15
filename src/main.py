@@ -20,6 +20,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from src.common.loops import safe_loop
 from src.config.settings import ExitStrategy, SymbolConfig, get_settings  # noqa: F401
 from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
 from src.exchange.resilient_binance_client import ResilientBinanceClient
@@ -72,7 +73,7 @@ _TIMEFRAME_SECONDS: dict[str, int] = {
 
 class HeartbeatTask:
     """Grava sinal periódico de vida do processo na collection audit (SPEC_017).
-    
+
     Também reprocessa trades journaled a cada intervalo (eventual consistency).
     """
 
@@ -96,9 +97,7 @@ class HeartbeatTask:
         """Grava heartbeat na collection audit e reprocessa journal periodicamente."""
         uptime_seconds = int((datetime.now(UTC) - self._started_at).total_seconds())
         monitor_count = (
-            self._monitor_count_getter()
-            if self._monitor_count_getter
-            else self._monitor_count
+            self._monitor_count_getter() if self._monitor_count_getter else self._monitor_count
         )
         await self._repo.audit(
             "heartbeat",
@@ -108,7 +107,7 @@ class HeartbeatTask:
                 "metadata": {"source": "HeartbeatTask"},
             },
         )
-        
+
         # Reprocessar journal a cada N ciclos (eventual consistency)
         self._cycle_count += 1
         if self._cycle_count % self.JOURNAL_REPROCESS_INTERVAL_CYCLES == 0:
@@ -119,12 +118,12 @@ class HeartbeatTask:
         # Verifica se repo tem journal (ResilientMongoRepository)
         if not isinstance(self._repo, ResilientMongoRepository):
             return
-        
+
         try:
             # Pega o journal do repositório resiliente
             journal = self._repo._journal
             reprocessed, failed = await journal.reprocess_pending_trades(self._repo)
-            
+
             if reprocessed > 0 or failed > 0:
                 logger.info(
                     "journal_reprocess_cycle",
@@ -140,14 +139,16 @@ class HeartbeatTask:
             )
 
     async def run(self) -> None:
-        while True:
-            try:
-                await self._beat()
-            except asyncio.CancelledError:
-                return
-            except Exception as exc:
-                logger.debug("heartbeat_failed", error_type=type(exc).__name__)
-            await asyncio.sleep(self.INTERVAL_SECONDS)
+        def _log_heartbeat_error(exc: BaseException) -> None:
+            logger.debug("heartbeat_failed", error_type=type(exc).__name__)
+
+        await safe_loop(
+            self._beat,
+            interval=self.INTERVAL_SECONDS,
+            logger=logger,
+            loop_name="heartbeat",
+            on_error=_log_heartbeat_error,
+        )
 
 
 class BackupTask:
@@ -309,9 +310,7 @@ class RuntimeMonitorRegistry:
             self._plugin_registry.discover_and_register_all()
             logger.info("plugin_registry_initialized_via_discovery")
         except RuntimeError:
-            logger.warning(
-                "no_plugins_discovered_via_entry_points_registering_williams_fallback"
-            )
+            logger.warning("no_plugins_discovered_via_entry_points_registering_williams_fallback")
             from src.strategies.williams_strategy import WilliamsStrategy
 
             self._plugin_registry.register("williams", WilliamsStrategy())
@@ -460,15 +459,16 @@ class RuntimeMonitorSyncTask:
         )
 
     async def run(self) -> None:
-        while True:
-            try:
-                await self.sync_once()
-                await asyncio.sleep(self._interval_seconds)
-            except asyncio.CancelledError:
-                return
-            except Exception as exc:
-                logger.error("runtime_monitor_sync_failed", error_type=type(exc).__name__)
-                await asyncio.sleep(self._interval_seconds)
+        def _log_sync_error(exc: BaseException) -> None:
+            logger.error("runtime_monitor_sync_failed", error_type=type(exc).__name__)
+
+        await safe_loop(
+            self.sync_once,
+            interval=self._interval_seconds,
+            logger=logger,
+            loop_name="runtime_monitor_sync",
+            on_error=_log_sync_error,
+        )
 
 
 async def _health_server(host: str = "0.0.0.0", port: int = 8081) -> None:
@@ -511,7 +511,7 @@ def _create_notifier(settings) -> Notifier:
 
 class TradingMonitor:
     """Monitors one SymbolConfig triplet and acts on closed candles.
-    
+
     Usa Facades (ResilientBinanceClient e ResilientMongoRepository) via DI
     para tratamento de CircuitBreakerOpenError.
     """
@@ -575,24 +575,30 @@ class TradingMonitor:
         )
 
     async def run(self) -> None:
-        logger.info("monitor_started", symbol=self._symbol, timeframe=self._timeframe)
+        async def _on_start() -> None:
+            logger.info("monitor_started", symbol=self._symbol, timeframe=self._timeframe)
 
-        while True:
-            try:
-                await self._tick()
-            except asyncio.CancelledError:
-                logger.info("monitor_stopped", symbol=self._symbol, timeframe=self._timeframe)
-                return
-            except Exception as exc:
-                logger.error(
-                    "monitor_tick_error",
-                    symbol=self._symbol,
-                    timeframe=self._timeframe,
-                    error_type=type(exc).__name__,
-                    exc_info=True,
-                )
+        async def _on_stop() -> None:
+            logger.info("monitor_stopped", symbol=self._symbol, timeframe=self._timeframe)
 
-            await asyncio.sleep(self._interval)
+        def _log_tick_error(exc: BaseException) -> None:
+            logger.error(
+                "monitor_tick_error",
+                symbol=self._symbol,
+                timeframe=self._timeframe,
+                error_type=type(exc).__name__,
+                exc_info=True,
+            )
+
+        await safe_loop(
+            self._tick,
+            interval=self._interval,
+            logger=logger,
+            loop_name=f"{self._symbol}_{self._timeframe}",
+            on_start=_on_start,
+            on_stop=_on_stop,
+            on_error=_log_tick_error,
+        )
 
     async def _tick(self) -> None:
         # SPEC_034: Usar pipeline quando habilitado
@@ -628,7 +634,7 @@ class TradingMonitor:
                 time.time() - tick_start,
             )
             return
-        
+
         # Discard the last (potentially incomplete) candle
         df = df.iloc[:-1].reset_index(drop=True)
 
@@ -766,14 +772,18 @@ class TradingMonitor:
             # Enviar alert via Telegram
             await self._notifier.send(
                 NotificationEvent.CRITICAL_ERROR,
-                type("Alert", (), {
-                    "to_message": lambda: (
-                        f"🚨 **CircuitBreaker OPEN**\n"
-                        f"Símbolo: {self._symbol}\n"
-                        f"Operação: create_order\n"
-                        f"Loop parado para {self._symbol}/{self._timeframe}"
-                    )
-                })(),
+                type(
+                    "Alert",
+                    (),
+                    {
+                        "to_message": lambda: (
+                            f"🚨 **CircuitBreaker OPEN**\n"
+                            f"Símbolo: {self._symbol}\n"
+                            f"Operação: create_order\n"
+                            f"Loop parado para {self._symbol}/{self._timeframe}"
+                        )
+                    },
+                )(),
             )
             # Registrar duração do tick antes de parar o loop
             observe_tick_duration(
@@ -782,7 +792,7 @@ class TradingMonitor:
                 time.time() - tick_start,
             )
             raise  # Parar o loop
-        
+
         if trade_result.is_err():
             await self._set_signal_outcome(
                 signal_id,
