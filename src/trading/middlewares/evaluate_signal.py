@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from src.common.serialization import SerializationFacade
 from src.monitoring.logger import get_logger
 from src.strategy.signal_engine import SignalResult
 from src.trading.tick_pipeline import TickContext
@@ -36,10 +37,8 @@ class EvaluateSignalMiddleware:
         if callable(consume):
             evaluation = consume()
             if evaluation is not None:
-                to_dict = getattr(evaluation, "to_dict", None)
-                payload = to_dict() if callable(to_dict) else evaluation
+                payload = SerializationFacade.to_payload(evaluation)
                 if isinstance(payload, dict):
-
                     repo = getattr(context, "_repo", None)
                     if repo is not None:
                         await repo.audit("signal_evaluated", payload)

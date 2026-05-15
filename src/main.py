@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.common.loops import safe_loop
+from src.common.serialization import SerializationFacade
 from src.config.settings import ExitStrategy, SymbolConfig, get_settings  # noqa: F401
 from src.exchange.binance_client import BinanceClient, InsufficientLiquidityError
 from src.exchange.resilient_binance_client import ResilientBinanceClient
@@ -903,8 +904,7 @@ class TradingMonitor:
         if evaluation is None:
             return
 
-        to_dict = getattr(evaluation, "to_dict", None)
-        payload = to_dict() if callable(to_dict) else evaluation
+        payload = SerializationFacade.to_payload(evaluation)
         if not isinstance(payload, dict):
             return
 

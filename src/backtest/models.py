@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from src.common.serialization import auto_dict
 
+
+@auto_dict
 @dataclass
 class BacktestTrade:
     symbol: str
@@ -29,6 +32,7 @@ class BacktestTrade:
     pnl_net_usdt: float = 0.0
 
 
+@auto_dict
 @dataclass
 class BacktestResult:
     symbol: str

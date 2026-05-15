@@ -109,3 +109,17 @@ def auto_dict(cls: type[T]) -> type[T]:
 
     setattr(cls, "to_dict", to_dict)
     return cast(type[T], cls)
+
+
+class SerializationFacade:
+    """Facade para serialização padronizada no projeto.
+
+    Centraliza o acesso a `to_dict()` para objetos de domínio e mantém um ponto
+    único de entrada para consumidores (trading, strategy, storage, api).
+    """
+
+    @staticmethod
+    def to_payload(obj: Serializable | dict[str, Any]) -> dict[str, Any]:
+        if isinstance(obj, dict):
+            return obj
+        return obj.to_dict()

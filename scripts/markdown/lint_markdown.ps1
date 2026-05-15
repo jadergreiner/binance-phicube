@@ -1,7 +1,8 @@
 param(
   [ValidateSet("changed", "all")]
   [string]$Mode = "changed",
-  [string]$Path
+  [string]$Path,
+  [string]$OpenSpecChange
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,10 +27,25 @@ function Invoke-MarkdownlintFile([string]$filePath) {
   markdownlint $filePath
 }
 
+function Invoke-OpenSpecValidate([string]$changeId) {
+  if (-not $changeId) {
+    return
+  }
+  $cmd = Get-Command openspec -ErrorAction SilentlyContinue
+  if (-not $cmd) {
+    throw "openspec não encontrado no PATH."
+  }
+  Write-Output "OpenSpec validate: $changeId"
+  openspec validate $changeId
+}
+
 Test-Markdownlint
 
 if ($Path) {
   Invoke-MarkdownlintFile $Path
+  if ($LASTEXITCODE -eq 0) {
+    Invoke-OpenSpecValidate $OpenSpecChange
+  }
   exit $LASTEXITCODE
 }
 
@@ -53,5 +69,11 @@ foreach ($file in $changed) {
   }
 }
 
-exit $exitCode
+if ($exitCode -eq 0) {
+  Invoke-OpenSpecValidate $OpenSpecChange
+  if ($LASTEXITCODE -ne 0) {
+    $exitCode = $LASTEXITCODE
+  }
+}
 
+exit $exitCode
