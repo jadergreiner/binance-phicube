@@ -18,6 +18,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
 from pymongo.errors import DuplicateKeyError
 
+from src.common.metrics import compute_metrics
 from src.monitoring.logger import get_logger
 from src.trading.order_manager import Trade, TradeStatus
 
@@ -43,54 +44,15 @@ _AUDIT_RETENTION_EVENTS = [
 
 def _calc_metrics(trades: list[dict]) -> dict[str, float | int]:
     """Calcula as 6 métricas RF-11 sobre uma lista de trades fechados."""
-    if not trades:
-        return {
-            "total_trades": 0,
-            "win_rate_pct": 0.0,
-            "total_pnl_usdt": 0.0,
-            "avg_rrr": 0.0,
-            "max_drawdown_usdt": 0.0,
-            "profit_factor": 0.0,
-        }
-
-    pnls = [t["pnl_usdt"] for t in trades if t.get("pnl_usdt") is not None]
-    total = len(pnls)
-    wins = sum(1 for p in pnls if p > 0)
-    total_pnl = sum(pnls)
-    gross_profit = sum(p for p in pnls if p > 0)
-    gross_loss = abs(sum(p for p in pnls if p < 0))
-
+    sorted_trades = sorted(trades, key=lambda t: t.get("closed_at") or datetime.min)
+    pnls = [float(t["pnl_usdt"]) for t in sorted_trades if t.get("pnl_usdt") is not None]
     rrrs = []
-    for t in trades:
+    for t in sorted_trades:
         risk = t.get("risk_amount") or 0.0
         pnl = t.get("pnl_usdt")
         if pnl is not None and risk > 0:
-            rrrs.append(pnl / risk)
-    avg_rrr = sum(rrrs) / len(rrrs) if rrrs else 0.0
-
-    peak = 0.0
-    cumulative = 0.0
-    max_drawdown = 0.0
-    sorted_trades = sorted(trades, key=lambda t: t.get("closed_at") or datetime.min)
-    for t in sorted_trades:
-        pnl = t.get("pnl_usdt") or 0.0
-        cumulative += pnl
-        if cumulative > peak:
-            peak = cumulative
-        drawdown = peak - cumulative
-        if drawdown > max_drawdown:
-            max_drawdown = drawdown
-
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
-
-    return {
-        "total_trades": total,
-        "win_rate_pct": round(wins / total * 100, 2),
-        "total_pnl_usdt": round(total_pnl, 4),
-        "avg_rrr": round(avg_rrr, 4),
-        "max_drawdown_usdt": round(-max_drawdown, 4),
-        "profit_factor": round(profit_factor, 4),
-    }
+            rrrs.append(float(pnl) / float(risk))
+    return compute_metrics(pnls, rrrs).to_dict()
 
 
 class MongoRepository:

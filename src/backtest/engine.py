@@ -11,6 +11,7 @@ from typing import Literal
 import pandas as pd
 
 from src.backtest.models import BacktestResult, BacktestTrade
+from src.common.metrics import compute_metrics
 from src.config.settings import Settings
 from src.exchange.binance_client import BinanceClient
 from src.strategy.signal_engine import Direction, Signal, SignalEngine
@@ -375,46 +376,9 @@ class BacktestEngine:
         return result
 
     def _calc_metrics(self, trades: list[BacktestTrade]) -> dict[str, float]:
-        if not trades:
-            return {
-                "total_trades": 0,
-                "win_rate_pct": 0.0,
-                "total_pnl_usdt": 0.0,
-                "avg_rrr": 0.0,
-                "max_drawdown_usdt": 0.0,
-                "profit_factor": 0.0,
-            }
-
-        wins = [t for t in trades if t.pnl_usdt > 0]
-        losses = [t for t in trades if t.pnl_usdt <= 0]
-        win_rate = len(wins) / len(trades) * 100.0
-        total_pnl = sum(t.pnl_usdt for t in trades)
-        avg_rrr = sum(t.rrr_realizado for t in trades) / len(trades)
-
-        gross_profit = sum(t.pnl_usdt for t in wins)
-        gross_loss = abs(sum(t.pnl_usdt for t in losses))
-        profit_factor = gross_profit / gross_loss if gross_loss > 0 else math.inf
-
-        # pico→vale sobre equity acumulada
-        equity = 0.0
-        peak = 0.0
-        max_drawdown = 0.0
-        for t in trades:
-            equity += t.pnl_usdt
-            if equity > peak:
-                peak = equity
-            drawdown = equity - peak
-            if drawdown < max_drawdown:
-                max_drawdown = drawdown
-
-        return {
-            "total_trades": len(trades),
-            "win_rate_pct": round(win_rate, 2),
-            "total_pnl_usdt": round(total_pnl, 4),
-            "avg_rrr": round(avg_rrr, 4),
-            "max_drawdown_usdt": round(max_drawdown, 4),
-            "profit_factor": round(profit_factor, 4) if not math.isinf(profit_factor) else 0.0,
-        }
+        pnls = [float(t.pnl_usdt) for t in trades]
+        rrrs = [float(t.rrr_realizado) for t in trades]
+        return compute_metrics(pnls, rrrs).to_dict()  # type: ignore[return-value]
 
     def _build_result(
         self,
@@ -437,39 +401,21 @@ class BacktestEngine:
                 generated_at=datetime.utcnow(),
             )
 
-        n_trades = len(trades)
-        wins = [t for t in trades if getattr(t, pnl_field) > 0]
-        losses = [t for t in trades if getattr(t, pnl_field) <= 0]
-        win_rate = len(wins) / n_trades * 100.0
-        total_pnl = sum(getattr(t, pnl_field) for t in trades)
-        avg_rrr = sum(t.rrr_realizado for t in trades) / n_trades
-
-        gross_profit = sum(getattr(t, pnl_field) for t in wins)
-        gross_loss = abs(sum(getattr(t, pnl_field) for t in losses))
-        profit_factor = gross_profit / gross_loss if gross_loss > 0 else math.inf
-
-        equity = 0.0
-        peak = 0.0
-        max_drawdown = 0.0
-        for t in trades:
-            equity += getattr(t, pnl_field)
-            if equity > peak:
-                peak = equity
-            drawdown = equity - peak
-            if drawdown < max_drawdown:
-                max_drawdown = drawdown
+        pnls = [float(getattr(t, pnl_field)) for t in trades]
+        rrrs = [float(t.rrr_realizado) for t in trades]
+        metrics = compute_metrics(pnls, rrrs)
 
         return BacktestResult(
             symbol=symbol,
             timeframe=timeframe,
             candles_used=candles_used,
             trades=trades,
-            total_trades=n_trades,
-            win_rate_pct=round(win_rate, 2),
-            total_pnl_usdt=round(total_pnl, 4),
-            avg_rrr=round(avg_rrr, 4),
-            max_drawdown_usdt=round(max_drawdown, 4),
-            profit_factor=round(profit_factor, 4) if not math.isinf(profit_factor) else 0.0,
+            total_trades=metrics.total_trades,
+            win_rate_pct=metrics.win_rate_pct,
+            total_pnl_usdt=metrics.total_pnl_usdt,
+            avg_rrr=metrics.avg_rrr,
+            max_drawdown_usdt=metrics.max_drawdown_usdt,
+            profit_factor=metrics.profit_factor,
             generated_at=datetime.utcnow(),
         )
 
