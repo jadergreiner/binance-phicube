@@ -1,0 +1,52 @@
+name: spec041-validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  structural-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Validate .env.example vs Settings
+        run: python tools/validate_env_example.py
+
+      - name: Detect stale SPECs
+        run: python tools/validate_spec_freshness.py --base-dir docs/SDD --max-age 90
+
+      - name: Validate layer imports
+        run: python tools/validate_layers.py --src-dir src
+
+      - name: Run validator unit tests
+        run: pytest tests/tools/test_validate_env_example.py tests/tools/test_validate_spec_freshness.py tests/tools/test_validate_layers.py -q
+
+      - name: Scan secrets in diff
+        uses: trufflesecurity/trufflehog@v3.90.8
+        if: github.event_name == 'pull_request'
+        with:
+          path: .
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --results=verified,unknown --fail
+
+      - name: Scan secrets repository (manual)
+        uses: trufflesecurity/trufflehog@v3.90.8
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          path: .
+          extra_args: --results=verified,unknown --fail

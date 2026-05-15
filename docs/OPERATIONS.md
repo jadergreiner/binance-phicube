@@ -291,3 +291,36 @@ docker compose exec mongo mongosh mongodb://mongo:27017/phicube \
   --eval "db.trades.countDocuments()" \
   --quiet
 ```
+
+---
+
+## Validacao Estrutural de CI (SPEC_041)
+
+Workflow: `.github/workflows/spec041-validation.yml`
+
+Objetivo: bloquear PRs com erro estrutural em configuracao, arquitetura e
+seguranca antes do merge.
+
+Validadores:
+
+- `python tools/validate_env_example.py`
+  - ERROR: campo obrigatorio de `Settings` ausente no `.env.example`
+  - WARNING: variavel no `.env.example` sem correspondencia em `Settings`
+- `python tools/validate_spec_freshness.py --base-dir docs/SDD --max-age 90`
+  - ERROR: SPEC em rascunho stale acima da janela
+  - WARNING: SPEC concluida stale acima da janela
+- `python tools/validate_layers.py --src-dir src`
+  - ERROR: import entre camadas fora da matriz permitida
+
+Seguranca:
+
+- Scanner de segredos no diff via TruffleHog no workflow `spec041-validation`.
+
+Execucao local recomendada:
+
+```bash
+python tools/validate_env_example.py
+python tools/validate_spec_freshness.py --base-dir docs/SDD --max-age 90
+python tools/validate_layers.py --src-dir src
+pytest tests/tools/ -v
+```
