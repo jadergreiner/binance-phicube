@@ -309,7 +309,7 @@ def test_int_002_02_api_serva_frontend_e_snapshot_cached(monkeypatch) -> None:
         )
 
         root_response = client.get("/")
-        health_response = client.get("/health")
+        health_response = client.get("/positions/health")
         positions_response = client.get("/positions")
 
     assert root_response.status_code == 200

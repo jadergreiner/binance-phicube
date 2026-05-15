@@ -244,9 +244,13 @@ def _attach_update_callback(app: Any) -> Any:
     return stream
 
 
-@router.get("/health")
+@router.get("/positions/health")
 async def get_health(request: Request) -> JSONResponse:
-    """Expõe o estado atual do stream do dashboard."""
+    """Expõe o estado atual do stream do dashboard.
+
+    Nota: o endpoint sistêmico `/health` é definido em `health_router`.
+    Este endpoint é dedicado ao status do stream de posições.
+    """
     stream = _get_position_stream(request)
     payload = {"status": stream.get_status()}
     if not _is_stream_active(stream):

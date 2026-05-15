@@ -412,7 +412,9 @@ class TestRiskManagerATR:
 
         # Fallback silencioso: deve retornar PositionSize valido (modo fixed)
         assert result.is_ok(), f"Scenario '{scenario}' should fallback to fixed, got None"
-        assert result.unwrap().risk_amount == 10.0  # fixed mode: risk = balance * pct = 1000 * 1% = 10
+        assert (
+            result.unwrap().risk_amount == 10.0
+        )  # fixed mode: risk = balance * pct = 1000 * 1% = 10
 
     # ── Fuzzing INV-029-05 ─────────────────────────────────────────
 

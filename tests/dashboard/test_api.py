@@ -253,14 +253,14 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
     assert response.json() == expected, response.json()
 
 
-def test_get_health_retorna_status_degradado(monkeypatch) -> None:
-    """GET /health deve refletir o status real do stream."""
+def test_get_positions_health_retorna_status_degradado(monkeypatch) -> None:
+    """GET /positions/health deve refletir o status real do stream."""
     _patch_lifespan(monkeypatch)
 
     with TestClient(api_main.create_app()) as client:
         client.app.state.position_stream = _FakeStream(positions=[], status="degraded")
 
-        response = client.get("/health")
+        response = client.get("/positions/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "degraded"}
