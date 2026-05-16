@@ -20,6 +20,8 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+import pandas as pd
+
 from src.common.loops import safe_loop
 from src.common.serialization import SerializationFacade
 from src.config.settings import ExitStrategy, SymbolConfig, get_settings  # noqa: F401
@@ -616,6 +618,15 @@ class TradingMonitor:
 
         # SPEC_032: Medir duração do tick
         tick_start = time.time()
+        cycle_diag: dict[str, Any] = {
+            "symbol": self._symbol,
+            "timeframe": self._timeframe,
+            "candle_close_time": None,
+            "engine_outcome": "not_evaluated",
+            "risk_outcome": "not_evaluated",
+            "risk_reason": None,
+            "final_status": "PIPELINE_INTERRUPTED",
+        }
 
         # SPEC_032: Atualizar heartbeat
         update_heartbeat()
@@ -645,6 +656,7 @@ class TradingMonitor:
 
         # Discard the last (potentially incomplete) candle
         df = df.iloc[:-1].reset_index(drop=True)
+        cycle_diag["candle_close_time"] = self._resolve_candle_close_time(df)
 
         # Check if we can open new positions
         total_open = await self._resilient_repo.count_open_trades()
@@ -686,8 +698,13 @@ class TradingMonitor:
             )
         )
         signal_result = boundary_result.signal_result
+        cycle_diag["engine_outcome"] = (
+            "signal_detected" if boundary_result.has_signal else "no_signal"
+        )
         await self._persist_signal_evaluation()
         if not signal_result:
+            cycle_diag["final_status"] = "NO_SETUP_DETECTED"
+            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
             observe_tick_duration(
                 self._symbol,
                 self._timeframe,
@@ -723,6 +740,10 @@ class TradingMonitor:
                 execution_reason="zero_or_negative_balance",
                 execution_details={"balance": balance},
             )
+            cycle_diag["risk_outcome"] = "rejected"
+            cycle_diag["risk_reason"] = "zero_or_negative_balance"
+            cycle_diag["final_status"] = "REJECTED_BY_RISK"
+            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
             logger.warning("zero_balance", symbol=self._symbol)
             # SPEC_032: Registrar duração do tick antes de retornar
             observe_tick_duration(
@@ -757,6 +778,10 @@ class TradingMonitor:
                 execution_reason=execution_reason,
                 execution_details=execution_details,
             )
+            cycle_diag["risk_outcome"] = "rejected"
+            cycle_diag["risk_reason"] = execution_reason
+            cycle_diag["final_status"] = "REJECTED_BY_RISK"
+            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
             logger.warning("position_size_rejected", symbol=self._symbol)
             # SPEC_032: Registrar duração do tick antes de retornar
             observe_tick_duration(
@@ -767,6 +792,7 @@ class TradingMonitor:
             return
 
         position = position_result.unwrap()
+        cycle_diag["risk_outcome"] = "approved"
         # Execute trade
         # TASK_034: Tratar CircuitBreakerOpenError em create_order
         try:
@@ -814,6 +840,8 @@ class TradingMonitor:
                 execution_status="REJECTED_ORDER_EXECUTION",
                 execution_reason="order_manager_execute_returned_error",
             )
+            cycle_diag["final_status"] = "PERSISTENCE_GAP"
+            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
             logger.error("trade_execution_failed", symbol=self._symbol)
             # SPEC_032: Registrar duração do tick antes de retornar
             observe_tick_duration(
@@ -837,6 +865,7 @@ class TradingMonitor:
                 execution_reason="trade_opened",
                 trade_id=trade_id,
             )
+            cycle_diag["final_status"] = "TRADE_OPENED"
         else:
             await self._set_signal_outcome(
                 signal_id,
@@ -845,6 +874,9 @@ class TradingMonitor:
                 execution_details={"trade_status": trade.status.value},
                 trade_id=trade_id,
             )
+            cycle_diag["final_status"] = "PERSISTENCE_GAP"
+
+        await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
 
         if trade.status == TradeStatus.OPEN:
             # Send notification for successful trade
@@ -919,6 +951,17 @@ class TradingMonitor:
             return
 
         await self._repo.audit("signal_evaluated", payload)
+
+    @staticmethod
+    def _resolve_candle_close_time(df: pd.DataFrame) -> str | None:
+        if df.empty:
+            return None
+        row = df.iloc[-1]
+        for field in ("close_time", "closeTime", "timestamp", "open_time", "openTime"):
+            value = row.get(field)
+            if value is not None:
+                return str(value)
+        return None
 
     async def _set_signal_outcome(
         self,

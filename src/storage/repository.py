@@ -628,6 +628,51 @@ class MongoRepository:
         cursor = self._db[_AUDIT_COLLECTION].aggregate(pipeline)
         return await cursor.to_list(length=limit)
 
+    async def get_signal_generation_diagnosis(
+        self,
+        symbol: str,
+        timeframe: str,
+    ) -> dict[str, Any]:
+        latest_cycle = await self._db[_AUDIT_COLLECTION].find_one(
+            {
+                "event": "signal_cycle_diagnostic",
+                "symbol": symbol,
+                "timeframe": timeframe,
+            },
+            sort=[("ts", DESCENDING)],
+        )
+        if latest_cycle is None:
+            last_heartbeat = await self._db[_AUDIT_COLLECTION].find_one(
+                {"event": "heartbeat"},
+                sort=[("ts", DESCENDING)],
+            )
+            return {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "classification": "PIPELINE_INTERRUPTED",
+                "last_evidence_at": None,
+                "risk_reason": None,
+                "engine_outcome": None,
+                "risk_outcome": None,
+                "details": {
+                    "reason": "no_signal_cycle_diagnostic_event_found",
+                    "last_heartbeat_at": last_heartbeat.get("ts") if last_heartbeat else None,
+                },
+            }
+
+        return {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "classification": latest_cycle.get("final_status"),
+            "last_evidence_at": latest_cycle.get("ts"),
+            "risk_reason": latest_cycle.get("risk_reason"),
+            "engine_outcome": latest_cycle.get("engine_outcome"),
+            "risk_outcome": latest_cycle.get("risk_outcome"),
+            "details": {
+                "candle_close_time": latest_cycle.get("candle_close_time"),
+            },
+        }
+
     # ─── Audit log ────────────────────────────────────────────────────────────
 
     async def audit(self, event: str, data: dict[str, Any]) -> None:

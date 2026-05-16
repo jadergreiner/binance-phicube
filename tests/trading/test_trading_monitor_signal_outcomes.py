@@ -211,5 +211,53 @@ async def test_tick_persiste_diagnostico_de_avaliacao_sem_sinal() -> None:
     monitor = _build_monitor(repo, client, signal_engine, risk_manager, order_manager)
     await monitor._tick()
 
-    repo.audit.assert_awaited_once_with("signal_evaluated", evaluation.to_dict())
+    events = [call.args[0] for call in repo.audit.await_args_list]
+    assert "signal_evaluated" in events
+    assert "signal_cycle_diagnostic" in events
     repo.save_signal.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tick_rejeicao_risco_registra_signal_cycle_diagnostic() -> None:
+    repo = SimpleNamespace(
+        count_open_trades=AsyncMock(return_value=0),
+        get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=0.0),
+        save_signal=AsyncMock(return_value="681cc200e8f9ff89bff8e463"),
+        audit=AsyncMock(return_value=None),
+        update_signal_execution_outcome=AsyncMock(return_value=True),
+    )
+    client = SimpleNamespace(
+        fetch_ohlcv_with_retry=AsyncMock(
+            return_value=pd.DataFrame({"close": [100.0, 101.0], "open": [99.0, 100.0]})
+        ),
+        fetch_usdt_balance=AsyncMock(return_value=100.0),
+        get_quantity_precision=MagicMock(return_value=3),
+    )
+    signal_result = _build_signal_result()
+    signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
+    from src.common.result import err
+
+    rejection = RiskRejection(
+        code="QTY_ZERO_AFTER_ROUNDING",
+        reason="quantity_zero_after_rounding",
+        details={"qty_raw": 0.00049, "qty_rounded": 0.0, "quantity_precision": 3},
+    )
+    risk_manager = SimpleNamespace(
+        calculate=MagicMock(return_value=err(rejection)),
+        consume_last_rejection=lambda: rejection,
+    )
+    order_manager = SimpleNamespace(execute=AsyncMock(return_value=None))
+
+    monitor = _build_monitor(repo, client, signal_engine, risk_manager, order_manager)
+    await monitor._tick()
+
+    cycle_events = [
+        call
+        for call in repo.audit.await_args_list
+        if call.args[0] == "signal_cycle_diagnostic"
+    ]
+    assert cycle_events
+    payload = cycle_events[-1].args[1]
+    assert payload["final_status"] == "REJECTED_BY_RISK"
+    assert payload["risk_reason"] == "quantity_zero_after_rounding"

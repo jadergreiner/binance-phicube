@@ -362,7 +362,11 @@ class RiskManager:
             rejection = RiskRejection(
                 code="QTY_ZERO_AFTER_ROUNDING",
                 reason="quantity_zero_after_rounding",
-                details={"quantity_precision": quantity_precision},
+                details={
+                    "quantity_precision": quantity_precision,
+                    "qty_raw": raw_qty,
+                    "qty_rounded": qty,
+                },
             )
             self._last_rejection = rejection
             logger.warning(
@@ -494,7 +498,11 @@ class RiskManager:
             rejection = RiskRejection(
                 code="QTY_ZERO_AFTER_ROUNDING",
                 reason="quantity_zero_after_rounding",
-                details={"quantity_precision": quantity_precision},
+                details={
+                    "quantity_precision": quantity_precision,
+                    "qty_raw": raw_qty,
+                    "qty_rounded": qty,
+                },
             )
             self._last_rejection = rejection
             logger.warning("position_size_zero_after_rounding", symbol=symbol)

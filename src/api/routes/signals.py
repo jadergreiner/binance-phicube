@@ -56,3 +56,29 @@ async def get_signal_history(request: Request) -> JSONResponse:
             "timezone": BRAZIL_TIMEZONE,
         },
     )
+
+
+@router.get("/signals/diagnosis/{symbol}/{timeframe}")
+async def get_signal_generation_diagnosis(
+    request: Request,
+    symbol: str,
+    timeframe: str,
+) -> JSONResponse:
+    """Retorna diagnóstico consolidado da geração de sinais por símbolo/timeframe."""
+    repo = getattr(request.app.state, "repository", None)
+    if repo is None:
+        return JSONResponse(status_code=503, content={"detail": "Repositório indisponível"})
+
+    try:
+        diagnosis = await repo.get_signal_generation_diagnosis(
+            symbol=symbol.upper(),
+            timeframe=timeframe,
+        )
+    except Exception:
+        return JSONResponse(status_code=503, content={"detail": "Repositório indisponível"})
+
+    payload = enrich_datetime_fields(
+        diagnosis,
+        ("last_evidence_at",),
+    )
+    return JSONResponse(status_code=200, content=payload)

@@ -106,6 +106,35 @@ class TestSignalHistoryEndpoint:
         assert response.status_code == 503
         assert response.json() == {"detail": "Repositório indisponível"}
 
+    def test_diagnosis_retorna_200_com_payload(self) -> None:
+        repo = AsyncMock()
+        repo.get_signal_generation_diagnosis = AsyncMock(
+            return_value={
+                "symbol": "PLTRUSDT",
+                "timeframe": "15m",
+                "classification": "REJECTED_BY_RISK",
+                "last_evidence_at": datetime(2026, 5, 13, 14, 31, 5, tzinfo=UTC),
+                "risk_reason": "quantity_zero_after_rounding",
+                "engine_outcome": "signal_detected",
+                "risk_outcome": "rejected",
+                "details": {"candle_close_time": "2026-05-13T14:30:00Z"},
+            }
+        )
+
+        app = _make_app(repo=repo)
+        with TestClient(app) as client:
+            response = client.get("/signals/diagnosis/pltrusdt/15m")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["classification"] == "REJECTED_BY_RISK"
+        assert payload["last_evidence_at"].endswith("Z")
+        assert payload["last_evidence_at_br"] == "13/05/2026 11:31:05"
+        repo.get_signal_generation_diagnosis.assert_awaited_once_with(
+            symbol="PLTRUSDT",
+            timeframe="15m",
+        )
+
 
 class TestSignalHistoryRepository:
     @pytest.mark.asyncio
@@ -167,3 +196,42 @@ class TestSignalHistoryRepository:
         pipeline = collection.aggregate.call_args.args[0]
         assert pipeline[0] == {"$match": {"event": "signal_evaluated"}}
         assert pipeline[1] == {"$sort": {"ts": -1}}
+
+    @pytest.mark.asyncio
+    async def test_get_signal_generation_diagnosis_sem_evento_retorna_pipeline_interrupted(
+        self,
+    ) -> None:
+        repo = _make_repo()
+        audit_col = MagicMock()
+        audit_col.find_one = AsyncMock(
+            side_effect=[None, {"ts": datetime(2026, 5, 13, tzinfo=UTC)}]
+        )
+        repo._db = MagicMock()
+        repo._db.__getitem__ = MagicMock(return_value=audit_col)
+
+        result = await repo.get_signal_generation_diagnosis("PLTRUSDT", "15m")
+
+        assert result["classification"] == "PIPELINE_INTERRUPTED"
+        assert result["details"]["reason"] == "no_signal_cycle_diagnostic_event_found"
+
+    @pytest.mark.asyncio
+    async def test_get_signal_generation_diagnosis_com_evento_retorna_classificacao(self) -> None:
+        repo = _make_repo()
+        audit_col = MagicMock()
+        audit_col.find_one = AsyncMock(
+            return_value={
+                "ts": datetime(2026, 5, 13, 14, 31, 5, tzinfo=UTC),
+                "final_status": "REJECTED_BY_RISK",
+                "risk_reason": "quantity_zero_after_rounding",
+                "engine_outcome": "signal_detected",
+                "risk_outcome": "rejected",
+                "candle_close_time": "2026-05-13T14:30:00Z",
+            }
+        )
+        repo._db = MagicMock()
+        repo._db.__getitem__ = MagicMock(return_value=audit_col)
+
+        result = await repo.get_signal_generation_diagnosis("PLTRUSDT", "15m")
+
+        assert result["classification"] == "REJECTED_BY_RISK"
+        assert result["risk_reason"] == "quantity_zero_after_rounding"
