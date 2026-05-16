@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Observabilidade de runtime para ciclos de sinal
 O runtime SHALL produzir rastreabilidade estruturada por ciclo de avaliacao de sinal, com campos minimos `symbol`, `timeframe`, `candle_close_time`, `engine_outcome`, `risk_outcome`, `risk_reason` e `final_status`, para suportar diagnostico operacional sem ambiguidade.

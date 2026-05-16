@@ -4,6 +4,14 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 
 ## [Unreleased] — 2026-05-11
 
+### Docs (OpenSpec Archive)
+
+- **SPEC-042 — TradingClient ABC:** change `spec-042-trading-client-abc` arquivada em `openspec/changes/archive/2026-05-16-spec-042-trading-client-abc`.
+- **SPEC-043 — Slippage Protection:** change `spec-043-slippage-protection` arquivada em `openspec/changes/archive/2026-05-16-spec-043-slippage-protection`.
+- **SPEC-044 — Predictive Circuit Breaker:** change `spec-044-predictive-circuit-breaker` arquivada em `openspec/changes/archive/2026-05-16-spec-044-predictive-circuit-breaker`.
+- **SPEC-045 — Isolamento SignalEngine:** change `spec-045-isolamento-signal-engine` arquivada em `openspec/changes/archive/2026-05-16-spec-045-isolamento-signal-engine`.
+- **SPEC-046 — Diagnóstico de Sinais:** change `analise-de-sinais-gerados` arquivada em `openspec/changes/archive/2026-05-16-analise-de-sinais-gerados`.
+
 ### Feat (SPEC_030 — Saída Dinâmica)
 
 - **TP Parcial (V1):** Implementação de take-profit escalonado com até 3 níveis configuráveis via ordens `TAKE_PROFIT_MARKET` reduceOnly nativas. Zero lógica de pós-processamento — a exchange gerencia o ajuste automático das ordens remanescentes.

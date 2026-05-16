@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from src.api.datetime_utils import (
@@ -81,4 +82,4 @@ async def get_signal_generation_diagnosis(
         diagnosis,
         ("last_evidence_at",),
     )
-    return JSONResponse(status_code=200, content=payload)
+    return JSONResponse(status_code=200, content=jsonable_encoder(payload))
