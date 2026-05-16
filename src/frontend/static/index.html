@@ -31,7 +31,7 @@
         </div>
       </section>
 
-      <section class="analysis-grid">
+      <section class="analysis-grid tab-section" data-tab="overview">
         <article class="analysis-card">
           <p>Bias de mercado</p>
           <label class="analysis-view-label" for="analysis-bias-view">Visão</label>
@@ -73,12 +73,21 @@
         </article>
       </section>
 
-      <section id="banner" class="banner banner--hidden" aria-live="polite">
+      <section id="banner" class="banner banner--hidden tab-section" data-tab="overview" aria-live="polite">
         <strong id="banner-title"></strong>
         <span id="banner-message"></span>
       </section>
 
-      <section class="summary-grid">
+      <section class="tabs-nav-panel">
+        <div class="tabs-nav" role="tablist" aria-label="Navegação do dashboard">
+          <button class="tab-btn active" data-tab="overview" type="button">Visão Geral</button>
+          <button class="tab-btn" data-tab="positions" type="button">Posições</button>
+          <button class="tab-btn" data-tab="signals" type="button">Sinais & Histórico</button>
+          <button class="tab-btn" data-tab="onboarding" type="button">Onboarding</button>
+        </div>
+      </section>
+
+      <section class="summary-grid tab-section" data-tab="overview">
         <article class="summary-card">
           <p>Exposição total</p>
           <strong id="summary-exposure">—</strong>
@@ -101,7 +110,7 @@
         </article>
       </section>
 
-      <section class="performance-panel">
+      <section class="performance-panel tab-section" data-tab="overview">
         <div class="panel-header">
           <h2>Performance de Trades</h2>
           <span id="performance-status" class="snapshot-status">—</span>
@@ -183,7 +192,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel tab-section" data-tab="positions">
         <div class="panel-header">
           <h2>Posições abertas</h2>
           <span id="snapshot-status" class="snapshot-status">online</span>
@@ -238,7 +247,7 @@
         </div>
       </section>
 
-      <section class="trade-history-panel">
+      <section class="trade-history-panel tab-section" data-tab="signals">
         <div class="panel-header">
           <h2>Trades em Aberto</h2>
           <span class="snapshot-status">monitoramento</span>
@@ -264,12 +273,12 @@
         </div>
       </section>
 
-      <section class="performance-panel">
+      <section class="performance-panel tab-section" data-tab="overview">
         <div class="panel-header">
           <h2>Assertividade dos Modelos</h2>
           <span class="snapshot-status">símbolo/período</span>
         </div>
-        <section class="positions-filters">
+        <section class="positions-filters assertiveness-filters">
           <select id="assertiveness-symbol">
             <option value="">Todos os símbolos</option>
           </select>
@@ -286,8 +295,8 @@
             <option value="90d">90d</option>
             <option value="custom">custom</option>
           </select>
-          <input id="assertiveness-start" type="datetime-local" />
-          <input id="assertiveness-end" type="datetime-local" />
+          <input id="assertiveness-start" type="datetime-local" aria-label="Início custom" />
+          <input id="assertiveness-end" type="datetime-local" aria-label="Fim custom" />
         </section>
         <div class="summary-grid">
           <article class="summary-card">
@@ -347,7 +356,7 @@
         </div>
       </section>
 
-      <section class="summary-grid">
+      <section class="summary-grid tab-section" data-tab="overview">
         <article class="summary-card">
           <p>Símbolos mais lucrativos</p>
           <strong id="top-symbols-profitable">—</strong>
@@ -366,7 +375,7 @@
         </article>
       </section>
 
-      <section class="trade-history-panel">
+      <section class="trade-history-panel tab-section" data-tab="signals">
         <div class="panel-header">
           <h2>Histórico de Trades</h2>
           <span class="snapshot-status">últimos 50</span>
@@ -397,7 +406,7 @@
         </div>
       </section>
 
-      <section class="trade-history-panel">
+      <section class="trade-history-panel tab-section" data-tab="signals">
         <div class="panel-header">
           <h2>Sinais Gerados</h2>
           <span class="snapshot-status">últimos 50</span>
@@ -426,7 +435,7 @@
         </div>
       </section>
 
-      <section class="onboarding-panel">
+      <section class="onboarding-panel tab-section" data-tab="onboarding">
         <div class="panel-header">
           <h2>Onboarding de Símbolo</h2>
           <span class="snapshot-status">gestão de pares</span>

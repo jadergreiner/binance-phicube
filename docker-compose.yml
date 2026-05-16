@@ -19,7 +19,11 @@ services:
     expose:
       - "8000"  # Prometheus metrics
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8081/health')\" || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health')\" || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -47,7 +51,11 @@ services:
     networks:
       - phicube-net
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')\" || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -121,38 +129,15 @@ services:
       - --web.console.templates=/etc/prometheus/consoles
       - --storage.tsdb.retention.time=15d
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1:9090/-/healthy || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "3"
-
-  # ─── Frontend SPA (Vue.js 3) ─────────────────────────────────────────────
-  phicube-frontend:
-    build:
-      context: ./frontend
-    container_name: phicube-frontend
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:3000:80"
-    depends_on:
-      - dashboard-api
-    environment:
-      VITE_API_BASE_URL: /api/v1
-      VITE_APP_ENV: production
-    networks:
-      - phicube-net
-    healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
     logging:
       driver: json-file
       options:
@@ -179,7 +164,11 @@ services:
     depends_on:
       - prometheus
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

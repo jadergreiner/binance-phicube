@@ -48,6 +48,12 @@ Leia o [MANIFESTO.md](./MANIFESTO.md) para entender o conceito completo do proje
 
 > Em breve: instruções de instalação, configuração de variáveis de ambiente e execução do sistema.
 
+### Frontend Canônico
+
+- URL única do dashboard: `http://127.0.0.1:8080/` (servida por `dashboard-api`).
+- O runtime oficial utiliza apenas este frontend canônico.
+- Smoke automatizado de release: `python tools/smoke_release_frontend_8080.py --canonical-url http://127.0.0.1:8080 --timeframe 15m`.
+
 ---
 
 ## 🧩 OpenSpec (fluxo oficial)

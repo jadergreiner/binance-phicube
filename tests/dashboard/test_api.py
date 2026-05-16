@@ -143,12 +143,14 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
             {
                 "symbol": "BTCUSDT",
                 "side": "LONG",
+                "size": 0.5,
                 "quantity": 0.5,
                 "leverage": 10,
                 "entry_price": 95000.0,
                 "sl_price": None,
                 "tp_price": None,
                 "mark_price": 96000.0,
+                "unrealized_pnl": 250.0,
                 "unrealized_pnl_usdt": 250.0,
                 "margin_used_usdt": 2400.0,
                 "position_size_usdt": 24000.0,
@@ -169,6 +171,13 @@ def test_get_positions_retorna_snapshot_json_valido(monkeypatch) -> None:
             "last_update_at_br": "01/05/2026 09:30:00",
         },
         "status": "online",
+        "deprecated_fields": {
+            "size": {"replacement": "quantity", "removal_target": "v2"},
+            "unrealized_pnl": {
+                "replacement": "unrealized_pnl_usdt",
+                "removal_target": "v2",
+            },
+        },
         "signal_telemetry": [],
         "timezone": "America/Sao_Paulo",
         "analysis": {

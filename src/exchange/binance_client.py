@@ -219,9 +219,11 @@ class BinanceClient(TradingClient):
         markets = await self._exchange.load_markets()
         result: dict[str, int] = {}
         for s in symbols:
-            if s in markets:
-                precision = markets[s].get("precision", {}).get("amount", 0)
-                result[s] = int(precision or 0)
+            market = self._resolve_market_for_symbol(s, markets)
+            if market is None:
+                continue
+            precision = market.get("precision", {}).get("amount", 0)
+            result[s] = int(precision or 0)
         return result
 
     # ─── Order Management ─────────────────────────────────────────────────────
@@ -407,7 +409,7 @@ class BinanceClient(TradingClient):
 
     def get_quantity_precision(self, symbol: str) -> int:
         """Retorna casas decimais para quantidade, compatível com TICK_SIZE e DECIMAL_PLACES."""
-        market = self._exchange.markets.get(symbol, {})
+        market = self._resolve_market_for_symbol(symbol, self._exchange.markets) or {}
         amount = market.get("precision", {}).get("amount", 3)
         if amount is None:
             return 3
@@ -419,6 +421,31 @@ class BinanceClient(TradingClient):
                 return 0
             return max(0, -int(math.floor(math.log10(famt))))
         return int(famt)
+
+    def _resolve_market_for_symbol(
+        self,
+        symbol: str,
+        markets: dict[str, dict[str, Any]] | None,
+    ) -> dict[str, Any] | None:
+        """Resolve market por símbolo interno/externo (ex.: QNTUSDT -> QNT/USDT:USDT)."""
+        if not markets:
+            return None
+        if symbol in markets:
+            return markets[symbol]
+
+        candidates: list[str] = []
+        if symbol.endswith("USDT") and "/" not in symbol and len(symbol) > 4:
+            base = symbol[:-4]
+            candidates.append(f"{base}/USDT:USDT")
+            candidates.append(f"{base}/USDT")
+        for candidate in candidates:
+            if candidate in markets:
+                return markets[candidate]
+
+        for market in markets.values():
+            if str(market.get("id", "")).upper() == symbol.upper():
+                return market
+        return None
 
     def round_quantity(self, symbol: str, qty: float) -> float:
         """Arredonda quantidade ao step size do símbolo via CCXT."""

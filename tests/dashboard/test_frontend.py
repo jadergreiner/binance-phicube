@@ -167,10 +167,38 @@ def test_frontend_expoe_secao_assertividade_modelos() -> None:
     assert 'id="assertiveness-period"' in html
     assert 'id="assertiveness-start"' in html
     assert 'id="assertiveness-end"' in html
+    assert "assertiveness-filters" in html
     assert 'id="assertiveness-ranking-body"' in html
     assert 'id="assertiveness-timeline-body"' in html
     assert "/performance/assertiveness" in javascript
     assert "fetchAssertiveness" in javascript
+    assert "syncAssertivenessCustomControls" in javascript
+
+
+def test_frontend_expoe_navegacao_por_abas() -> None:
+    """Onda A: frontend canônico deve expor navegação por abas."""
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert "tabs-nav" in html
+    assert 'data-tab="overview"' in html
+    assert 'data-tab="positions"' in html
+    assert 'data-tab="signals"' in html
+    assert 'data-tab="onboarding"' in html
+    assert "bindTabEvents" in javascript
+    assert "applyActiveTab" in javascript
+
+
+def test_frontend_onda_b_reorganiza_blocos_operacionais_por_aba() -> None:
+    """Onda B: blocos operacionais devem estar distribuídos por abas sem perder IDs."""
+    html = INDEX_HTML.read_text(encoding="utf-8")
+
+    assert 'data-tab="positions"' in html
+    assert 'data-tab="signals"' in html
+    assert 'id="positions-body"' in html
+    assert 'id="open-trades-body"' in html
+    assert 'id="trade-history-body"' in html
+    assert 'id="signal-history-body"' in html
 
 
 def test_get_root_entrega_o_frontend_estatico(monkeypatch) -> None:

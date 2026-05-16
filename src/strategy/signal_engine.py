@@ -177,13 +177,6 @@ class SignalEngine:
             self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
             return ok(result)
 
-        required_cols = ["jaw", "teeth", "lips", "ao"]
-        if not all(c in df.columns for c in required_cols):
-            logger.debug("indicators_not_enriched", symbol=symbol)
-            result = NullSignalResult(reason="indicators_not_enriched")
-            self._emit(SignalEventData(SignalEvent.REJECTED, symbol, timeframe, result))
-            return ok(result)
-
         # Chain of Responsibility
         chain = self._build_chain(symbol)
         result = NullSignalResult(reason="no_plugin_matched")

@@ -45,12 +45,16 @@ def _serialize_position(
     return {
         "symbol": position.symbol,
         "side": position.side,
+        # Compatibilidade retroativa: alguns consumidores ainda leem `size`.
+        "size": position.quantity,
         "quantity": position.quantity,
         "leverage": position.leverage,
         "entry_price": position.entry_price,
         "sl_price": sl_tp_data.get("sl_price"),
         "tp_price": sl_tp_data.get("tp_price"),
         "mark_price": position.mark_price,
+        # Compatibilidade retroativa: alguns consumidores ainda leem `unrealized_pnl`.
+        "unrealized_pnl": position.unrealized_pnl_usdt,
         "unrealized_pnl_usdt": position.unrealized_pnl_usdt,
         "margin_used_usdt": position.margin_used_usdt,
         "position_size_usdt": position_size_usdt,
@@ -197,6 +201,16 @@ async def _build_snapshot(app: Any, stream: Any) -> dict[str, Any]:
         "positions": [_serialize_position(position, sl_tp_map) for position in positions],
         "summary": _serialize_summary(summary),
         "status": connection_status,
+        "deprecated_fields": {
+            "size": {
+                "replacement": "quantity",
+                "removal_target": "v2",
+            },
+            "unrealized_pnl": {
+                "replacement": "unrealized_pnl_usdt",
+                "removal_target": "v2",
+            },
+        },
         "analysis": _serialize_market_analysis(market_analysis),
         "signal_telemetry": signal_telemetry,
         "timezone": BRAZIL_TIMEZONE,

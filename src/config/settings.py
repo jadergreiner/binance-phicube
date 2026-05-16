@@ -109,6 +109,10 @@ class Settings(BaseSettings):
     atr_multiplier: Annotated[float, Field(ge=0.5, le=10.0)] = 1.5
     min_position_usdt: Annotated[float, Field(ge=1.0)] = 10.0
     max_position_usdt: Annotated[float, Field(ge=1.0)] = 500.0
+    atr_margin_risk_multiplier: Annotated[float, Field(gt=0.1, le=20.0)] = Field(
+        default=10.0,
+        description="Multiplicador do RISK_PER_TRADE_USDT para limitar margem máxima no modo ATR",
+    )
     atr_multiplier_overrides: dict[str, float] = Field(
         default_factory=dict,
         description="Override de atr_multiplier por par. Ex: {'BTCUSDT': 2.0, 'BROCCOLI714': 3.0}",

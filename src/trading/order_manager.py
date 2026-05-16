@@ -227,8 +227,8 @@ class OrderManager:
         await self._client.set_leverage(symbol, self._leverage)
         await self._client.set_margin_mode(symbol, "isolated")
 
-        # ─── Step 2: Build Command Pipeline ───────────────────────────────────
-        pipeline = OrderPipeline()
+        # ─── Step 2: Build entry pipeline ───────────────────────────────────
+        entry_pipeline = OrderPipeline()
 
         # Market entry command
         market_cmd = CreateMarketOrderCommand(
@@ -237,11 +237,11 @@ class OrderManager:
             side=entry_side,
             quantity=total_qty,
         )
-        pipeline.add(market_cmd)
+        entry_pipeline.add(market_cmd)
 
         # ─── Step 3: Execute pipeline ───────────────────────────────────────
         try:
-            await pipeline.execute()
+            await entry_pipeline.execute()
         except Exception as exc:
             logger.error(
                 "entry_order_failed",
@@ -278,7 +278,12 @@ class OrderManager:
             order_id=entry_order_id,
         )
 
-        # ─── Step 4: Add SL and TP commands to pipeline ─────────────────────
+        # ─── Step 4: Build a new pipeline only for SL/TP ────────────────────
+        # Importante: não reutilizar o pipeline de entrada, senão a ordem de
+        # mercado é executada novamente e pode gerar compra/venda duplicada.
+        protection_pipeline = OrderPipeline()
+
+        # ─── Step 5: Add SL and TP commands to protection pipeline ──────────
         # Stop Loss command
         sl_cmd = CreateStopLossCommand(
             client=self._client,
@@ -291,7 +296,7 @@ class OrderManager:
             trailing_callback_rate=self._trailing_callback_rate,
             entry_price=actual_entry,
         )
-        pipeline.add(sl_cmd)
+        protection_pipeline.add(sl_cmd)
 
         # Take Profit commands
         tp_commands: list[CreateTakeProfitCommand] = []
@@ -316,7 +321,7 @@ class OrderManager:
                     take_profit_price=tp_price,
                 )
                 tp_commands.append(tp_cmd)
-                pipeline.add(tp_cmd)
+                protection_pipeline.add(tp_cmd)
         else:
             # Fixed: single TP for full quantity
             tp_cmd = CreateTakeProfitCommand(
@@ -327,11 +332,11 @@ class OrderManager:
                 take_profit_price=position.take_profit,
             )
             tp_commands.append(tp_cmd)
-            pipeline.add(tp_cmd)
+            protection_pipeline.add(tp_cmd)
 
-        # ─── Step 5: Execute SL + TP pipeline ─────────────────────────────────
+        # ─── Step 6: Execute SL + TP pipeline ────────────────────────────────
         try:
-            await pipeline.execute()
+            await protection_pipeline.execute()
         except Exception as exc:
             logger.error(
                 "sl_tp_order_failed",
@@ -339,6 +344,7 @@ class OrderManager:
                 error_type=type(exc).__name__,
                 action="cancelling_all_orders",
             )
+            await self._client.cancel_all_orders(symbol)
 
             if "sl" in str(exc).lower() or "stop" in str(exc).lower():
                 if self._notifier:
@@ -357,11 +363,18 @@ class OrderManager:
                 OrderError(
                     code="SL_TP_ORDER_FAILED",
                     message=f"Failed to create SL/TP orders: {type(exc).__name__}",
-                    details={"symbol": symbol, "entry_order_id": entry_order_id, "error": str(exc)},
+                    details={
+                        "symbol": symbol,
+                        "entry_order_id": entry_order_id,
+                        "entry_executed": True,
+                        "entry_price": actual_entry,
+                        "quantity": total_qty,
+                        "error": str(exc),
+                    },
                 )
             )
 
-        # ─── Step 6: Extract order IDs and build Trade ────────────────────────
+        # ─── Step 7: Extract order IDs and build Trade ───────────────────────
         sl_order_id = None
         if sl_cmd.result:
             sl_order_id = str(sl_cmd.result.get("id", "unknown"))

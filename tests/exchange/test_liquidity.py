@@ -115,3 +115,35 @@ async def test_fetch_quantity_precision_map_simbolo_ausente() -> None:
 
     assert "XPTUSDT" not in result
     assert result["BTCUSDT"] == 3
+
+
+@pytest.mark.asyncio
+async def test_fetch_quantity_precision_map_resolve_symbol_futures_alias() -> None:
+    client = _make_client()
+    client._exchange.load_markets = AsyncMock(
+        return_value={
+            "QNT/USDT:USDT": {
+                "id": "QNTUSDT",
+                "precision": {"amount": 1},
+            }
+        }
+    )
+
+    result = await client.fetch_quantity_precision_map(["QNTUSDT"])
+
+    assert result == {"QNTUSDT": 1}
+
+
+def test_get_quantity_precision_resolve_symbol_futures_alias() -> None:
+    client = _make_client()
+    client._exchange.markets = {
+        "QNT/USDT:USDT": {
+            "id": "QNTUSDT",
+            "precision": {"amount": 0.001},
+        }
+    }
+    client._exchange.precisionMode = 4  # ccxt.TICK_SIZE
+
+    result = client.get_quantity_precision("QNTUSDT")
+
+    assert result == 3

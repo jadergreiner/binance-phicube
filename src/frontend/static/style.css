@@ -39,6 +39,42 @@ body {
   margin-bottom: 20px;
 }
 
+.tabs-nav-panel {
+  margin-bottom: 20px;
+}
+
+.tabs-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.tab-btn {
+  border: 1px solid var(--panel-border);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.tab-section-hidden {
+  display: none;
+}
+
 .hero {
   display: flex;
   align-items: flex-start;
@@ -391,6 +427,20 @@ h1 {
   padding: 8px 10px;
 }
 
+.assertiveness-filters input[type="datetime-local"] {
+  min-width: 220px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.assertiveness-filters input[type="datetime-local"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .direction-toggle {
   display: inline-flex;
   gap: 8px;
@@ -558,6 +608,11 @@ h1 {
   .positions-filters {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .assertiveness-filters input[type="datetime-local"] {
+    width: 100%;
+    min-width: 0;
   }
 
   .direction-toggle {

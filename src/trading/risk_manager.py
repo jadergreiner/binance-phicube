@@ -22,6 +22,7 @@ SPEC_029 — Position Sizing por ATR:
 from __future__ import annotations
 
 import asyncio
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -88,6 +89,7 @@ class RiskManager:
         atr_multiplier: float = 1.5,
         min_position_usdt: float = 10.0,
         max_position_usdt: float = 500.0,
+        atr_margin_risk_multiplier: float = 10.0,
         get_atr_multiplier_override: Callable[[str], float | None] | None = None,
         # SPEC_043 — Slippage Protection e Circuit Breaker
         get_portfolio_reduction: Callable[[], float] | None = None,
@@ -122,6 +124,7 @@ class RiskManager:
         self._atr_multiplier = atr_multiplier
         self._min_position_usdt = min_position_usdt
         self._max_position_usdt = max_position_usdt
+        self._atr_margin_risk_multiplier = atr_margin_risk_multiplier
         self._get_atr_multiplier_override = get_atr_multiplier_override
         # SPEC_043 — Slippage
         self._max_position_pct = max_position_pct
@@ -163,6 +166,11 @@ class RiskManager:
 
     def _set_rejection(self, *, code: str, reason: str, details: dict[str, Any]) -> None:
         self._last_rejection = RiskRejection(code, reason, details)
+
+    @staticmethod
+    def _floor_to_precision(value: float, precision: int) -> float:
+        factor = 10**precision
+        return math.floor(value * factor) / factor
 
     def calculate(
         self,
@@ -349,6 +357,21 @@ class RiskManager:
         if self._max_position_pct > 0 and available_balance > 0:
             max_by_pct = available_balance * self._max_position_pct / 100.0
             effective_max_position = min(self._max_position_usdt, max_by_pct)
+        if available_balance > 0:
+            # Hard cap por margem máxima permitida (max_alloc_pct):
+            # notional <= available_balance * (max_alloc_pct/100) * leverage
+            max_notional_by_margin = (
+                available_balance * (self._max_alloc_pct / 100.0) * self._leverage
+            )
+            effective_max_position = min(effective_max_position, max_notional_by_margin)
+            # Cap adicional por risco em USDT (modo ATR):
+            # margem máxima por trade = risk_usdt * multiplicador configurável.
+            max_notional_by_risk_margin = (
+                self.effective_risk_per_trade_usdt
+                * self._atr_margin_risk_multiplier
+                * self._leverage
+            )
+            effective_max_position = min(effective_max_position, max_notional_by_risk_margin)
         position_usdt = max(
             self._min_position_usdt,
             min(position_usdt, effective_max_position),
@@ -356,7 +379,58 @@ class RiskManager:
 
         # Quantidade do ativo
         raw_qty = position_usdt / signal.entry_price
+        min_qty = 1.0 if quantity_precision == 0 else 10 ** (-quantity_precision)
+        if raw_qty < min_qty:
+            rejection = RiskRejection(
+                code="SYMBOL_NOT_TRADEABLE_BY_SIZE",
+                reason="symbol_not_tradeable_by_size",
+                details={
+                    "quantity_precision": quantity_precision,
+                    "qty_raw": raw_qty,
+                    "min_qty": min_qty,
+                },
+            )
+            self._last_rejection = rejection
+            logger.warning(
+                "position_size_below_min_qty_atr",
+                symbol=signal.symbol,
+                qty_raw=raw_qty,
+                min_qty=min_qty,
+                quantity_precision=quantity_precision,
+            )
+            return err(rejection)
         qty = round(raw_qty, quantity_precision)
+        # Garante que o arredondamento nunca ultrapasse o cap de notional.
+        max_qty_by_notional = self._floor_to_precision(
+            effective_max_position / signal.entry_price,
+            quantity_precision,
+        )
+        qty = min(qty, max_qty_by_notional)
+
+        # Gate de margem (paridade com modo FIXED):
+        # evita enviar para execução posições que excedem alocação máxima.
+        notional = qty * signal.entry_price
+        margin_required = notional / self._leverage
+        max_allowed_margin = available_balance * (self._max_alloc_pct / 100.0)
+        if margin_required > max_allowed_margin:
+            rejection = RiskRejection(
+                code="MAX_CAPITAL_ALLOCATION_EXCEEDED",
+                reason="max_capital_allocation_exceeded",
+                details={
+                    "margin_required": round(margin_required, 4),
+                    "max_allowed_margin": round(max_allowed_margin, 4),
+                },
+            )
+            self._last_rejection = rejection
+            logger.warning(
+                "position_rejected",
+                symbol=signal.symbol,
+                reason="max_capital_allocation_exceeded",
+                margin_required=round(margin_required, 4),
+                max_allowed_margin=round(max_allowed_margin, 4),
+                sizing_mode="atr",
+            )
+            return err(rejection)
 
         if qty <= 0:
             rejection = RiskRejection(
@@ -441,8 +515,8 @@ class RiskManager:
             symbol=signal.symbol,
             direction=signal.direction,
             quantity=qty,
-            notional=round(qty * signal.entry_price, 4),
-            margin_required=round(qty * signal.entry_price / self._leverage, 4),
+            notional=round(notional, 4),
+            margin_required=round(margin_required, 4),
             entry_price=signal.entry_price,
             stop_loss=signal.stop_loss,
             take_profit=signal.take_profit,

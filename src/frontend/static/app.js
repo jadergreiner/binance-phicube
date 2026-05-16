@@ -32,6 +32,7 @@
       start: "",
       end: "",
     },
+    activeTab: "overview",
   };
 
   const elements = {
@@ -91,9 +92,12 @@
     assertivenessSummaryConversion: document.getElementById("assertiveness-summary-conversion"),
     assertivenessRankingBody: document.getElementById("assertiveness-ranking-body"),
     assertivenessTimelineBody: document.getElementById("assertiveness-timeline-body"),
+    tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
+    tabSections: Array.from(document.querySelectorAll(".tab-section")),
   };
   const POSITION_VIEW_STORAGE_KEY = "phicube_positions_view_v2";
   const ASSERTIVENESS_VIEW_STORAGE_KEY = "phicube_assertiveness_view_v1";
+  const ACTIVE_TAB_STORAGE_KEY = "phicube_active_tab_v1";
 
   const moneyFormatter = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -744,6 +748,7 @@
     if (elements.assertivenessPeriod) elements.assertivenessPeriod.value = state.assertiveness.period;
     if (elements.assertivenessStart) elements.assertivenessStart.value = state.assertiveness.start;
     if (elements.assertivenessEnd) elements.assertivenessEnd.value = state.assertiveness.end;
+    syncAssertivenessCustomControls();
   }
 
   function persistAssertivenessViewPreference() {
@@ -812,6 +817,9 @@
       if (state.assertiveness.symbol) params.set("symbol", state.assertiveness.symbol);
       if (state.assertiveness.timeframe) params.set("timeframe", state.assertiveness.timeframe);
       if (state.assertiveness.period === "custom") {
+        if (!state.assertiveness.start || !state.assertiveness.end) {
+          return;
+        }
         if (state.assertiveness.start) {
           params.set("start", new Date(state.assertiveness.start).toISOString());
         }
@@ -827,6 +835,16 @@
       renderAssertiveness(payload);
     } catch (_) {
       // silencioso
+    }
+  }
+
+  function syncAssertivenessCustomControls() {
+    const customEnabled = state.assertiveness.period === "custom";
+    if (elements.assertivenessStart) {
+      elements.assertivenessStart.disabled = !customEnabled;
+    }
+    if (elements.assertivenessEnd) {
+      elements.assertivenessEnd.disabled = !customEnabled;
     }
   }
 
@@ -848,6 +866,7 @@
     if (elements.assertivenessPeriod) {
       elements.assertivenessPeriod.addEventListener("change", (event) => {
         state.assertiveness.period = event.target.value || "30d";
+        syncAssertivenessCustomControls();
         persistAssertivenessViewPreference();
         fetchAssertiveness();
       });
@@ -870,6 +889,39 @@
         }
       });
     }
+  }
+
+  function applyActiveTab() {
+    elements.tabButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.tab === state.activeTab);
+    });
+    elements.tabSections.forEach((section) => {
+      const targetTab = section.dataset.tab || "overview";
+      section.classList.toggle("tab-section-hidden", targetTab !== state.activeTab);
+    });
+  }
+
+  function bindTabEvents() {
+    try {
+      const storedTab = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+      if (storedTab) {
+        state.activeTab = storedTab;
+      }
+    } catch (_) {
+      // ignora storage indisponível
+    }
+    applyActiveTab();
+    elements.tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        state.activeTab = button.dataset.tab || "overview";
+        applyActiveTab();
+        try {
+          window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, state.activeTab);
+        } catch (_) {
+          // ignora storage indisponível
+        }
+      });
+    });
   }
 
   function renderTradeHighlights(trades) {
@@ -1641,6 +1693,7 @@
     renderAssertiveness({});
     restorePositionViewPreference();
     restoreAssertivenessViewPreference();
+    bindTabEvents();
   bindPositionFilterEvents();
   bindAnalysisViewEvents();
     bindAssertivenessEvents();

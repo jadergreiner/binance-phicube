@@ -308,6 +308,76 @@ class TestRiskManagerATR:
         # position_usdt = 10 * 100 / 6 = 166.67 → qty = 1.667
         assert result.unwrap().quantity == 1.667
 
+    def test_atr_clampa_quando_excede_max_capital_allocation(self) -> None:
+        """ATR deve clamar notional no limite de margem máxima permitida."""
+        df = _atr_df(n=20, close=100.0, high_low_range=2.0)
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=10.0,
+            sizing_mode=SizingMode.ATR,
+            risk_per_trade_usdt=10.0,
+            atr_period=14,
+            atr_multiplier=1.5,
+            min_position_usdt=10.0,
+            max_position_usdt=500.0,
+        )
+        signal = _signal(entry=100.0, stop=99.0)
+
+        result = rm.calculate(signal, available_balance=100.0, quantity_precision=3, df=df)
+
+        assert result.is_ok()
+        position = result.unwrap()
+        assert position.notional == 100.0
+        assert position.margin_required == 10.0
+
+    def test_atr_limita_margem_por_risco_usdt(self) -> None:
+        """ATR deve limitar margem por risk_per_trade_usdt no modo padrão."""
+        df = _atr_df(n=20, close=0.1442, high_low_range=0.0006)
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=30.0,
+            sizing_mode=SizingMode.ATR,
+            risk_per_trade_usdt=5.0,
+            atr_period=14,
+            atr_multiplier=2.0,
+            min_position_usdt=10.0,
+            max_position_usdt=500.0,
+            atr_margin_risk_multiplier=1.0,
+        )
+        signal = _signal(entry=0.1442, stop=0.1430)
+
+        result = rm.calculate(signal, available_balance=50.0, quantity_precision=0, df=df)
+
+        assert result.is_ok()
+        position = result.unwrap()
+        assert position.margin_required <= 5.0
+
+    def test_atr_rejeita_quando_qty_raw_abaixo_min_qty(self) -> None:
+        """Quando qty_raw < min_qty do símbolo, deve rejeitar por elegibilidade."""
+        df = _atr_df(n=20, close=1433.2, high_low_range=7.93)
+        rm = RiskManager(
+            risk_per_trade_pct=1.0,
+            leverage=10,
+            max_capital_allocation_pct=30.0,
+            sizing_mode=SizingMode.ATR,
+            risk_per_trade_usdt=5.0,
+            atr_period=14,
+            atr_multiplier=2.0,
+            min_position_usdt=10.0,
+            max_position_usdt=500.0,
+            atr_margin_risk_multiplier=1.0,
+        )
+        signal = _signal(entry=1433.2, stop=1425.27)
+
+        result = rm.calculate(signal, available_balance=50.0, quantity_precision=0, df=df)
+
+        assert result.is_err()
+        rejection = result.unwrap_err()
+        assert rejection.code == "SYMBOL_NOT_TRADEABLE_BY_SIZE"
+        assert rejection.reason == "symbol_not_tradeable_by_size"
+
     # ── Clamp parametrizado ────────────────────────────────────────
 
     @pytest.mark.parametrize(

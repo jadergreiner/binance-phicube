@@ -267,6 +267,7 @@ class RuntimeMonitorRegistry:
             atr_multiplier=self._settings.atr_multiplier,
             min_position_usdt=self._settings.min_position_usdt,
             max_position_usdt=self._settings.max_position_usdt,
+            atr_margin_risk_multiplier=self._settings.atr_margin_risk_multiplier,
             get_atr_multiplier_override=self._settings.atr_multiplier_overrides.get,
             max_position_pct=self._settings.max_position_pct,
             slippage_validation_enabled=self._settings.slippage_validation_enabled,
@@ -835,6 +836,37 @@ class TradingMonitor:
             raise  # Parar o loop
 
         if trade_result.is_err():
+            trade_error = trade_result.unwrap_err()
+            error_details = trade_error.details or {}
+            entry_opened_without_protection = bool(
+                trade_error.code == "SL_TP_ORDER_FAILED"
+                and error_details.get("entry_executed")
+                and error_details.get("entry_order_id")
+            )
+            if entry_opened_without_protection:
+                await self._set_signal_outcome(
+                    signal_id,
+                    execution_status="TRADE_OPENED_UNPROTECTED",
+                    execution_reason="entry_opened_but_sl_tp_failed",
+                    execution_details={
+                        "entry_order_id": error_details.get("entry_order_id"),
+                        "entry_price": error_details.get("entry_price"),
+                        "quantity": error_details.get("quantity"),
+                    },
+                )
+                cycle_diag["final_status"] = "TRADE_OPENED_UNPROTECTED"
+                await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+                logger.error(
+                    "trade_opened_without_protection",
+                    symbol=self._symbol,
+                    entry_order_id=error_details.get("entry_order_id"),
+                )
+                observe_tick_duration(
+                    self._symbol,
+                    self._timeframe,
+                    time.time() - tick_start,
+                )
+                return
             await self._set_signal_outcome(
                 signal_id,
                 execution_status="REJECTED_ORDER_EXECUTION",
@@ -997,6 +1029,7 @@ class TradingMonitor:
             "MAX_CAPITAL_ALLOCATION_EXCEEDED": "REJECTED_RISK_MAX_CAPITAL",
             "ZERO_STOP_DISTANCE": "REJECTED_RISK_ZERO_STOP",
             "QTY_ZERO_AFTER_ROUNDING": "REJECTED_RISK_QTY_ZERO",
+            "SYMBOL_NOT_TRADEABLE_BY_SIZE": "REJECTED_RISK_SYMBOL_NOT_TRADEABLE_BY_SIZE",
             "MIN_NOTIONAL_NOT_MET": "REJECTED_RISK_MIN_NOTIONAL",
             "INTRADAY_LOSS_LIMIT_REACHED": "REJECTED_RISK_INTRADAY_LOSS_LIMIT",
             "SLIPPAGE_EXCEEDS_TOLERANCE": "REJECTED_RISK_SLIPPAGE",
