@@ -44,6 +44,7 @@ from src.storage.repository import MongoRepository
 from src.storage.resilient_repository import ResilientMongoRepository
 from src.strategy.plugin_base import SignalResult
 from src.strategy.plugin_registry import PluginRegistry
+from src.strategy.signal_boundary import SignalEngineBoundaryAdapter, SignalEvaluationInput
 from src.strategy.signal_engine import Direction, Signal, SignalEngine
 from src.trading.order_manager import OrderManager, TradeStatus
 from src.trading.risk_manager import RiskManager, RiskRejection
@@ -546,6 +547,7 @@ class TradingMonitor:
         self._resilient_client = resilient_client or client
         self._resilient_repo = resilient_repo or repo
         self._signal_engine = signal_engine
+        self._signal_boundary = SignalEngineBoundaryAdapter(signal_engine)
         self._risk_manager = risk_manager
         self._order_manager = order_manager
         self._notifier = notifier
@@ -676,7 +678,14 @@ class TradingMonitor:
             return
 
         # Evaluate signal
-        signal_result = await self._signal_engine.evaluate(self._symbol, self._timeframe, df)
+        boundary_result = await self._signal_boundary.evaluate(
+            SignalEvaluationInput(
+                symbol=self._symbol,
+                timeframe=self._timeframe,
+                df=df,
+            )
+        )
+        signal_result = boundary_result.signal_result
         await self._persist_signal_evaluation()
         if not signal_result:
             observe_tick_duration(
@@ -901,11 +910,7 @@ class TradingMonitor:
         )
 
     async def _persist_signal_evaluation(self) -> None:
-        consume = getattr(self._signal_engine, "consume_last_evaluation", None)
-        if not callable(consume):
-            return
-
-        evaluation = consume()
+        evaluation = self._signal_boundary.consume_last_evaluation()
         if evaluation is None:
             return
 
