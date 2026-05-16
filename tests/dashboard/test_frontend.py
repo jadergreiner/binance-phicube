@@ -137,6 +137,42 @@ def test_frontend_prioriza_campos_br_com_fallback_legado() -> None:
     assert "_br" in javascript
 
 
+def test_frontend_expoe_controles_v2_de_ordenacao_e_highlights() -> None:
+    """Dashboard V2 deve permitir reordenação e exibir highlights de símbolos/trades."""
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert 'id="sort-key"' in html
+    assert 'id="sort-dir"' in html
+    assert 'id="save-view-btn"' in html
+    assert 'id="top-symbols-profitable"' in html
+    assert 'id="top-symbols-losing"' in html
+    assert 'id="best-trade"' in html
+    assert 'id="worst-trade"' in html
+    assert "POSITION_VIEW_STORAGE_KEY" in javascript
+    assert "persistPositionViewPreference" in javascript
+    assert "restorePositionViewPreference" in javascript
+    assert "unrealized_pnl_usdt" in javascript
+    assert "quantity" in javascript
+
+
+def test_frontend_expoe_secao_assertividade_modelos() -> None:
+    """Dashboard deve expor seção de assertividade por símbolo/período."""
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert "Assertividade dos Modelos" in html
+    assert 'id="assertiveness-symbol"' in html
+    assert 'id="assertiveness-timeframe"' in html
+    assert 'id="assertiveness-period"' in html
+    assert 'id="assertiveness-start"' in html
+    assert 'id="assertiveness-end"' in html
+    assert 'id="assertiveness-ranking-body"' in html
+    assert 'id="assertiveness-timeline-body"' in html
+    assert "/performance/assertiveness" in javascript
+    assert "fetchAssertiveness" in javascript
+
+
 def test_get_root_entrega_o_frontend_estatico(monkeypatch) -> None:
     """GET / deve servir a página principal do frontend estático."""
     monkeypatch.setattr(

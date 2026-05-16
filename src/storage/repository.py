@@ -40,6 +40,11 @@ _AUDIT_RETENTION_EVENTS = [
     "sl_missing_renotified",
     "sl_missing_cleared",
 ]
+_CLOSED_TRADE_STATUSES = [
+    TradeStatus.CLOSED_TP.value,
+    TradeStatus.CLOSED_SL.value,
+    TradeStatus.CLOSED_MANUAL.value,
+]
 
 
 def _calc_metrics(trades: list[dict]) -> dict[str, float | int]:
@@ -434,19 +439,69 @@ class MongoRepository:
         return max(candidates)
 
     async def _fetch_closed_trades(self, *, include_group_fields: bool = False) -> list[dict]:
-        closed_statuses = [
-            TradeStatus.CLOSED_TP.value,
-            TradeStatus.CLOSED_SL.value,
-            TradeStatus.CLOSED_MANUAL.value,
-        ]
         projection: dict[str, int] = {"pnl_usdt": 1, "risk_amount": 1, "closed_at": 1, "_id": 0}
         if include_group_fields:
             projection["symbol"] = 1
             projection["timeframe"] = 1
         cursor = self._db[_TRADES_COLLECTION].find(
-            {"status": {"$in": closed_statuses}, "pnl_usdt": {"$ne": None}},
+            {"status": {"$in": _CLOSED_TRADE_STATUSES}, "pnl_usdt": {"$ne": None}},
             projection,
         )
+        return await cursor.to_list(length=None)
+
+    async def get_closed_trades_in_period(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        symbol: str | None = None,
+        timeframe: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retorna trades fechados no período para análises de assertividade."""
+        query: dict[str, Any] = {
+            "status": {"$in": _CLOSED_TRADE_STATUSES},
+            "pnl_usdt": {"$ne": None},
+            "closed_at": {"$gte": start, "$lte": end},
+        }
+        if symbol:
+            query["symbol"] = symbol
+        if timeframe:
+            query["timeframe"] = timeframe
+        projection = {
+            "_id": 0,
+            "symbol": 1,
+            "timeframe": 1,
+            "closed_at": 1,
+            "pnl_usdt": 1,
+            "risk_amount": 1,
+        }
+        cursor = self._db[_TRADES_COLLECTION].find(query, projection)
+        return await cursor.to_list(length=None)
+
+    async def get_signals_in_period(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        symbol: str | None = None,
+        timeframe: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retorna sinais detectados no período para análise de conversão."""
+        query: dict[str, Any] = {
+            "detected_at": {"$gte": start, "$lte": end},
+        }
+        if symbol:
+            query["symbol"] = symbol
+        if timeframe:
+            query["timeframe"] = timeframe
+        projection = {
+            "_id": 0,
+            "symbol": 1,
+            "timeframe": 1,
+            "detected_at": 1,
+            "execution_status": 1,
+        }
+        cursor = self._db[_SIGNALS_COLLECTION].find(query, projection)
         return await cursor.to_list(length=None)
 
     # ─── MCP-PoS Customers ──────────────────────────────────────────────────

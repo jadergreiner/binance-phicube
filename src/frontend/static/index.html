@@ -197,6 +197,16 @@
             <button class="dir-btn" data-dir="long">LONG</button>
             <button class="dir-btn" data-dir="short">SHORT</button>
           </div>
+          <select id="sort-key">
+            <option value="symbol">Ordenar: símbolo</option>
+            <option value="unrealized_pnl_usdt">Ordenar: PnL</option>
+            <option value="quantity">Ordenar: tamanho</option>
+          </select>
+          <select id="sort-dir">
+            <option value="asc">Crescente</option>
+            <option value="desc">Decrescente</option>
+          </select>
+          <button id="save-view-btn" class="btn btn-sm" type="button">Salvar visão</button>
         </section>
 
         <div class="table-wrap">
@@ -252,6 +262,108 @@
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section class="performance-panel">
+        <div class="panel-header">
+          <h2>Assertividade dos Modelos</h2>
+          <span class="snapshot-status">símbolo/período</span>
+        </div>
+        <section class="positions-filters">
+          <select id="assertiveness-symbol">
+            <option value="">Todos os símbolos</option>
+          </select>
+          <select id="assertiveness-timeframe">
+            <option value="">Todos os timeframes</option>
+            <option value="15m">15m</option>
+            <option value="1h">1h</option>
+            <option value="4h">4h</option>
+            <option value="1d">1d</option>
+          </select>
+          <select id="assertiveness-period">
+            <option value="7d">7d</option>
+            <option value="30d" selected>30d</option>
+            <option value="90d">90d</option>
+            <option value="custom">custom</option>
+          </select>
+          <input id="assertiveness-start" type="datetime-local" />
+          <input id="assertiveness-end" type="datetime-local" />
+        </section>
+        <div class="summary-grid">
+          <article class="summary-card">
+            <p>Assertividade</p>
+            <strong id="assertiveness-summary-assertiveness">—</strong>
+          </article>
+          <article class="summary-card">
+            <p>Sinais</p>
+            <strong id="assertiveness-summary-signals">—</strong>
+          </article>
+          <article class="summary-card">
+            <p>Trades</p>
+            <strong id="assertiveness-summary-trades">—</strong>
+          </article>
+          <article class="summary-card">
+            <p>Conversão</p>
+            <strong id="assertiveness-summary-conversion">—</strong>
+          </article>
+        </div>
+        <div class="table-wrap">
+          <table class="performance-table">
+            <thead>
+              <tr>
+                <th>Símbolo</th>
+                <th>Assertividade</th>
+                <th>Sinais</th>
+                <th>Trades</th>
+                <th>Conversão</th>
+                <th>PnL</th>
+                <th>PF</th>
+                <th>Drawdown</th>
+              </tr>
+            </thead>
+            <tbody id="assertiveness-ranking-body">
+              <tr class="empty-row">
+                <td colspan="8">Sem dados.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table class="performance-table">
+            <thead>
+              <tr>
+                <th>Bucket</th>
+                <th>Assertividade</th>
+                <th>Trades</th>
+                <th>PnL</th>
+              </tr>
+            </thead>
+            <tbody id="assertiveness-timeline-body">
+              <tr class="empty-row">
+                <td colspan="4">Sem dados.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-card">
+          <p>Símbolos mais lucrativos</p>
+          <strong id="top-symbols-profitable">—</strong>
+        </article>
+        <article class="summary-card">
+          <p>Símbolos com maior perda</p>
+          <strong id="top-symbols-losing">—</strong>
+        </article>
+        <article class="summary-card">
+          <p>Melhor trade</p>
+          <strong id="best-trade">—</strong>
+        </article>
+        <article class="summary-card">
+          <p>Pior trade</p>
+          <strong id="worst-trade">—</strong>
+        </article>
       </section>
 
       <section class="trade-history-panel">

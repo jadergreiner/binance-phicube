@@ -6,6 +6,7 @@
   const TRADE_HISTORY_POLL_INTERVAL_MS = 60_000;
   const OPEN_TRADES_POLL_INTERVAL_MS = 60_000;
   const SIGNAL_HISTORY_POLL_INTERVAL_MS = 60_000;
+  const ASSERTIVENESS_POLL_INTERVAL_MS = 60_000;
 
   const state = {
     socket: null,
@@ -21,6 +22,16 @@
     managedSymbol: null,
     biasViews: [],
     activeBiasView: "allocation",
+    sortKey: "symbol",
+    sortDir: "asc",
+    tradeHistory: [],
+    assertiveness: {
+      symbol: "",
+      timeframe: "",
+      period: "30d",
+      start: "",
+      end: "",
+    },
   };
 
   const elements = {
@@ -58,11 +69,31 @@
     botStatusText: document.getElementById("bot-status-text"),
     botStatusTime: document.getElementById("bot-status-time"),
     filterSymbol: document.getElementById("filter-symbol"),
+    sortKey: document.getElementById("sort-key"),
+    sortDir: document.getElementById("sort-dir"),
+    saveViewBtn: document.getElementById("save-view-btn"),
     directionButtons: Array.from(document.querySelectorAll(".dir-btn")),
     openTradesBody: document.getElementById("open-trades-body"),
     tradeHistoryBody: document.getElementById("trade-history-body"),
     signalHistoryBody: document.getElementById("signal-history-body"),
+    topSymbolsProfitable: document.getElementById("top-symbols-profitable"),
+    topSymbolsLosing: document.getElementById("top-symbols-losing"),
+    bestTrade: document.getElementById("best-trade"),
+    worstTrade: document.getElementById("worst-trade"),
+    assertivenessSymbol: document.getElementById("assertiveness-symbol"),
+    assertivenessTimeframe: document.getElementById("assertiveness-timeframe"),
+    assertivenessPeriod: document.getElementById("assertiveness-period"),
+    assertivenessStart: document.getElementById("assertiveness-start"),
+    assertivenessEnd: document.getElementById("assertiveness-end"),
+    assertivenessSummaryAssertiveness: document.getElementById("assertiveness-summary-assertiveness"),
+    assertivenessSummarySignals: document.getElementById("assertiveness-summary-signals"),
+    assertivenessSummaryTrades: document.getElementById("assertiveness-summary-trades"),
+    assertivenessSummaryConversion: document.getElementById("assertiveness-summary-conversion"),
+    assertivenessRankingBody: document.getElementById("assertiveness-ranking-body"),
+    assertivenessTimelineBody: document.getElementById("assertiveness-timeline-body"),
   };
+  const POSITION_VIEW_STORAGE_KEY = "phicube_positions_view_v2";
+  const ASSERTIVENESS_VIEW_STORAGE_KEY = "phicube_assertiveness_view_v1";
 
   const moneyFormatter = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -77,8 +108,8 @@
   });
 
   const priceFormatter = new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
   });
 
   const percentFormatter = new Intl.NumberFormat("pt-BR", {
@@ -489,12 +520,41 @@
     elements.filterSymbol.value = state.filterSymbol;
   }
 
+  function populateAssertivenessSymbolFilter(positions) {
+    if (!elements.assertivenessSymbol) {
+      return;
+    }
+    const symbols = [...new Set((positions || []).map((position) => position.symbol).filter(Boolean))].sort();
+    const options = [
+      '<option value="">Todos os símbolos</option>',
+      ...symbols.map((symbol) => `<option value="${symbol}">${symbol}</option>`),
+    ];
+    elements.assertivenessSymbol.innerHTML = options.join("");
+    elements.assertivenessSymbol.value = state.assertiveness.symbol;
+  }
+
   function renderPositionsEmptyRow(message) {
     elements.positionsBody.innerHTML = `
       <tr class="empty-row">
         <td colspan="14">${message}</td>
       </tr>
     `;
+  }
+
+  function applyPositionSorting(positions) {
+    const rows = [...positions];
+    rows.sort((left, right) => {
+      if (state.sortKey === "symbol") {
+        return String(left.symbol || "").localeCompare(String(right.symbol || ""), "pt-BR");
+      }
+      const leftValue = Number(left[state.sortKey] ?? 0);
+      const rightValue = Number(right[state.sortKey] ?? 0);
+      return leftValue - rightValue;
+    });
+    if (state.sortDir === "desc") {
+      rows.reverse();
+    }
+    return rows;
   }
 
   function renderPositionRows(positions) {
@@ -540,7 +600,7 @@
       return;
     }
 
-    renderPositionRows(filteredPositions);
+    renderPositionRows(applyPositionSorting(filteredPositions));
   }
 
   function bindPositionFilterEvents() {
@@ -560,6 +620,24 @@
         applyPositionFilters();
       });
     });
+
+    if (elements.sortKey) {
+      elements.sortKey.addEventListener("change", (event) => {
+        state.sortKey = event.target.value || "symbol";
+        applyPositionFilters();
+      });
+    }
+
+    if (elements.sortDir) {
+      elements.sortDir.addEventListener("change", (event) => {
+        state.sortDir = event.target.value === "desc" ? "desc" : "asc";
+        applyPositionFilters();
+      });
+    }
+
+    if (elements.saveViewBtn) {
+      elements.saveViewBtn.addEventListener("click", persistPositionViewPreference);
+    }
   }
 
   function bindAnalysisViewEvents() {
@@ -580,9 +658,237 @@
 
   function renderPositions(positions) {
     state.positions = Array.isArray(positions) ? positions : [];
-    resetPositionFilters();
     populateSymbolFilter(state.positions);
+    populateAssertivenessSymbolFilter(state.positions);
     applyPositionFilters();
+    renderPositionHighlights(state.positions);
+  }
+
+  function persistPositionViewPreference() {
+    const payload = {
+      filterSymbol: state.filterSymbol,
+      filterDirection: state.filterDirection,
+      sortKey: state.sortKey,
+      sortDir: state.sortDir,
+    };
+    window.localStorage.setItem(POSITION_VIEW_STORAGE_KEY, JSON.stringify(payload));
+  }
+
+  function restorePositionViewPreference() {
+    try {
+      const raw = window.localStorage.getItem(POSITION_VIEW_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      state.filterSymbol = String(parsed.filterSymbol || "");
+      state.filterDirection = String(parsed.filterDirection || "");
+      state.sortKey = String(parsed.sortKey || "symbol");
+      state.sortDir = parsed.sortDir === "desc" ? "desc" : "asc";
+      if (elements.sortKey) {
+        elements.sortKey.value = state.sortKey;
+      }
+      if (elements.sortDir) {
+        elements.sortDir.value = state.sortDir;
+      }
+      elements.directionButtons.forEach((button) => {
+        button.classList.toggle("active", (button.dataset.dir || "") === state.filterDirection);
+      });
+    } catch (_) {
+      // preferência inválida ignorada
+    }
+  }
+
+  function renderPositionHighlights(positions) {
+    if (!Array.isArray(positions) || positions.length === 0) {
+      elements.topSymbolsProfitable.textContent = "—";
+      elements.topSymbolsLosing.textContent = "—";
+      return;
+    }
+
+    const sortedByPnl = [...positions].sort(
+      (left, right) => Number(right.unrealized_pnl_usdt ?? 0) - Number(left.unrealized_pnl_usdt ?? 0),
+    );
+    const profitable = sortedByPnl
+      .filter((row) => Number(row.unrealized_pnl_usdt ?? 0) > 0)
+      .slice(0, 3)
+      .map((row) => `${row.symbol} (${formatMoney(row.unrealized_pnl_usdt)})`)
+      .join(" | ");
+    const losing = [...sortedByPnl]
+      .reverse()
+      .filter((row) => Number(row.unrealized_pnl_usdt ?? 0) < 0)
+      .slice(0, 3)
+      .map((row) => `${row.symbol} (${formatMoney(row.unrealized_pnl_usdt)})`)
+      .join(" | ");
+    elements.topSymbolsProfitable.textContent = profitable || "Sem lucro aberto";
+    elements.topSymbolsLosing.textContent = losing || "Sem perdas abertas";
+  }
+
+  function restoreAssertivenessViewPreference() {
+    try {
+      const raw = window.localStorage.getItem(ASSERTIVENESS_VIEW_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      state.assertiveness.symbol = String(parsed.symbol || "");
+      state.assertiveness.timeframe = String(parsed.timeframe || "");
+      state.assertiveness.period = String(parsed.period || "30d");
+      state.assertiveness.start = String(parsed.start || "");
+      state.assertiveness.end = String(parsed.end || "");
+    } catch (_) {
+      // ignora storage inválido
+    }
+    if (elements.assertivenessSymbol) elements.assertivenessSymbol.value = state.assertiveness.symbol;
+    if (elements.assertivenessTimeframe) {
+      elements.assertivenessTimeframe.value = state.assertiveness.timeframe;
+    }
+    if (elements.assertivenessPeriod) elements.assertivenessPeriod.value = state.assertiveness.period;
+    if (elements.assertivenessStart) elements.assertivenessStart.value = state.assertiveness.start;
+    if (elements.assertivenessEnd) elements.assertivenessEnd.value = state.assertiveness.end;
+  }
+
+  function persistAssertivenessViewPreference() {
+    window.localStorage.setItem(ASSERTIVENESS_VIEW_STORAGE_KEY, JSON.stringify(state.assertiveness));
+  }
+
+  function renderAssertiveness(payload) {
+    const summary = payload?.summary || {};
+    elements.assertivenessSummaryAssertiveness.textContent = formatPercent(summary.assertiveness_pct || 0);
+    elements.assertivenessSummarySignals.textContent = formatNumber(summary.total_signals || 0);
+    elements.assertivenessSummaryTrades.textContent = formatNumber(summary.total_trades || 0);
+    elements.assertivenessSummaryConversion.textContent = formatPercent(
+      summary.signal_to_trade_conversion_pct || 0,
+    );
+
+    const ranking = Array.isArray(payload?.ranking) ? payload.ranking : [];
+    if (ranking.length === 0) {
+      elements.assertivenessRankingBody.innerHTML =
+        '<tr class="empty-row"><td colspan="8">Sem dados.</td></tr>';
+    } else {
+      elements.assertivenessRankingBody.innerHTML = ranking
+        .map(
+          (row) => `
+            <tr>
+              <td>${row.symbol ?? "—"}</td>
+              <td>${formatPercent(row.assertiveness_pct)}</td>
+              <td>${formatNumber(row.total_signals)}</td>
+              <td>${formatNumber(row.total_trades)}</td>
+              <td>${formatPercent(row.signal_to_trade_conversion_pct)}</td>
+              <td>${formatMoney(row.pnl_usdt)}</td>
+              <td>${formatNumber(row.profit_factor)}</td>
+              <td>${formatMoney(row.max_drawdown_usdt)}</td>
+            </tr>
+          `,
+        )
+        .join("");
+    }
+
+    const timeline = Array.isArray(payload?.timeline) ? payload.timeline : [];
+    if (timeline.length === 0) {
+      elements.assertivenessTimelineBody.innerHTML =
+        '<tr class="empty-row"><td colspan="4">Sem dados.</td></tr>';
+      return;
+    }
+    elements.assertivenessTimelineBody.innerHTML = timeline
+      .map(
+        (row) => `
+          <tr>
+            <td>${row.bucket ?? "—"}</td>
+            <td>${formatPercent(row.assertiveness_pct)}</td>
+            <td>${formatNumber(row.total_trades)}</td>
+            <td>${formatMoney(row.pnl_usdt)}</td>
+          </tr>
+        `,
+      )
+      .join("");
+  }
+
+  async function fetchAssertiveness() {
+    try {
+      const params = new URLSearchParams({
+        period: state.assertiveness.period || "30d",
+        order_by: "assertiveness_pct",
+        order_dir: "desc",
+      });
+      if (state.assertiveness.symbol) params.set("symbol", state.assertiveness.symbol);
+      if (state.assertiveness.timeframe) params.set("timeframe", state.assertiveness.timeframe);
+      if (state.assertiveness.period === "custom") {
+        if (state.assertiveness.start) {
+          params.set("start", new Date(state.assertiveness.start).toISOString());
+        }
+        if (state.assertiveness.end) {
+          params.set("end", new Date(state.assertiveness.end).toISOString());
+        }
+      }
+      const response = await fetch(`/performance/assertiveness?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      renderAssertiveness(payload);
+    } catch (_) {
+      // silencioso
+    }
+  }
+
+  function bindAssertivenessEvents() {
+    if (elements.assertivenessSymbol) {
+      elements.assertivenessSymbol.addEventListener("change", (event) => {
+        state.assertiveness.symbol = event.target.value;
+        persistAssertivenessViewPreference();
+        fetchAssertiveness();
+      });
+    }
+    if (elements.assertivenessTimeframe) {
+      elements.assertivenessTimeframe.addEventListener("change", (event) => {
+        state.assertiveness.timeframe = event.target.value;
+        persistAssertivenessViewPreference();
+        fetchAssertiveness();
+      });
+    }
+    if (elements.assertivenessPeriod) {
+      elements.assertivenessPeriod.addEventListener("change", (event) => {
+        state.assertiveness.period = event.target.value || "30d";
+        persistAssertivenessViewPreference();
+        fetchAssertiveness();
+      });
+    }
+    if (elements.assertivenessStart) {
+      elements.assertivenessStart.addEventListener("change", (event) => {
+        state.assertiveness.start = event.target.value || "";
+        persistAssertivenessViewPreference();
+        if (state.assertiveness.period === "custom") {
+          fetchAssertiveness();
+        }
+      });
+    }
+    if (elements.assertivenessEnd) {
+      elements.assertivenessEnd.addEventListener("change", (event) => {
+        state.assertiveness.end = event.target.value || "";
+        persistAssertivenessViewPreference();
+        if (state.assertiveness.period === "custom") {
+          fetchAssertiveness();
+        }
+      });
+    }
+  }
+
+  function renderTradeHighlights(trades) {
+    if (!Array.isArray(trades) || trades.length === 0) {
+      elements.bestTrade.textContent = "—";
+      elements.worstTrade.textContent = "—";
+      return;
+    }
+    const withPnl = trades.filter((trade) => trade.pnl_usdt != null);
+    if (withPnl.length === 0) {
+      elements.bestTrade.textContent = "Sem PnL";
+      elements.worstTrade.textContent = "Sem PnL";
+      return;
+    }
+    const sorted = [...withPnl].sort((left, right) => Number(left.pnl_usdt) - Number(right.pnl_usdt));
+    const worst = sorted[0];
+    const best = sorted[sorted.length - 1];
+    elements.bestTrade.textContent = `${best.symbol ?? "—"} (${formatMoney(best.pnl_usdt)})`;
+    elements.worstTrade.textContent = `${worst.symbol ?? "—"} (${formatMoney(worst.pnl_usdt)})`;
   }
 
   function renderBotStatus(data) {
@@ -723,7 +1029,9 @@
         return;
       }
       const payload = await response.json();
-      renderTradeHistory(payload.trades);
+      state.tradeHistory = Array.isArray(payload.trades) ? payload.trades : [];
+      renderTradeHistory(state.tradeHistory);
+      renderTradeHighlights(state.tradeHistory);
     } catch (_) {
       // silencioso — painel de posições não é afetado
     }
@@ -1328,9 +1636,14 @@
     renderBotStatus({ status: "inactive", last_activity_at: null });
     renderOpenTrades([]);
     renderTradeHistory([]);
+    renderTradeHighlights([]);
     renderSignalHistory([]);
+    renderAssertiveness({});
+    restorePositionViewPreference();
+    restoreAssertivenessViewPreference();
   bindPositionFilterEvents();
   bindAnalysisViewEvents();
+    bindAssertivenessEvents();
     bindOnboardingForm();
     setStatus("offline");
     setBanner({ visible: false });
@@ -1340,12 +1653,14 @@
     fetchOpenTrades();
     fetchTradeHistory();
     fetchSignalHistory();
+    fetchAssertiveness();
     fetchOnboardingSessions();
     window.setInterval(fetchPerformance, PERFORMANCE_POLL_INTERVAL_MS);
     window.setInterval(fetchBotActivity, BOT_ACTIVITY_POLL_INTERVAL_MS);
     window.setInterval(fetchOpenTrades, OPEN_TRADES_POLL_INTERVAL_MS);
     window.setInterval(fetchTradeHistory, TRADE_HISTORY_POLL_INTERVAL_MS);
     window.setInterval(fetchSignalHistory, SIGNAL_HISTORY_POLL_INTERVAL_MS);
+    window.setInterval(fetchAssertiveness, ASSERTIVENESS_POLL_INTERVAL_MS);
     window.setInterval(fetchOnboardingSessions, 30_000);
   }
 
