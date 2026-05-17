@@ -25,7 +25,15 @@ def _build_signal_result() -> SignalResult:
     )
 
 
-def _build_monitor(repo, client, signal_engine, risk_manager, order_manager) -> TradingMonitor:
+def _build_monitor(
+    repo,
+    client,
+    signal_engine,
+    risk_manager,
+    order_manager,
+    *,
+    ml_support_service=None,
+) -> TradingMonitor:
     return TradingMonitor(
         config=SymbolConfig(symbol="BTCUSDT", timeframe="15m", leverage=5),
         client=client,
@@ -36,6 +44,7 @@ def _build_monitor(repo, client, signal_engine, risk_manager, order_manager) -> 
         notifier=SimpleNamespace(send=AsyncMock(return_value=None)),
         max_open_positions=10,
         warmup_candles=2,
+        ml_support_service=ml_support_service,
     )
 
 
@@ -173,6 +182,54 @@ async def test_tick_registra_desfecho_trade_opened() -> None:
 
 
 @pytest.mark.asyncio
+async def test_tick_registra_desfecho_entry_open_no_protection() -> None:
+    repo = SimpleNamespace(
+        count_open_trades=AsyncMock(return_value=0),
+        get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=0.0),
+        save_signal=AsyncMock(return_value="681cc200e8f9ff89bff8e463"),
+        audit=AsyncMock(return_value=None),
+        save_trade=AsyncMock(return_value="trade-123"),
+        update_signal_execution_outcome=AsyncMock(return_value=True),
+    )
+    client = SimpleNamespace(
+        fetch_ohlcv_with_retry=AsyncMock(
+            return_value=pd.DataFrame({"close": [100.0, 101.0], "open": [99.0, 100.0]})
+        ),
+        fetch_usdt_balance=AsyncMock(return_value=100.0),
+        get_quantity_precision=MagicMock(return_value=3),
+    )
+    signal_result = _build_signal_result()
+    signal_engine = SimpleNamespace(evaluate=AsyncMock(return_value=signal_result))
+    from src.common.result import OrderError, err, ok
+
+    position = SimpleNamespace(quantity=1.0)
+    risk_manager = SimpleNamespace(
+        calculate=MagicMock(return_value=ok(position)),
+        consume_last_rejection=lambda: None,
+    )
+    order_error = OrderError(
+        code="SL_TP_ORDER_FAILED",
+        message="sl/tp failed after entry",
+        details={
+            "execution_status": "ENTRY_OPEN_NO_PROTECTION",
+            "entry_executed": True,
+            "entry_order_id": "entry-123",
+            "entry_price": 100.0,
+            "quantity": 1.0,
+        },
+    )
+    order_manager = SimpleNamespace(execute=AsyncMock(return_value=err(order_error)))
+
+    monitor = _build_monitor(repo, client, signal_engine, risk_manager, order_manager)
+    await monitor._tick()
+
+    kwargs = repo.update_signal_execution_outcome.call_args.kwargs
+    assert kwargs["execution_status"] == "ENTRY_OPEN_NO_PROTECTION"
+    assert kwargs["execution_reason"] == "entry_opened_but_sl_tp_failed"
+
+
+@pytest.mark.asyncio
 async def test_tick_persiste_diagnostico_de_avaliacao_sem_sinal() -> None:
     repo = SimpleNamespace(
         count_open_trades=AsyncMock(return_value=0),
@@ -261,3 +318,94 @@ async def test_tick_rejeicao_risco_registra_signal_cycle_diagnostic() -> None:
     payload = cycle_events[-1].args[1]
     assert payload["final_status"] == "REJECTED_BY_RISK"
     assert payload["risk_reason"] == "quantity_zero_after_rounding"
+
+
+@pytest.mark.asyncio
+async def test_tick_ml_shadow_mode_registra_campos_no_diagnostico() -> None:
+    from src.strategy.ml_support import MlOperationalSupportService
+
+    repo = SimpleNamespace(
+        count_open_trades=AsyncMock(return_value=0),
+        get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=0.0),
+        save_signal=AsyncMock(return_value="unused"),
+        audit=AsyncMock(return_value=None),
+        update_signal_execution_outcome=AsyncMock(return_value=True),
+    )
+    client = SimpleNamespace(
+        fetch_ohlcv_with_retry=AsyncMock(
+            return_value=pd.DataFrame({"close": [100.0, 101.0], "open": [99.0, 100.0]})
+        ),
+        fetch_usdt_balance=AsyncMock(return_value=100.0),
+        get_quantity_precision=MagicMock(return_value=3),
+    )
+    evaluation = SimpleNamespace(to_dict=lambda: {"decision": "NO_SIGNAL"})
+    signal_engine = SimpleNamespace(
+        evaluate=AsyncMock(return_value=NullSignalResult(reason="regime_lateral_blocked")),
+        consume_last_evaluation=MagicMock(return_value=evaluation),
+    )
+    risk_manager = SimpleNamespace(calculate=MagicMock(return_value=None))
+    order_manager = SimpleNamespace(execute=AsyncMock(return_value=None))
+    ml_support = MlOperationalSupportService(enabled=True, shadow_mode=True)
+
+    monitor = _build_monitor(
+        repo,
+        client,
+        signal_engine,
+        risk_manager,
+        order_manager,
+        ml_support_service=ml_support,
+    )
+    await monitor._tick()
+
+    cycle_events = [c for c in repo.audit.await_args_list if c.args[0] == "signal_cycle_diagnostic"]
+    payload = cycle_events[-1].args[1]
+    assert payload["ml_enabled"] is True
+    assert payload["ml_shadow_mode"] is True
+    assert payload["ml_score"] is not None
+    assert payload["ml_reason"] == "regime_lateral_blocked"
+
+
+@pytest.mark.asyncio
+async def test_tick_ml_falha_nao_interrompe_ciclo_e_faz_fallback_bo_puro() -> None:
+    class _BrokenMlSupport:
+        def evaluate(self, **_kwargs):
+            raise RuntimeError("ml down")
+
+    repo = SimpleNamespace(
+        count_open_trades=AsyncMock(return_value=0),
+        get_open_trades_for_symbol=AsyncMock(return_value=[]),
+        get_intraday_realized_pnl_usdt=AsyncMock(return_value=0.0),
+        save_signal=AsyncMock(return_value="unused"),
+        audit=AsyncMock(return_value=None),
+        update_signal_execution_outcome=AsyncMock(return_value=True),
+    )
+    client = SimpleNamespace(
+        fetch_ohlcv_with_retry=AsyncMock(
+            return_value=pd.DataFrame({"close": [100.0, 101.0], "open": [99.0, 100.0]})
+        ),
+        fetch_usdt_balance=AsyncMock(return_value=100.0),
+        get_quantity_precision=MagicMock(return_value=3),
+    )
+    evaluation = SimpleNamespace(to_dict=lambda: {"decision": "NO_SIGNAL"})
+    signal_engine = SimpleNamespace(
+        evaluate=AsyncMock(return_value=NullSignalResult(reason="conditions_not_met")),
+        consume_last_evaluation=MagicMock(return_value=evaluation),
+    )
+    risk_manager = SimpleNamespace(calculate=MagicMock(return_value=None))
+    order_manager = SimpleNamespace(execute=AsyncMock(return_value=None))
+
+    monitor = _build_monitor(
+        repo,
+        client,
+        signal_engine,
+        risk_manager,
+        order_manager,
+        ml_support_service=_BrokenMlSupport(),
+    )
+    await monitor._tick()
+
+    cycle_events = [c for c in repo.audit.await_args_list if c.args[0] == "signal_cycle_diagnostic"]
+    payload = cycle_events[-1].args[1]
+    assert payload["final_status"] == "NO_SETUP_DETECTED"
+    assert str(payload["ml_reason"]).startswith("ml_support_error:")

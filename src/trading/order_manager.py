@@ -364,6 +364,7 @@ class OrderManager:
                     code="SL_TP_ORDER_FAILED",
                     message=f"Failed to create SL/TP orders: {type(exc).__name__}",
                     details={
+                        "execution_status": "ENTRY_OPEN_NO_PROTECTION",
                         "symbol": symbol,
                         "entry_order_id": entry_order_id,
                         "entry_executed": True,

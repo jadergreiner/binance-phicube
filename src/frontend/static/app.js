@@ -124,6 +124,7 @@
     symbolsDetailTimeframeValue: document.getElementById("symbols-detail-timeframe-value"),
     symbolsDetailRiskValue: document.getElementById("symbols-detail-risk-value"),
     symbolsDetailDecisionValue: document.getElementById("symbols-detail-decision-value"),
+    symbolsDetailMlComparisonValue: document.getElementById("symbols-detail-ml-comparison-value"),
     symbolsDetailAnalyzedAtValue: document.getElementById("symbols-detail-analyzed-at-value"),
     symbolsDetailHumanValue: document.getElementById("symbols-detail-human-value"),
     symbolsDetailTechnicalValue: document.getElementById("symbols-detail-technical-value"),
@@ -349,6 +350,7 @@
     const raw = String(status || "").toUpperCase();
     const labels = {
       TRADE_OPENED: "TRADE_OPENED",
+      ENTRY_OPEN_NO_PROTECTION: "ENTRY_OPEN_NO_PROTECTION",
       REJECTED_NO_BALANCE: "REJECTED_NO_BALANCE",
       REJECTED_RISK_MAX_CAPITAL: "REJECTED_RISK_MAX_CAPITAL",
       REJECTED_RISK_ZERO_STOP: "REJECTED_RISK_ZERO_STOP",
@@ -359,6 +361,17 @@
       UNKNOWN_LEGACY: "UNKNOWN_LEGACY",
     };
     return labels[raw] || raw || "—";
+  }
+
+  function formatSignalEngineReason(reason) {
+    const raw = String(reason || "").trim().toLowerCase();
+    if (!raw) return "sem motivo detalhado";
+    if (raw === "regime_lateral_blocked") return "regime lateral bloqueado";
+    if (raw.startsWith("checklist_not_satisfied:")) {
+      const missing = raw.split(":")[1] || "";
+      return `checklist BO Williams incompleto (${missing || "itens ausentes"})`;
+    }
+    return raw;
   }
 
   function buildSignalReason(signal) {
@@ -1194,7 +1207,23 @@
     elements.symbolsDetailSymbolValue.textContent = payload?.symbol || "—";
     elements.symbolsDetailTimeframeValue.textContent = payload?.timeframe || "—";
     elements.symbolsDetailRiskValue.textContent = payload?.risk?.risk_status || "—";
-    elements.symbolsDetailDecisionValue.textContent = lastAnalysis?.classification || "—";
+    const decision = String(lastAnalysis?.classification || "—");
+    const engineReason = formatSignalEngineReason(lastAnalysis?.engine_reason);
+    const decisionLabel =
+      decision === "NO_SETUP_DETECTED" ? `${decision} (${engineReason})` : decision;
+    const mlEnabled = lastAnalysis?.ml_enabled === true;
+    const mlShadow = lastAnalysis?.ml_shadow_mode === true;
+    const mlDecision = String(lastAnalysis?.ml_decision || "N/A");
+    const mlScore =
+      typeof lastAnalysis?.ml_score === "number" ? lastAnalysis.ml_score.toFixed(2) : "N/A";
+    const mlReason = String(lastAnalysis?.ml_reason || "N/A");
+    const mlLabel = mlEnabled
+      ? `BO=${decision}; ML=${mlDecision} (score=${mlScore}; shadow=${mlShadow ? "on" : "off"}; motivo=${mlReason})`
+      : "ML inativo";
+    elements.symbolsDetailDecisionValue.textContent = decisionLabel;
+    if (elements.symbolsDetailMlComparisonValue) {
+      elements.symbolsDetailMlComparisonValue.textContent = mlLabel;
+    }
     elements.symbolsDetailAnalyzedAtValue.textContent = analyzedAt;
     elements.symbolsDetailHumanValue.textContent = human;
     elements.symbolsDetailTechnicalValue.textContent = technical;
@@ -1529,7 +1558,8 @@
       .map((signal) => {
         const statusLabel = formatSignalExecutionStatus(signal.execution_status);
         const reason = buildSignalReason(signal);
-        const statusClass = statusLabel === "TRADE_OPENED" ? "metric-positive" : "metric-negative";
+        const openedStatus = ["TRADE_OPENED", "ENTRY_OPEN_NO_PROTECTION"];
+        const statusClass = openedStatus.includes(statusLabel) ? "metric-positive" : "metric-negative";
         return `
           <tr>
             <td>${getDateTimeLabel(signal, "detected_at")}</td>

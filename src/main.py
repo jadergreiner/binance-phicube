@@ -32,7 +32,11 @@ from src.exchange.simulated_client import SimulatedBinanceClient
 from src.monitoring import metrics
 from src.monitoring.logger import configure_logging, get_logger
 from src.monitoring.metrics import (
+    observe_ml_support_latency,
+    observe_ml_support_score,
     observe_tick_duration,
+    record_ml_support_error,
+    record_ml_support_inference,
     record_signal_rejected,
     update_heartbeat,
     update_positions_open,
@@ -44,6 +48,7 @@ from src.notifications.performance_reporter import PerformanceReporter
 from src.resilience.exceptions import CircuitBreakerOpenError
 from src.storage.repository import MongoRepository
 from src.storage.resilient_repository import ResilientMongoRepository
+from src.strategy.ml_support import MlOperationalSupportService
 from src.strategy.plugin_base import SignalResult
 from src.strategy.plugin_registry import PluginRegistry
 from src.strategy.signal_boundary import SignalEngineBoundaryAdapter, SignalEvaluationInput
@@ -295,6 +300,11 @@ class RuntimeMonitorRegistry:
         )
         # Cada monitor com sua própria instância de SignalEngine (INV-033-06)
         monitor_signal_engine = self._make_signal_engine()
+        ml_support = MlOperationalSupportService(
+            enabled=self._settings.ml_support_enabled,
+            shadow_mode=self._settings.ml_support_shadow_mode,
+            allowed_symbol_timeframes=set(self._settings.ml_support_symbol_timeframes),
+        )
         return TradingMonitor(
             config=cfg,
             client=self._client,
@@ -308,6 +318,7 @@ class RuntimeMonitorRegistry:
             max_open_positions=self._settings.max_open_positions,
             warmup_candles=self._settings.warmup_candles,
             tick_pipeline_enabled=getattr(self._settings, "tick_pipeline_enabled", False),
+            ml_support_service=ml_support,
         )
 
     def _init_plugin_registry(self) -> None:
@@ -540,6 +551,7 @@ class TradingMonitor:
         tick_pipeline_enabled: bool = False,
         resilient_client: ResilientBinanceClient | None = None,
         resilient_repo: ResilientMongoRepository | None = None,
+        ml_support_service: MlOperationalSupportService | None = None,
     ) -> None:
         self._config = config
         self._symbol = config.symbol
@@ -557,6 +569,7 @@ class TradingMonitor:
         self._max_positions = max_open_positions
         self._warmup_candles = warmup_candles
         self._tick_pipeline_enabled = tick_pipeline_enabled
+        self._ml_support_service = ml_support_service
         # Intervalo derivado do timeframe — corrige bug de 300 s fixo (SPEC_018)
         self._interval = _TIMEFRAME_SECONDS.get(config.timeframe, 300)
         # SPEC_034: Inicializar pipeline se habilitado
@@ -624,9 +637,16 @@ class TradingMonitor:
             "timeframe": self._timeframe,
             "candle_close_time": None,
             "engine_outcome": "not_evaluated",
+            "engine_reason": None,
             "risk_outcome": "not_evaluated",
             "risk_reason": None,
             "final_status": "PIPELINE_INTERRUPTED",
+            "ml_enabled": False,
+            "ml_shadow_mode": False,
+            "ml_score": None,
+            "ml_decision": None,
+            "ml_reason": None,
+            "ml_model_version": None,
         }
 
         # SPEC_032: Atualizar heartbeat
@@ -702,6 +722,60 @@ class TradingMonitor:
         cycle_diag["engine_outcome"] = (
             "signal_detected" if boundary_result.has_signal else "no_signal"
         )
+        if boundary_result.reason:
+            cycle_diag["engine_reason"] = boundary_result.reason
+        if self._ml_support_service is not None:
+            try:
+                ml_started_at = time.time()
+                ml = self._ml_support_service.evaluate(
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    engine_outcome=cycle_diag["engine_outcome"],
+                    engine_reason=cycle_diag.get("engine_reason"),
+                )
+                observe_ml_support_latency(
+                    self._symbol,
+                    self._timeframe,
+                    time.time() - ml_started_at,
+                )
+                cycle_diag["ml_enabled"] = ml.ml_enabled
+                cycle_diag["ml_shadow_mode"] = ml.ml_shadow_mode
+                cycle_diag["ml_score"] = ml.ml_score
+                cycle_diag["ml_decision"] = ml.ml_decision
+                cycle_diag["ml_reason"] = ml.ml_reason
+                cycle_diag["ml_model_version"] = ml.ml_model_version
+                record_ml_support_inference(
+                    self._symbol,
+                    self._timeframe,
+                    ml.ml_decision or "NONE",
+                    ml.ml_shadow_mode,
+                )
+                if ml.ml_score is not None:
+                    observe_ml_support_score(self._symbol, self._timeframe, float(ml.ml_score))
+                logger.info(
+                    "ml_support_evaluated",
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    engine_outcome=cycle_diag["engine_outcome"],
+                    engine_reason=cycle_diag.get("engine_reason"),
+                    ml_enabled=ml.ml_enabled,
+                    ml_shadow_mode=ml.ml_shadow_mode,
+                    ml_decision=ml.ml_decision,
+                    ml_score=ml.ml_score,
+                    ml_reason=ml.ml_reason,
+                    ml_model_version=ml.ml_model_version,
+                )
+            except Exception as exc:
+                cycle_diag["ml_enabled"] = False
+                cycle_diag["ml_shadow_mode"] = True
+                cycle_diag["ml_reason"] = f"ml_support_error:{type(exc).__name__}"
+                record_ml_support_error(self._symbol, self._timeframe, type(exc).__name__)
+                logger.warning(
+                    "ml_support_evaluation_failed",
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    error_type=type(exc).__name__,
+                )
         await self._persist_signal_evaluation()
         if not signal_result:
             cycle_diag["final_status"] = "NO_SETUP_DETECTED"
@@ -839,14 +913,17 @@ class TradingMonitor:
             trade_error = trade_result.unwrap_err()
             error_details = trade_error.details or {}
             entry_opened_without_protection = bool(
-                trade_error.code == "SL_TP_ORDER_FAILED"
+                (
+                    trade_error.code == "SL_TP_ORDER_FAILED"
+                    or error_details.get("execution_status") == "ENTRY_OPEN_NO_PROTECTION"
+                )
                 and error_details.get("entry_executed")
                 and error_details.get("entry_order_id")
             )
             if entry_opened_without_protection:
                 await self._set_signal_outcome(
                     signal_id,
-                    execution_status="TRADE_OPENED_UNPROTECTED",
+                    execution_status="ENTRY_OPEN_NO_PROTECTION",
                     execution_reason="entry_opened_but_sl_tp_failed",
                     execution_details={
                         "entry_order_id": error_details.get("entry_order_id"),
@@ -854,7 +931,7 @@ class TradingMonitor:
                         "quantity": error_details.get("quantity"),
                     },
                 )
-                cycle_diag["final_status"] = "TRADE_OPENED_UNPROTECTED"
+                cycle_diag["final_status"] = "ENTRY_OPEN_NO_PROTECTION"
                 await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
                 logger.error(
                     "trade_opened_without_protection",

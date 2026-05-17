@@ -116,8 +116,12 @@ class TestSignalHistoryEndpoint:
                 "last_evidence_at": datetime(2026, 5, 13, 14, 31, 5, tzinfo=UTC),
                 "risk_reason": "quantity_zero_after_rounding",
                 "engine_outcome": "signal_detected",
+                "engine_reason": "checklist_not_satisfied:ao_confirmed",
                 "risk_outcome": "rejected",
-                "details": {"candle_close_time": "2026-05-13T14:30:00Z"},
+                "details": {
+                    "candle_close_time": "2026-05-13T14:30:00Z",
+                    "engine_reason": "checklist_not_satisfied:ao_confirmed",
+                },
             }
         )
 
@@ -128,6 +132,7 @@ class TestSignalHistoryEndpoint:
         assert response.status_code == 200
         payload = response.json()
         assert payload["classification"] == "REJECTED_BY_RISK"
+        assert payload["engine_reason"] == "checklist_not_satisfied:ao_confirmed"
         assert payload["last_evidence_at"].endswith("Z")
         assert payload["last_evidence_at_br"] == "13/05/2026 11:31:05"
         repo.get_signal_generation_diagnosis.assert_awaited_once_with(
@@ -212,6 +217,7 @@ class TestSignalHistoryRepository:
         result = await repo.get_signal_generation_diagnosis("PLTRUSDT", "15m")
 
         assert result["classification"] == "PIPELINE_INTERRUPTED"
+        assert result["engine_reason"] is None
         assert result["details"]["reason"] == "no_signal_cycle_diagnostic_event_found"
 
     @pytest.mark.asyncio
@@ -224,6 +230,7 @@ class TestSignalHistoryRepository:
                 "final_status": "REJECTED_BY_RISK",
                 "risk_reason": "quantity_zero_after_rounding",
                 "engine_outcome": "signal_detected",
+                "engine_reason": "regime_lateral_blocked",
                 "risk_outcome": "rejected",
                 "candle_close_time": "2026-05-13T14:30:00Z",
             }
@@ -235,3 +242,5 @@ class TestSignalHistoryRepository:
 
         assert result["classification"] == "REJECTED_BY_RISK"
         assert result["risk_reason"] == "quantity_zero_after_rounding"
+        assert result["engine_reason"] == "regime_lateral_blocked"
+        assert result["details"]["engine_reason"] == "regime_lateral_blocked"

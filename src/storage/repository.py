@@ -744,7 +744,14 @@ class MongoRepository:
                 "last_evidence_at": None,
                 "risk_reason": None,
                 "engine_outcome": None,
+                "engine_reason": None,
                 "risk_outcome": None,
+                "ml_enabled": False,
+                "ml_shadow_mode": False,
+                "ml_score": None,
+                "ml_decision": None,
+                "ml_reason": None,
+                "ml_model_version": None,
                 "details": {
                     "reason": "no_signal_cycle_diagnostic_event_found",
                     "last_heartbeat_at": last_heartbeat.get("ts") if last_heartbeat else None,
@@ -758,9 +765,18 @@ class MongoRepository:
             "last_evidence_at": latest_cycle.get("ts"),
             "risk_reason": latest_cycle.get("risk_reason"),
             "engine_outcome": latest_cycle.get("engine_outcome"),
+            "engine_reason": latest_cycle.get("engine_reason"),
             "risk_outcome": latest_cycle.get("risk_outcome"),
+            "ml_enabled": bool(latest_cycle.get("ml_enabled", False)),
+            "ml_shadow_mode": bool(latest_cycle.get("ml_shadow_mode", False)),
+            "ml_score": latest_cycle.get("ml_score"),
+            "ml_decision": latest_cycle.get("ml_decision"),
+            "ml_reason": latest_cycle.get("ml_reason"),
+            "ml_model_version": latest_cycle.get("ml_model_version"),
             "details": {
                 "candle_close_time": latest_cycle.get("candle_close_time"),
+                "engine_reason": latest_cycle.get("engine_reason"),
+                "ml_reason": latest_cycle.get("ml_reason"),
             },
         }
 

@@ -112,6 +112,16 @@ signals_rejected_total = Counter(
     "Sinais rejeitados pelo RiskManager",
     ["symbol", "reason"],
 )
+ml_support_inferences_total = Counter(
+    "phicube_ml_support_inferences_total",
+    "Inferências da camada ML auxiliar por decisão",
+    ["symbol", "timeframe", "decision", "shadow_mode"],
+)
+ml_support_errors_total = Counter(
+    "phicube_ml_support_errors_total",
+    "Falhas da camada ML auxiliar",
+    ["symbol", "timeframe", "error_type"],
+)
 
 trades_total = Counter(
     "phicube_trades_total",
@@ -156,6 +166,18 @@ tick_duration_seconds = Histogram(
     "Duração total de um _tick() completo",
     ["symbol", "timeframe"],
     buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
+ml_support_score = Histogram(
+    "phicube_ml_support_score",
+    "Distribuição de score da camada ML auxiliar",
+    ["symbol", "timeframe"],
+    buckets=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+)
+ml_support_latency_seconds = Histogram(
+    "phicube_ml_support_latency_seconds",
+    "Latência de inferência da camada ML auxiliar",
+    ["symbol", "timeframe"],
+    buckets=(0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
 )
 
 # --- Runtime ---
@@ -400,5 +422,45 @@ def observe_tick_duration(
     _safe_observe(
         tick_duration_seconds,
         duration_seconds,
+        labels={"symbol": symbol, "timeframe": timeframe},
+    )
+
+
+def record_ml_support_inference(
+    symbol: str,
+    timeframe: str,
+    decision: str,
+    shadow_mode: bool,
+) -> None:
+    _safe_inc(
+        ml_support_inferences_total,
+        labels={
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "decision": decision,
+            "shadow_mode": str(shadow_mode).lower(),
+        },
+    )
+
+
+def record_ml_support_error(symbol: str, timeframe: str, error_type: str) -> None:
+    _safe_inc(
+        ml_support_errors_total,
+        labels={"symbol": symbol, "timeframe": timeframe, "error_type": error_type},
+    )
+
+
+def observe_ml_support_score(symbol: str, timeframe: str, score: float) -> None:
+    _safe_observe(
+        ml_support_score,
+        score,
+        labels={"symbol": symbol, "timeframe": timeframe},
+    )
+
+
+def observe_ml_support_latency(symbol: str, timeframe: str, latency_seconds: float) -> None:
+    _safe_observe(
+        ml_support_latency_seconds,
+        latency_seconds,
         labels={"symbol": symbol, "timeframe": timeframe},
     )

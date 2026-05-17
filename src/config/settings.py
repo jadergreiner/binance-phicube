@@ -263,6 +263,18 @@ class Settings(BaseSettings):
         default=30.0,
         description="Timeout em segundos para evaluate() de plugins de estratégia",
     )
+    ml_support_enabled: bool = Field(
+        default=False,
+        description="Feature flag global da camada ML auxiliar operacional",
+    )
+    ml_support_shadow_mode: bool = Field(
+        default=True,
+        description="Executa ML apenas para diagnóstico, sem impacto em ordens",
+    )
+    ml_support_symbol_timeframes: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description="Escopo canário de ML no formato SYMBOL:TIMEFRAME",
+    )
 
     # SPEC_034 — Pipeline Pattern para Tick
     tick_pipeline_enabled: bool = Field(
@@ -432,6 +444,24 @@ class Settings(BaseSettings):
         if upper not in valid:
             raise ValueError(f"log_level must be one of {valid}")
         return upper
+
+    @field_validator("ml_support_symbol_timeframes", mode="before")
+    @classmethod
+    def parse_ml_support_symbol_timeframes(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, str):
+            values = [item.strip() for item in v.split(",") if item.strip()]
+        else:
+            values = [str(item).strip() for item in v if str(item).strip()]
+
+        normalized: list[str] = []
+        for pair in values:
+            if ":" not in pair:
+                raise ValueError(
+                    "ml_support_symbol_timeframes deve usar formato SYMBOL:TIMEFRAME"
+                )
+            symbol, timeframe = pair.split(":", 1)
+            normalized.append(f"{symbol.strip().upper()}:{timeframe.strip().lower()}")
+        return normalized
 
     @model_validator(mode="before")
     @classmethod

@@ -146,6 +146,9 @@ class TestRiskManager:
         assert payload["direction"] == "LONG"
         assert payload["quantity"] == 2.0
         assert payload["risk_amount"] == 10.0
+        assert "sizing_breakdown" in payload
+        assert payload["sizing_breakdown"]["sizing_mode"] == "fixed"
+        assert payload["sizing_breakdown"]["qty_final"] == 2.0
         assert manager.last_rejection is None
 
     def test_returns_none_when_intraday_loss_limit_reached(self) -> None:
@@ -255,6 +258,9 @@ class TestRiskManagerATR:
         assert result.is_ok()
         assert result.unwrap().quantity == 3.333
         assert result.unwrap().risk_amount == 10.0
+        assert result.unwrap().sizing_breakdown is not None
+        assert result.unwrap().sizing_breakdown["sizing_mode"] == "atr"
+        assert result.unwrap().sizing_breakdown["qty_final"] == 3.333
 
     def test_atr_guard_fractal_domina(self) -> None:
         """TEST_029_04: guard when fractal_sl_distance > atr * multiplier.

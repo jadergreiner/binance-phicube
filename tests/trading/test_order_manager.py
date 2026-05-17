@@ -149,6 +149,7 @@ async def test_execute_rolls_back_when_stop_loss_creation_fails() -> None:
     assert result.is_err()
     error = result.unwrap_err()
     assert error.code == "SL_TP_ORDER_FAILED"
+    assert error.details["execution_status"] == "ENTRY_OPEN_NO_PROTECTION"
     # Command Pattern: pipeline rollback chama cancel_all_orders para cada comando executado
     # (MarketOrder = 1 chamada)
     assert client.cancel_all_orders.call_count == 1
@@ -166,6 +167,7 @@ async def test_execute_rolls_back_when_take_profit_creation_fails() -> None:
     assert result.is_err()
     error = result.unwrap_err()
     assert error.code == "SL_TP_ORDER_FAILED"
+    assert error.details["execution_status"] == "ENTRY_OPEN_NO_PROTECTION"
     # Command Pattern: pipeline rollback chama cancel_all_orders para cada comando executado
     # (StopLoss + MarketOrder = 2 chamadas)
     assert client.cancel_all_orders.call_count == 2

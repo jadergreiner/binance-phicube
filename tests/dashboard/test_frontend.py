@@ -105,6 +105,7 @@ def test_frontend_expoe_secao_de_sinais_gerados() -> None:
     assert 'id="signal-history-body"' in html
     assert "/signals/history" in javascript
     assert "UNKNOWN_LEGACY" in javascript
+    assert "ENTRY_OPEN_NO_PROTECTION" in javascript
 
 
 def test_frontend_expoe_diagnostico_de_sinais_em_tempo_real() -> None:
@@ -239,6 +240,28 @@ def test_frontend_symbols_overview_renderiza_fallback_quando_filtro_zera_resulta
     javascript = APP_JS.read_text(encoding="utf-8")
 
     assert "Sem dados para o filtro aplicado." in javascript
+
+
+def test_frontend_detail_mapeia_novos_motivos_de_rejeicao_do_signal_engine() -> None:
+    """Detail do símbolo deve traduzir motivos de gate de regime/checklist."""
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert "formatSignalEngineReason" in javascript
+    assert "regime lateral bloqueado" in javascript
+    assert "checklist BO Williams incompleto" in javascript
+    assert 'decision === "NO_SETUP_DETECTED"' in javascript
+
+
+def test_frontend_detail_expoe_comparacao_bo_vs_ml() -> None:
+    """Detalhe do símbolo deve exibir comparação BO vs ML no painel operacional."""
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+
+    assert "Comparação BO vs ML" in html
+    assert 'id="symbols-detail-ml-comparison-value"' in html
+    assert "symbolsDetailMlComparisonValue" in javascript
+    assert "ML inativo" in javascript
+    assert "BO=${decision}; ML=${mlDecision}" in javascript
 
 
 def test_frontend_symbols_overview_expoe_estado_visual_ativo_no_badge_de_risco() -> None:

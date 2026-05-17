@@ -50,7 +50,12 @@ def _classify_risk_status(
 
 def _build_human_explanation(diagnosis: dict[str, Any]) -> dict[str, str]:
     classification = str(diagnosis.get("classification") or "UNKNOWN").upper()
-    reason = str(diagnosis.get("risk_reason") or diagnosis.get("engine_outcome") or "").strip()
+    reason = str(
+        diagnosis.get("risk_reason")
+        or diagnosis.get("engine_reason")
+        or diagnosis.get("engine_outcome")
+        or ""
+    ).strip()
     if classification == "SIGNAL_GENERATED":
         text = {
             "what_i_saw": "Eu vi um cenário com chance de entrada.",
@@ -112,7 +117,10 @@ def _build_trader_technical_explanation(diagnosis: dict[str, Any]) -> dict[str, 
         "fractal": str(fractal_state),
     }
 
-    if any(value != "não informado" and "não informado" not in value for value in structured.values()):
+    if any(
+        value != "não informado" and "não informado" not in value
+        for value in structured.values()
+    ):
         return structured
 
     classification = str(diagnosis.get("classification") or "UNKNOWN").upper()
@@ -225,7 +233,6 @@ async def get_symbols_overview(request: Request) -> JSONResponse:
         )
 
     generated_at = datetime.now(UTC)
-    technical = _build_trader_technical_explanation(diagnosis)
     payload = {
         "symbols": rows,
         "total": len(rows),

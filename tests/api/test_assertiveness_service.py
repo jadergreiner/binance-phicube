@@ -72,3 +72,32 @@ async def test_facade_calcula_conversao_e_drawdown() -> None:
     assert payload["summary"]["total_trades"] == 2
     assert payload["summary"]["signal_to_trade_conversion_pct"] == 50.0
     assert payload["summary"]["max_drawdown_usdt"] <= 0.0
+
+
+@pytest.mark.asyncio
+async def test_facade_considera_entry_open_no_protection_como_trade_aberto() -> None:
+    repo = AsyncMock()
+    repo.get_signals_in_period = AsyncMock(
+        return_value=[
+            {
+                "symbol": "MASKUSDT",
+                "detected_at": datetime(2026, 5, 16, tzinfo=UTC),
+                "execution_status": "ENTRY_OPEN_NO_PROTECTION",
+            }
+        ]
+    )
+    repo.get_closed_trades_in_period = AsyncMock(return_value=[])
+    facade = AssertivenessFacade(repo)
+    payload = await facade.build(
+        AssertivenessQuery(
+            symbol="MASKUSDT",
+            timeframe="15m",
+            period="30d",
+            start=None,
+            end=None,
+            order_by="assertiveness_pct",
+            order_dir="desc",
+        )
+    )
+    assert payload["summary"]["total_signals"] == 1
+    assert payload["summary"]["signal_to_trade_conversion_pct"] == 100.0

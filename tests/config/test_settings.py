@@ -163,3 +163,26 @@ def test_trade_history_retention_days_rejeita_valor_abaixo_de_90(monkeypatch) ->
 
     with pytest.raises(ValueError, match="greater than or equal to 90"):
         _build_settings()
+
+
+def test_ml_support_symbol_timeframes_parse_csv(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv("ML_SUPPORT_SYMBOL_TIMEFRAMES", "btcusdt:15m, ETHUSDT:1h")
+
+    settings = _build_settings()
+
+    assert settings.ml_support_symbol_timeframes == ["BTCUSDT:15m", "ETHUSDT:1h"]
+
+
+def test_ml_support_symbol_timeframes_rejeita_formato_invalido(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv("ML_SUPPORT_SYMBOL_TIMEFRAMES", "BTCUSDT")
+
+    with pytest.raises(ValueError, match="SYMBOL:TIMEFRAME"):
+        _build_settings()

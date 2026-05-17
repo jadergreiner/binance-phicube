@@ -72,6 +72,11 @@ class AssertivenessFacade:
     def __init__(self, repository: Any) -> None:
         self._repo = repository
 
+    @staticmethod
+    def _is_trade_opened_status(status: str | None) -> bool:
+        normalized = str(status or "").upper()
+        return normalized in {"TRADE_OPENED", "ENTRY_OPEN_NO_PROTECTION"}
+
     async def build(self, query: AssertivenessQuery) -> dict[str, Any]:
         now = datetime.now(UTC)
         strategy = resolve_period_strategy(query.period)
@@ -93,7 +98,7 @@ class AssertivenessFacade:
                 symbol, {"signals": 0, "opened_from_signals": 0, "trades": []}
             )
             row["signals"] += 1
-            if str(signal.get("execution_status") or "").upper() == "TRADE_OPENED":
+            if self._is_trade_opened_status(signal.get("execution_status")):
                 row["opened_from_signals"] += 1
         for trade in trades:
             symbol = str(trade.get("symbol") or "unknown")
@@ -143,7 +148,7 @@ class AssertivenessFacade:
         opened_from_signals = sum(
             1
             for signal in signals
-            if str(signal.get("execution_status") or "").upper() == "TRADE_OPENED"
+            if self._is_trade_opened_status(signal.get("execution_status"))
         )
         overall_pnls = [float(t.get("pnl_usdt") or 0.0) for t in trades]
         overall_rrrs = [

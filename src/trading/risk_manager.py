@@ -68,6 +68,7 @@ class PositionSize:
     stop_loss: float
     take_profit: float
     risk_amount: float  # USDT arriscados nesta operação
+    sizing_breakdown: dict[str, Any] | None = None
 
 
 class RiskManager:
@@ -351,7 +352,8 @@ class RiskManager:
         effective_stop = max(fractal_sl_distance, atr_value * multiplier)
 
         # Position size em USDT
-        position_usdt = self.effective_risk_per_trade_usdt * signal.entry_price / effective_stop
+        position_usdt_raw = self.effective_risk_per_trade_usdt * signal.entry_price / effective_stop
+        position_usdt = position_usdt_raw
         # SPEC_043 — max_position_pct: limite dinâmico como % do saldo
         effective_max_position = self._max_position_usdt
         if self._max_position_pct > 0 and available_balance > 0:
@@ -521,6 +523,17 @@ class RiskManager:
             stop_loss=signal.stop_loss,
             take_profit=signal.take_profit,
             risk_amount=self.effective_risk_per_trade_usdt,
+            sizing_breakdown={
+                "sizing_mode": "atr",
+                "risk_raw_usdt": round(self.effective_risk_per_trade_usdt, 6),
+                "position_usdt_raw": round(position_usdt_raw, 6),
+                "position_usdt_clamped": round(position_usdt, 6),
+                "qty_raw": round(raw_qty, 12),
+                "qty_final": round(qty, quantity_precision),
+                "notional_final": round(notional, 6),
+                "margin_required_final": round(margin_required, 6),
+                "effective_max_position_usdt": round(effective_max_position, 6),
+            },
         )
         return ok(pos)
 
@@ -538,7 +551,8 @@ class RiskManager:
         stop_distance = abs(entry_price - stop_price)
 
         # Raw position size based on fixed-risk formula
-        risk_amount = available_balance * (self._risk_pct / 100.0)
+        risk_amount_raw = available_balance * (self._risk_pct / 100.0)
+        risk_amount = risk_amount_raw
         raw_qty = risk_amount / stop_distance
 
         # Notional and margin check
@@ -630,6 +644,16 @@ class RiskManager:
             stop_loss=stop_price,
             take_profit=take_profit,
             risk_amount=round(risk_amount, 4),
+            sizing_breakdown={
+                "sizing_mode": "fixed",
+                "risk_raw_usdt": round(risk_amount_raw, 6),
+                "risk_clamped_usdt": round(risk_amount, 6),
+                "qty_raw": round(raw_qty, 12),
+                "qty_final": round(qty, quantity_precision),
+                "notional_final": round(qty * entry_price, 6),
+                "margin_required_final": round(margin_required, 6),
+                "max_allowed_margin_usdt": round(max_allowed_margin, 6),
+            },
         )
 
         logger.info("position_size_calculated", **pos.to_dict())
