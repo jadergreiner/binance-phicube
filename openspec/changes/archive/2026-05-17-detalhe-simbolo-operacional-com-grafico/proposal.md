@@ -114,3 +114,54 @@ Regras:
 - Proposal estabelece taxonomia mínima de zonas de preço.
 - Proposal explicita consistência temporal/numérica.
 - Proposal define padrão obrigatório de explicação humana.
+
+## Changelog da Entrega
+
+### Backend (símbolos operacionais)
+
+- Adicionados endpoints de visão operacional por símbolo:
+  - `GET /symbols/overview`
+  - `GET /symbols/{symbol}/detail`
+- Incluído resumo de risco, explicação humana da decisão e estrutura de detalhe
+  para consumo do dashboard.
+- Adicionados testes de contrato dos payloads de `overview` e `detail`.
+
+### Frontend (abas, filtros e acessibilidade)
+
+- Nova aba **Símbolos** com:
+  - visão **Overview** (lista operacional)
+  - visão **Detail** (detalhamento por símbolo/timeframe)
+- Implementados filtros e ordenação no Overview (risco, símbolo, recência) com
+  persistência em `localStorage`.
+- Contadores de risco (`ok`, `atenção`, `bloqueado`) no header, com filtro
+  clicável (toggle).
+- Melhorias de acessibilidade:
+  - `aria-pressed` nos badges de risco ativos
+  - regiões `aria-live` para anúncios de mudança de filtro em Símbolos,
+    Posições e Assertividade
+  - centralização das mensagens assistivas em `A11Y_MESSAGES`
+- Cobertura estática expandida para validar contratos de UI e acessibilidade.
+
+### CI (gate reutilizável)
+
+- Criado workflow reutilizável para gate estático de acessibilidade do frontend:
+  - `.github/workflows/reusable-frontend-a11y-gate.yml`
+- Gate conectado aos pipelines:
+  - `spec023-validation`
+  - `spec041-validation`
+- Adicionado input opcional `pytest_target` no workflow reutilizável para
+  reaproveitamento em outros gates.
+
+## Riscos conhecidos e rollback
+
+1. Risco: falso positivo em teste estático por regex de `announceLiveRegion`.
+   Rollback: ajustar `pytest_target` para teste anterior no workflow
+   reutilizável e manter gate ativo em modo mínimo.
+2. Risco: mudança de IDs/atributos no HTML quebrar bindings de filtros na aba
+   Símbolos.
+   Rollback: restaurar IDs canônicos dos controles e reexecutar
+   `tests/dashboard/test_frontend.py`.
+3. Risco: regressão de anúncio assistivo em fluxos de filtro por refactor de
+   handlers.
+   Rollback: reverter para commit `975d731` (última versão validada com gate e
+   testes verdes) e reaplicar ajustes incrementalmente.
