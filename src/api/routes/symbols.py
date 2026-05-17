@@ -85,6 +85,53 @@ def _build_human_explanation(diagnosis: dict[str, Any]) -> dict[str, str]:
     return text
 
 
+def _build_trader_technical_explanation(diagnosis: dict[str, Any]) -> dict[str, str]:
+    """Gera explicação técnica estruturada para leitura operacional de trader."""
+    details = diagnosis.get("details") if isinstance(diagnosis.get("details"), dict) else {}
+    details = details or {}
+
+    ma_state = details.get("ma_state") or details.get("moving_average_state") or "não informado"
+    above_ma = details.get("price_above_ma") or details.get("price_above_moving_averages")
+    ma_cross = details.get("ma_cross") or details.get("moving_average_cross")
+    trend = details.get("trend") or details.get("market_trend") or "não informado"
+    ao_state = details.get("ao_state") or details.get("awesome_oscillator_state") or "não informado"
+    stoch_state = details.get("stochastic_state") or details.get("stoch_state") or "não informado"
+    fractal_state = details.get("fractal_state") or details.get("fractals_state") or "não informado"
+
+    ma_parts = [str(ma_state)]
+    if isinstance(above_ma, bool):
+        ma_parts.append("acima das médias" if above_ma else "abaixo das médias")
+    if ma_cross:
+        ma_parts.append(f"cruzamento: {ma_cross}")
+
+    structured = {
+        "tendencia": str(trend),
+        "medias": "; ".join(ma_parts),
+        "momentum": str(ao_state),
+        "oscilador": str(stoch_state),
+        "fractal": str(fractal_state),
+    }
+
+    if any(value != "não informado" and "não informado" not in value for value in structured.values()):
+        return structured
+
+    classification = str(diagnosis.get("classification") or "UNKNOWN").upper()
+    engine_outcome = str(diagnosis.get("engine_outcome") or "").strip()
+    fallback = (
+        "Indicadores técnicos detalhados não vieram enriquecidos nesta leitura. "
+        f"Classificação: {classification}. "
+        f"Estado do motor: {engine_outcome or 'não informado'}."
+    )
+    return {
+        "tendencia": "não informado",
+        "medias": "não informado",
+        "momentum": "não informado",
+        "oscilador": "não informado",
+        "fractal": "não informado",
+        "fallback": fallback,
+    }
+
+
 def _build_watch_zones(
     trades: list[dict[str, Any]], current_price: float | None
 ) -> list[dict[str, Any]]:
@@ -178,6 +225,7 @@ async def get_symbols_overview(request: Request) -> JSONResponse:
         )
 
     generated_at = datetime.now(UTC)
+    technical = _build_trader_technical_explanation(diagnosis)
     payload = {
         "symbols": rows,
         "total": len(rows),
@@ -240,6 +288,7 @@ async def get_symbol_detail(request: Request, symbol: str, timeframe: str = "15m
             current_price = None
 
     zones = _build_watch_zones(symbol_trades, current_price)
+    technical = _build_trader_technical_explanation(diagnosis)
     now = datetime.now(UTC)
     payload = {
         "symbol": normalized_symbol,
@@ -259,6 +308,14 @@ async def get_symbol_detail(request: Request, symbol: str, timeframe: str = "15m
         "last_analysis": {
             **diagnosis,
             "human_explanation": human,
+            "technical_explanation": technical.get("fallback") or (
+                f"Tendência: {technical.get('tendencia', 'não informado')}. "
+                f"Médias: {technical.get('medias', 'não informado')}. "
+                f"Momentum: {technical.get('momentum', 'não informado')}. "
+                f"Oscilador: {technical.get('oscilador', 'não informado')}. "
+                f"Fractal: {technical.get('fractal', 'não informado')}."
+            ),
+            "technical_explanation_structured": technical,
             "as_of": now,
         },
         "chart": {

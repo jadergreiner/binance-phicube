@@ -847,6 +847,10 @@ h1 {
   border: 0;
 }
 
+.multiline-detail {
+  white-space: pre-line;
+}
+
 .onboarding-manage-box {
   margin-top: 1.25rem;
   background: #0f1117;

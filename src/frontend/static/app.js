@@ -124,7 +124,9 @@
     symbolsDetailTimeframeValue: document.getElementById("symbols-detail-timeframe-value"),
     symbolsDetailRiskValue: document.getElementById("symbols-detail-risk-value"),
     symbolsDetailDecisionValue: document.getElementById("symbols-detail-decision-value"),
+    symbolsDetailAnalyzedAtValue: document.getElementById("symbols-detail-analyzed-at-value"),
     symbolsDetailHumanValue: document.getElementById("symbols-detail-human-value"),
+    symbolsDetailTechnicalValue: document.getElementById("symbols-detail-technical-value"),
     symbolsDetailLevelsValue: document.getElementById("symbols-detail-levels-value"),
     symbolsDetailZonesValue: document.getElementById("symbols-detail-zones-value"),
     tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
@@ -1174,6 +1176,17 @@
   function renderSymbolDetail(payload) {
     const lastAnalysis = payload?.last_analysis || {};
     const human = lastAnalysis?.human_explanation?.full_text || "—";
+    const technicalStructured = lastAnalysis?.technical_explanation_structured || {};
+    const technical = technicalStructured?.fallback
+      ? technicalStructured.fallback
+      : [
+          `Tendência: ${technicalStructured?.tendencia || "não informado"}`,
+          `Médias: ${technicalStructured?.medias || "não informado"}`,
+          `Momentum: ${technicalStructured?.momentum || "não informado"}`,
+          `Oscilador: ${technicalStructured?.oscilador || "não informado"}`,
+          `Fractal: ${technicalStructured?.fractal || "não informado"}`,
+        ].join("\n");
+    const analyzedAt = getDateTimeLabel(lastAnalysis, "last_evidence_at");
     const levels = payload?.chart?.levels || {};
     const zones = Array.isArray(payload?.chart?.watch_zones) ? payload.chart.watch_zones : [];
     const zonesLabel = zones.map((zone) => `${zone.type}:${formatPrice(zone.price_min)}`).join(" | ") || "—";
@@ -1182,7 +1195,9 @@
     elements.symbolsDetailTimeframeValue.textContent = payload?.timeframe || "—";
     elements.symbolsDetailRiskValue.textContent = payload?.risk?.risk_status || "—";
     elements.symbolsDetailDecisionValue.textContent = lastAnalysis?.classification || "—";
+    elements.symbolsDetailAnalyzedAtValue.textContent = analyzedAt;
     elements.symbolsDetailHumanValue.textContent = human;
+    elements.symbolsDetailTechnicalValue.textContent = technical;
     elements.symbolsDetailLevelsValue.textContent =
       `${formatPrice(levels.entry)} / ${formatPrice(levels.sl)} / ${formatPrice(levels.tp)}`;
     elements.symbolsDetailZonesValue.textContent = zonesLabel;

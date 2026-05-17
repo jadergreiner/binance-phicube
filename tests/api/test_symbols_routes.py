@@ -84,3 +84,5 @@ def test_symbol_detail_retorna_facade_com_explicacao_humana() -> None:
     assert all(
         k in human for k in ("what_i_saw", "what_i_decided", "why", "next_step", "full_text")
     )
+    assert "technical_explanation" in payload["last_analysis"]
+    assert "technical_explanation_structured" in payload["last_analysis"]

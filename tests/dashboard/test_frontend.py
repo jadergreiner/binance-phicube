@@ -217,6 +217,8 @@ def test_frontend_symbols_overview_expoe_filtros_ordenacao_e_persistencia() -> N
     assert 'id="symbols-overview-count-ok"' in html
     assert 'id="symbols-overview-count-atencao"' in html
     assert 'id="symbols-overview-count-bloqueado"' in html
+    assert 'id="symbols-detail-analyzed-at-value"' in html
+    assert 'id="symbols-detail-technical-value"' in html
     assert "SYMBOLS_OVERVIEW_VIEW_STORAGE_KEY" in javascript
     assert "persistSymbolsOverviewPreference" in javascript
     assert "restoreSymbolsOverviewPreference" in javascript
