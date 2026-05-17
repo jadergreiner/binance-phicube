@@ -636,6 +636,7 @@ class TradingMonitor:
             "symbol": self._symbol,
             "timeframe": self._timeframe,
             "candle_close_time": None,
+            "technical_indicators": None,
             "engine_outcome": "not_evaluated",
             "engine_reason": None,
             "risk_outcome": "not_evaluated",
@@ -678,6 +679,7 @@ class TradingMonitor:
         # Discard the last (potentially incomplete) candle
         df = df.iloc[:-1].reset_index(drop=True)
         cycle_diag["candle_close_time"] = self._resolve_candle_close_time(df)
+        cycle_diag["technical_indicators"] = self._build_technical_indicators_snapshot(df)
 
         # Check if we can open new positions
         total_open = await self._resilient_repo.count_open_trades()
@@ -1071,6 +1073,95 @@ class TradingMonitor:
             if value is not None:
                 return str(value)
         return None
+
+    @staticmethod
+    def _build_technical_indicators_snapshot(df: pd.DataFrame) -> dict[str, Any]:
+        required_cols = {"close", "high", "low"}
+        missing_cols = sorted(required_cols - set(df.columns))
+        if missing_cols:
+            return {
+                "status": "missing_columns",
+                "reason": f"missing_columns:{','.join(missing_cols)}",
+            }
+
+        numeric = df.copy()
+        numeric["close"] = pd.to_numeric(numeric["close"], errors="coerce")
+        numeric["high"] = pd.to_numeric(numeric["high"], errors="coerce")
+        numeric["low"] = pd.to_numeric(numeric["low"], errors="coerce")
+        numeric = numeric.dropna(subset=["close", "high", "low"])
+        if numeric.empty:
+            return {
+                "status": "insufficient_data",
+                "reason": "no_valid_ohlc_rows",
+            }
+
+        close = numeric["close"]
+        high = numeric["high"]
+        low = numeric["low"]
+
+        close_now = float(close.iloc[-1])
+        ma20 = close.rolling(window=20, min_periods=20).mean().iloc[-1]
+        ma50 = close.rolling(window=50, min_periods=50).mean().iloc[-1]
+
+        lowest_14 = low.rolling(window=14, min_periods=14).min()
+        highest_14 = high.rolling(window=14, min_periods=14).max()
+        denom = (highest_14 - lowest_14).replace(0, pd.NA)
+        stoch_k_series = ((close - lowest_14) / denom) * 100.0
+        stoch_d_series = stoch_k_series.rolling(window=3, min_periods=3).mean()
+        stoch_k = stoch_k_series.iloc[-1]
+        stoch_d = stoch_d_series.iloc[-1]
+
+        snapshot: dict[str, Any] = {
+            "status": "ok",
+            "close": close_now,
+            "ma20": float(ma20) if pd.notna(ma20) else None,
+            "ma50": float(ma50) if pd.notna(ma50) else None,
+            "stoch_k": float(stoch_k) if pd.notna(stoch_k) else None,
+            "stoch_d": float(stoch_d) if pd.notna(stoch_d) else None,
+            "bars_available": int(len(numeric)),
+        }
+
+        ma20_val = snapshot.get("ma20")
+        ma50_val = snapshot.get("ma50")
+        if isinstance(ma20_val, float) and ma20_val != 0:
+            snapshot["price_vs_ma20_pct"] = ((close_now - ma20_val) / ma20_val) * 100.0
+            snapshot["price_above_ma20"] = close_now >= ma20_val
+        else:
+            snapshot["price_vs_ma20_pct"] = None
+            snapshot["price_above_ma20"] = None
+        if isinstance(ma50_val, float) and ma50_val != 0:
+            snapshot["price_vs_ma50_pct"] = ((close_now - ma50_val) / ma50_val) * 100.0
+            snapshot["price_above_ma50"] = close_now >= ma50_val
+        else:
+            snapshot["price_vs_ma50_pct"] = None
+            snapshot["price_above_ma50"] = None
+        if isinstance(ma20_val, float) and isinstance(ma50_val, float):
+            snapshot["ma_alignment"] = "bullish" if ma20_val >= ma50_val else "bearish"
+        else:
+            snapshot["ma_alignment"] = "unknown"
+
+        if isinstance(snapshot.get("stoch_k"), float):
+            k_val = float(snapshot["stoch_k"])
+            if k_val >= 80:
+                snapshot["stoch_zone"] = "overbought"
+            elif k_val <= 20:
+                snapshot["stoch_zone"] = "oversold"
+            else:
+                snapshot["stoch_zone"] = "neutral"
+        else:
+            snapshot["stoch_zone"] = "unknown"
+        if isinstance(snapshot.get("stoch_k"), float) and isinstance(
+            snapshot.get("stoch_d"), float
+        ):
+            snapshot["stoch_signal"] = (
+                "k_above_d"
+                if float(snapshot["stoch_k"]) >= float(snapshot["stoch_d"])
+                else "k_below_d"
+            )
+        else:
+            snapshot["stoch_signal"] = "unknown"
+
+        return snapshot
 
     async def _set_signal_outcome(
         self,

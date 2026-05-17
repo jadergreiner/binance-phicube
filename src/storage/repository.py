@@ -777,6 +777,7 @@ class MongoRepository:
                 "candle_close_time": latest_cycle.get("candle_close_time"),
                 "engine_reason": latest_cycle.get("engine_reason"),
                 "ml_reason": latest_cycle.get("ml_reason"),
+                "technical_indicators": latest_cycle.get("technical_indicators"),
             },
         }
 

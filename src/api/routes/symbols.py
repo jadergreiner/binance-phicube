@@ -94,20 +94,84 @@ def _build_trader_technical_explanation(diagnosis: dict[str, Any]) -> dict[str, 
     """Gera explicação técnica estruturada para leitura operacional de trader."""
     details = diagnosis.get("details") if isinstance(diagnosis.get("details"), dict) else {}
     details = details or {}
+    indicators = (
+        details.get("technical_indicators")
+        if isinstance(details.get("technical_indicators"), dict)
+        else {}
+    )
+    indicators = indicators or {}
+
+    def _fmt_price(value: Any) -> str:
+        if isinstance(value, (int, float)):
+            return f"{float(value):.6f}"
+        return "não informado"
+
+    def _fmt_pct(value: Any) -> str:
+        if isinstance(value, (int, float)):
+            return f"{float(value):+.2f}%"
+        return "N/A"
 
     ma_state = details.get("ma_state") or details.get("moving_average_state") or "não informado"
     above_ma = details.get("price_above_ma") or details.get("price_above_moving_averages")
     ma_cross = details.get("ma_cross") or details.get("moving_average_cross")
-    trend = details.get("trend") or details.get("market_trend") or "não informado"
+    trend = details.get("trend") or details.get("market_trend") or indicators.get("ma_alignment")
+    trend = trend or "não informado"
     ao_state = details.get("ao_state") or details.get("awesome_oscillator_state") or "não informado"
-    stoch_state = details.get("stochastic_state") or details.get("stoch_state") or "não informado"
+    stoch_state = details.get("stochastic_state") or details.get("stoch_state")
     fractal_state = details.get("fractal_state") or details.get("fractals_state") or "não informado"
 
+    close = indicators.get("close")
+    ma20 = indicators.get("ma20")
+    ma50 = indicators.get("ma50")
+    price_vs_ma20_pct = indicators.get("price_vs_ma20_pct")
+    price_vs_ma50_pct = indicators.get("price_vs_ma50_pct")
+    price_above_ma20 = indicators.get("price_above_ma20")
+    price_above_ma50 = indicators.get("price_above_ma50")
+    ma_alignment = indicators.get("ma_alignment")
+    stoch_k = indicators.get("stoch_k")
+    stoch_d = indicators.get("stoch_d")
+    stoch_zone = indicators.get("stoch_zone")
+    stoch_signal = indicators.get("stoch_signal")
+
     ma_parts = [str(ma_state)]
+    if isinstance(close, (int, float)):
+        ma_parts.append(f"preço={_fmt_price(close)}")
+    if isinstance(ma20, (int, float)):
+        if price_above_ma20 is True:
+            side20 = "acima"
+        elif price_above_ma20 is False:
+            side20 = "abaixo"
+        else:
+            side20 = "N/A"
+        ma_parts.append(f"SMA20={_fmt_price(ma20)} ({_fmt_pct(price_vs_ma20_pct)}; {side20})")
+    if isinstance(ma50, (int, float)):
+        if price_above_ma50 is True:
+            side50 = "acima"
+        elif price_above_ma50 is False:
+            side50 = "abaixo"
+        else:
+            side50 = "N/A"
+        ma_parts.append(f"SMA50={_fmt_price(ma50)} ({_fmt_pct(price_vs_ma50_pct)}; {side50})")
+    if isinstance(ma_alignment, str) and ma_alignment not in {"", "unknown"}:
+        ma_parts.append(f"alinhamento={ma_alignment}")
     if isinstance(above_ma, bool):
         ma_parts.append("acima das médias" if above_ma else "abaixo das médias")
     if ma_cross:
         ma_parts.append(f"cruzamento: {ma_cross}")
+
+    stoch_parts: list[str] = []
+    if isinstance(stoch_k, (int, float)):
+        stoch_parts.append(f"K={float(stoch_k):.2f}")
+    if isinstance(stoch_d, (int, float)):
+        stoch_parts.append(f"D={float(stoch_d):.2f}")
+    if isinstance(stoch_zone, str) and stoch_zone not in {"", "unknown"}:
+        stoch_parts.append(f"zona={stoch_zone}")
+    if isinstance(stoch_signal, str) and stoch_signal not in {"", "unknown"}:
+        stoch_parts.append(f"sinal={stoch_signal}")
+    if stoch_parts:
+        stoch_state = " | ".join(stoch_parts)
+    elif not stoch_state:
+        stoch_state = "não informado"
 
     structured = {
         "tendencia": str(trend),
@@ -118,17 +182,24 @@ def _build_trader_technical_explanation(diagnosis: dict[str, Any]) -> dict[str, 
     }
 
     if any(
-        value != "não informado" and "não informado" not in value
-        for value in structured.values()
+        value != "não informado" and "não informado" not in value for value in structured.values()
     ):
         return structured
 
     classification = str(diagnosis.get("classification") or "UNKNOWN").upper()
     engine_outcome = str(diagnosis.get("engine_outcome") or "").strip()
-    fallback = (
-        "Indicadores técnicos detalhados não vieram enriquecidos nesta leitura. "
-        f"Classificação: {classification}. "
-        f"Estado do motor: {engine_outcome or 'não informado'}."
+    indicator_status = indicators.get("status")
+    indicator_reason = indicators.get("reason")
+    if indicator_status == "missing_columns":
+        indicator_msg = f"Indicadores indisponíveis por dados faltantes ({indicator_reason}). "
+    elif indicator_status == "insufficient_data":
+        indicator_msg = (
+            f"Indicadores indisponíveis por histórico insuficiente ({indicator_reason}). "
+        )
+    else:
+        indicator_msg = "Indicadores técnicos detalhados não vieram enriquecidos nesta leitura. "
+    fallback = indicator_msg + (
+        f"Classificação: {classification}. Estado do motor: {engine_outcome or 'não informado'}."
     )
     return {
         "tendencia": "não informado",
@@ -315,7 +386,8 @@ async def get_symbol_detail(request: Request, symbol: str, timeframe: str = "15m
         "last_analysis": {
             **diagnosis,
             "human_explanation": human,
-            "technical_explanation": technical.get("fallback") or (
+            "technical_explanation": technical.get("fallback")
+            or (
                 f"Tendência: {technical.get('tendencia', 'não informado')}. "
                 f"Médias: {technical.get('medias', 'não informado')}. "
                 f"Momentum: {technical.get('momentum', 'não informado')}. "

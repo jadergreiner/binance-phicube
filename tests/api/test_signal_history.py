@@ -233,6 +233,12 @@ class TestSignalHistoryRepository:
                 "engine_reason": "regime_lateral_blocked",
                 "risk_outcome": "rejected",
                 "candle_close_time": "2026-05-13T14:30:00Z",
+                "technical_indicators": {
+                    "status": "ok",
+                    "close": 0.2575,
+                    "ma20": 0.2561,
+                    "ma50": 0.2554,
+                },
             }
         )
         repo._db = MagicMock()
@@ -244,3 +250,4 @@ class TestSignalHistoryRepository:
         assert result["risk_reason"] == "quantity_zero_after_rounding"
         assert result["engine_reason"] == "regime_lateral_blocked"
         assert result["details"]["engine_reason"] == "regime_lateral_blocked"
+        assert result["details"]["technical_indicators"]["status"] == "ok"
