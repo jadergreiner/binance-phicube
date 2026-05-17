@@ -7,6 +7,7 @@
   const OPEN_TRADES_POLL_INTERVAL_MS = 60_000;
   const SIGNAL_HISTORY_POLL_INTERVAL_MS = 60_000;
   const ASSERTIVENESS_POLL_INTERVAL_MS = 60_000;
+  const SYMBOLS_OVERVIEW_POLL_INTERVAL_MS = 60_000;
 
   const state = {
     socket: null,
@@ -33,6 +34,16 @@
       end: "",
     },
     activeTab: "overview",
+    symbolsView: {
+      symbol: "",
+      timeframe: "15m",
+    },
+    symbolsOverview: {
+      riskStatus: "",
+      symbolQuery: "",
+      sortKey: "risk_status",
+      sortDir: "asc",
+    },
   };
 
   const elements = {
@@ -73,6 +84,7 @@
     sortKey: document.getElementById("sort-key"),
     sortDir: document.getElementById("sort-dir"),
     saveViewBtn: document.getElementById("save-view-btn"),
+    positionsLiveRegion: document.getElementById("positions-live-region"),
     directionButtons: Array.from(document.querySelectorAll(".dir-btn")),
     openTradesBody: document.getElementById("open-trades-body"),
     tradeHistoryBody: document.getElementById("trade-history-body"),
@@ -86,18 +98,71 @@
     assertivenessPeriod: document.getElementById("assertiveness-period"),
     assertivenessStart: document.getElementById("assertiveness-start"),
     assertivenessEnd: document.getElementById("assertiveness-end"),
+    assertivenessLiveRegion: document.getElementById("assertiveness-live-region"),
     assertivenessSummaryAssertiveness: document.getElementById("assertiveness-summary-assertiveness"),
     assertivenessSummarySignals: document.getElementById("assertiveness-summary-signals"),
     assertivenessSummaryTrades: document.getElementById("assertiveness-summary-trades"),
     assertivenessSummaryConversion: document.getElementById("assertiveness-summary-conversion"),
     assertivenessRankingBody: document.getElementById("assertiveness-ranking-body"),
     assertivenessTimelineBody: document.getElementById("assertiveness-timeline-body"),
+    symbolsOverviewStatus: document.getElementById("symbols-overview-status"),
+    symbolsOverviewCountOk: document.getElementById("symbols-overview-count-ok"),
+    symbolsOverviewCountAtencao: document.getElementById("symbols-overview-count-atencao"),
+    symbolsOverviewCountBloqueado: document.getElementById("symbols-overview-count-bloqueado"),
+    symbolsOverviewBody: document.getElementById("symbols-overview-body"),
+    symbolsOverviewFilterRisk: document.getElementById("symbols-overview-filter-risk"),
+    symbolsOverviewFilterSymbol: document.getElementById("symbols-overview-filter-symbol"),
+    symbolsOverviewSortKey: document.getElementById("symbols-overview-sort-key"),
+    symbolsOverviewSortDir: document.getElementById("symbols-overview-sort-dir"),
+    symbolsOverviewSortChip: document.getElementById("symbols-overview-sort-chip"),
+    symbolsOverviewClearFilters: document.getElementById("symbols-overview-clear-filters"),
+    symbolsOverviewLiveRegion: document.getElementById("symbols-overview-live-region"),
+    symbolsDetailStatus: document.getElementById("symbols-detail-status"),
+    symbolsDetailSymbol: document.getElementById("symbols-detail-symbol"),
+    symbolsDetailTimeframe: document.getElementById("symbols-detail-timeframe"),
+    symbolsDetailSymbolValue: document.getElementById("symbols-detail-symbol-value"),
+    symbolsDetailTimeframeValue: document.getElementById("symbols-detail-timeframe-value"),
+    symbolsDetailRiskValue: document.getElementById("symbols-detail-risk-value"),
+    symbolsDetailDecisionValue: document.getElementById("symbols-detail-decision-value"),
+    symbolsDetailHumanValue: document.getElementById("symbols-detail-human-value"),
+    symbolsDetailLevelsValue: document.getElementById("symbols-detail-levels-value"),
+    symbolsDetailZonesValue: document.getElementById("symbols-detail-zones-value"),
     tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
     tabSections: Array.from(document.querySelectorAll(".tab-section")),
   };
   const POSITION_VIEW_STORAGE_KEY = "phicube_positions_view_v2";
   const ASSERTIVENESS_VIEW_STORAGE_KEY = "phicube_assertiveness_view_v1";
   const ACTIVE_TAB_STORAGE_KEY = "phicube_active_tab_v1";
+  const SYMBOLS_OVERVIEW_VIEW_STORAGE_KEY = "phicube_symbols_overview_view_v1";
+  const A11Y_MESSAGES = {
+    symbols: {
+      riskApplied: (risk) => `Filtro de risco aplicado: ${risk}`,
+      riskRemoved: "Filtro de risco removido",
+      symbolApplied: (symbol) => `Filtro de símbolo aplicado: ${symbol}`,
+      symbolRemoved: "Filtro de símbolo removido",
+      sortChanged: (sortKey) => `Ordenação alterada para: ${sortKey}`,
+      sortDirChanged: (sortDir) => `Direção de ordenação alterada para: ${sortDir}`,
+      reset: "Filtros de símbolos resetados para o padrão",
+    },
+    positions: {
+      symbolApplied: (symbol) => `Filtro de símbolo aplicado: ${symbol}`,
+      symbolRemoved: "Filtro de símbolo removido",
+      directionApplied: (direction) => `Filtro de direção aplicado: ${direction}`,
+      directionRemoved: "Filtro de direção removido",
+      sortChanged: (sortKey) => `Ordenação alterada para: ${sortKey}`,
+      sortDirChanged: (sortDir) => `Direção de ordenação alterada para: ${sortDir}`,
+      viewSaved: "Visão de posições salva",
+    },
+    assertiveness: {
+      symbolApplied: (symbol) => `Assertividade filtrada por símbolo: ${symbol}`,
+      symbolRemoved: "Filtro de símbolo da assertividade removido",
+      timeframeApplied: (timeframe) => `Assertividade filtrada por timeframe: ${timeframe}`,
+      timeframeRemoved: "Filtro de timeframe da assertividade removido",
+      periodChanged: (period) => `Período da assertividade alterado para: ${period}`,
+      startUpdated: "Data inicial da assertividade atualizada",
+      endUpdated: "Data final da assertividade atualizada",
+    },
+  };
 
   const moneyFormatter = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -611,6 +676,12 @@
     if (elements.filterSymbol) {
       elements.filterSymbol.addEventListener("change", (event) => {
         state.filterSymbol = event.target.value;
+      announceLiveRegion(
+        elements.positionsLiveRegion,
+        state.filterSymbol
+          ? A11Y_MESSAGES.positions.symbolApplied(state.filterSymbol)
+          : A11Y_MESSAGES.positions.symbolRemoved,
+        );
         applyPositionFilters();
       });
     }
@@ -621,6 +692,12 @@
         elements.directionButtons.forEach((innerButton) => {
           innerButton.classList.toggle("active", innerButton === button);
         });
+        announceLiveRegion(
+          elements.positionsLiveRegion,
+          state.filterDirection
+            ? A11Y_MESSAGES.positions.directionApplied(state.filterDirection.toUpperCase())
+            : A11Y_MESSAGES.positions.directionRemoved,
+        );
         applyPositionFilters();
       });
     });
@@ -628,6 +705,10 @@
     if (elements.sortKey) {
       elements.sortKey.addEventListener("change", (event) => {
         state.sortKey = event.target.value || "symbol";
+        announceLiveRegion(
+          elements.positionsLiveRegion,
+          A11Y_MESSAGES.positions.sortChanged(state.sortKey),
+        );
         applyPositionFilters();
       });
     }
@@ -635,12 +716,19 @@
     if (elements.sortDir) {
       elements.sortDir.addEventListener("change", (event) => {
         state.sortDir = event.target.value === "desc" ? "desc" : "asc";
+        announceLiveRegion(
+          elements.positionsLiveRegion,
+          A11Y_MESSAGES.positions.sortDirChanged(state.sortDir),
+        );
         applyPositionFilters();
       });
     }
 
     if (elements.saveViewBtn) {
-      elements.saveViewBtn.addEventListener("click", persistPositionViewPreference);
+      elements.saveViewBtn.addEventListener("click", () => {
+        persistPositionViewPreference();
+        announceLiveRegion(elements.positionsLiveRegion, A11Y_MESSAGES.positions.viewSaved);
+      });
     }
   }
 
@@ -853,6 +941,12 @@
       elements.assertivenessSymbol.addEventListener("change", (event) => {
         state.assertiveness.symbol = event.target.value;
         persistAssertivenessViewPreference();
+        announceLiveRegion(
+          elements.assertivenessLiveRegion,
+          state.assertiveness.symbol
+            ? A11Y_MESSAGES.assertiveness.symbolApplied(state.assertiveness.symbol)
+            : A11Y_MESSAGES.assertiveness.symbolRemoved,
+        );
         fetchAssertiveness();
       });
     }
@@ -860,6 +954,12 @@
       elements.assertivenessTimeframe.addEventListener("change", (event) => {
         state.assertiveness.timeframe = event.target.value;
         persistAssertivenessViewPreference();
+        announceLiveRegion(
+          elements.assertivenessLiveRegion,
+          state.assertiveness.timeframe
+            ? A11Y_MESSAGES.assertiveness.timeframeApplied(state.assertiveness.timeframe)
+            : A11Y_MESSAGES.assertiveness.timeframeRemoved,
+        );
         fetchAssertiveness();
       });
     }
@@ -868,6 +968,10 @@
         state.assertiveness.period = event.target.value || "30d";
         syncAssertivenessCustomControls();
         persistAssertivenessViewPreference();
+        announceLiveRegion(
+          elements.assertivenessLiveRegion,
+          A11Y_MESSAGES.assertiveness.periodChanged(state.assertiveness.period),
+        );
         fetchAssertiveness();
       });
     }
@@ -875,6 +979,10 @@
       elements.assertivenessStart.addEventListener("change", (event) => {
         state.assertiveness.start = event.target.value || "";
         persistAssertivenessViewPreference();
+        announceLiveRegion(
+          elements.assertivenessLiveRegion,
+          A11Y_MESSAGES.assertiveness.startUpdated,
+        );
         if (state.assertiveness.period === "custom") {
           fetchAssertiveness();
         }
@@ -884,9 +992,372 @@
       elements.assertivenessEnd.addEventListener("change", (event) => {
         state.assertiveness.end = event.target.value || "";
         persistAssertivenessViewPreference();
+        announceLiveRegion(
+          elements.assertivenessLiveRegion,
+          A11Y_MESSAGES.assertiveness.endUpdated,
+        );
         if (state.assertiveness.period === "custom") {
           fetchAssertiveness();
         }
+      });
+    }
+  }
+
+  function symbolsOverviewRiskRank(value) {
+    const normalized = String(value || "").toLowerCase();
+    if (normalized === "bloqueado") return 2;
+    if (normalized === "atencao") return 1;
+    return 0;
+  }
+
+  function persistSymbolsOverviewPreference() {
+    try {
+      window.localStorage.setItem(
+        SYMBOLS_OVERVIEW_VIEW_STORAGE_KEY,
+        JSON.stringify(state.symbolsOverview),
+      );
+    } catch (_) {
+      // ignora storage indisponível
+    }
+  }
+
+  function restoreSymbolsOverviewPreference() {
+    try {
+      const raw = window.localStorage.getItem(SYMBOLS_OVERVIEW_VIEW_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      state.symbolsOverview.riskStatus = String(parsed.riskStatus || "");
+      state.symbolsOverview.symbolQuery = String(parsed.symbolQuery || "");
+      state.symbolsOverview.sortKey = String(parsed.sortKey || "risk_status");
+      state.symbolsOverview.sortDir = String(parsed.sortDir || "asc");
+    } catch (_) {
+      // ignora payload inválido
+    }
+    if (elements.symbolsOverviewFilterRisk) {
+      elements.symbolsOverviewFilterRisk.value = state.symbolsOverview.riskStatus;
+    }
+    if (elements.symbolsOverviewFilterSymbol) {
+      elements.symbolsOverviewFilterSymbol.value = state.symbolsOverview.symbolQuery;
+    }
+    if (elements.symbolsOverviewSortKey) {
+      elements.symbolsOverviewSortKey.value = state.symbolsOverview.sortKey;
+    }
+    if (elements.symbolsOverviewSortDir) {
+      elements.symbolsOverviewSortDir.value = state.symbolsOverview.sortDir;
+    }
+  }
+
+  function applySymbolsOverviewFiltersAndSort(rows) {
+    const filtered = (rows || []).filter((row) => {
+      const riskFilter = state.symbolsOverview.riskStatus;
+      const query = state.symbolsOverview.symbolQuery.trim().toUpperCase();
+      if (riskFilter && String(row.risk_status || "").toLowerCase() !== riskFilter) {
+        return false;
+      }
+      if (query && !String(row.symbol || "").toUpperCase().includes(query)) {
+        return false;
+      }
+      return true;
+    });
+
+    const key = state.symbolsOverview.sortKey || "risk_status";
+    const dir = state.symbolsOverview.sortDir === "desc" ? -1 : 1;
+    filtered.sort((left, right) => {
+      if (key === "risk_status") {
+        return dir * (symbolsOverviewRiskRank(left.risk_status) - symbolsOverviewRiskRank(right.risk_status));
+      }
+      if (key === "as_of") {
+        const l = new Date(left.as_of || 0).getTime();
+        const r = new Date(right.as_of || 0).getTime();
+        return dir * (l - r);
+      }
+      return dir * String(left.symbol || "").localeCompare(String(right.symbol || ""));
+    });
+    return filtered;
+  }
+
+  function renderSymbolsOverviewSortChip() {
+    if (!elements.symbolsOverviewSortChip) {
+      return;
+    }
+    const keyMap = {
+      risk_status: "risco",
+      symbol: "símbolo",
+      as_of: "recência",
+    };
+    const keyLabel = keyMap[state.symbolsOverview.sortKey] || "risco";
+    const dirLabel = state.symbolsOverview.sortDir === "desc" ? "desc" : "asc";
+    elements.symbolsOverviewSortChip.textContent = `Ordenado por: ${keyLabel} (${dirLabel})`;
+  }
+
+  function renderSymbolsOverviewRiskBadgeState() {
+    const selected = String(state.symbolsOverview.riskStatus || "");
+    const pairs = [
+      [elements.symbolsOverviewCountOk, "ok"],
+      [elements.symbolsOverviewCountAtencao, "atencao"],
+      [elements.symbolsOverviewCountBloqueado, "bloqueado"],
+    ];
+    pairs.forEach(([el, key]) => {
+      if (!el) return;
+      const isActive = selected === key;
+      el.classList.toggle("risk-badge-active", isActive);
+      el.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function announceLiveRegion(liveRegionElement, message) {
+    if (!liveRegionElement) {
+      return;
+    }
+    liveRegionElement.textContent = "";
+    window.setTimeout(() => {
+      if (liveRegionElement) {
+        liveRegionElement.textContent = String(message || "");
+      }
+    }, 10);
+  }
+
+  function renderSymbolsOverview(payload) {
+    const rows = Array.isArray(payload?.symbols) ? payload.symbols : [];
+    const sortedRows = applySymbolsOverviewFiltersAndSort(rows);
+    renderSymbolsOverviewSortChip();
+    renderSymbolsOverviewRiskBadgeState();
+    const counts = sortedRows.reduce(
+      (acc, row) => {
+        const key = String(row.risk_status || "").toLowerCase();
+        if (key === "ok") acc.ok += 1;
+        else if (key === "atencao") acc.atencao += 1;
+        else if (key === "bloqueado") acc.bloqueado += 1;
+        return acc;
+      },
+      { ok: 0, atencao: 0, bloqueado: 0 },
+    );
+    if (elements.symbolsOverviewCountOk) {
+      elements.symbolsOverviewCountOk.textContent = `ok: ${counts.ok}`;
+    }
+    if (elements.symbolsOverviewCountAtencao) {
+      elements.symbolsOverviewCountAtencao.textContent = `atenção: ${counts.atencao}`;
+    }
+    if (elements.symbolsOverviewCountBloqueado) {
+      elements.symbolsOverviewCountBloqueado.textContent = `bloqueado: ${counts.bloqueado}`;
+    }
+    if (elements.symbolsOverviewStatus) {
+      elements.symbolsOverviewStatus.textContent = rows.length ? "online" : "sem dados";
+    }
+    if (!elements.symbolsOverviewBody) {
+      return;
+    }
+    if (!sortedRows.length) {
+      elements.symbolsOverviewBody.innerHTML = `
+        <tr class="empty-row">
+          <td colspan="5">Sem dados para o filtro aplicado.</td>
+        </tr>
+      `;
+      return;
+    }
+    elements.symbolsOverviewBody.innerHTML = sortedRows
+      .map((row) => {
+        const risk = String(row.risk_status || "—");
+        return `
+          <tr>
+            <td>${row.symbol ?? "—"}</td>
+            <td>${row.timeframe ?? "—"}</td>
+            <td>${row.last_analysis_summary ?? "—"}</td>
+            <td>${risk}</td>
+            <td>${getDateTimeLabel(row, "as_of")}</td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function renderSymbolDetail(payload) {
+    const lastAnalysis = payload?.last_analysis || {};
+    const human = lastAnalysis?.human_explanation?.full_text || "—";
+    const levels = payload?.chart?.levels || {};
+    const zones = Array.isArray(payload?.chart?.watch_zones) ? payload.chart.watch_zones : [];
+    const zonesLabel = zones.map((zone) => `${zone.type}:${formatPrice(zone.price_min)}`).join(" | ") || "—";
+
+    elements.symbolsDetailSymbolValue.textContent = payload?.symbol || "—";
+    elements.symbolsDetailTimeframeValue.textContent = payload?.timeframe || "—";
+    elements.symbolsDetailRiskValue.textContent = payload?.risk?.risk_status || "—";
+    elements.symbolsDetailDecisionValue.textContent = lastAnalysis?.classification || "—";
+    elements.symbolsDetailHumanValue.textContent = human;
+    elements.symbolsDetailLevelsValue.textContent =
+      `${formatPrice(levels.entry)} / ${formatPrice(levels.sl)} / ${formatPrice(levels.tp)}`;
+    elements.symbolsDetailZonesValue.textContent = zonesLabel;
+    if (elements.symbolsDetailStatus) {
+      elements.symbolsDetailStatus.textContent = "online";
+    }
+  }
+
+  function populateSymbolsFilter(rows) {
+    if (!elements.symbolsDetailSymbol) {
+      return;
+    }
+    const symbols = [...new Set((rows || []).map((row) => row.symbol).filter(Boolean))].sort();
+    const options = [
+      `<option value="">Selecione um símbolo</option>`,
+      ...symbols.map((symbol) => `<option value="${symbol}">${symbol}</option>`),
+    ];
+    elements.symbolsDetailSymbol.innerHTML = options.join("");
+    if (!state.symbolsView.symbol && symbols.length > 0) {
+      state.symbolsView.symbol = symbols[0];
+    }
+    elements.symbolsDetailSymbol.value = state.symbolsView.symbol;
+  }
+
+  async function fetchSymbolsOverview() {
+    try {
+      const response = await fetch("/symbols/overview", { cache: "no-store" });
+      if (!response.ok) {
+        if (elements.symbolsOverviewStatus) elements.symbolsOverviewStatus.textContent = "erro";
+        return;
+      }
+      const payload = await response.json();
+      renderSymbolsOverview(payload);
+      populateSymbolsFilter(payload.symbols || []);
+      if (state.symbolsView.symbol) {
+        fetchSymbolDetail();
+      }
+    } catch (_) {
+      if (elements.symbolsOverviewStatus) elements.symbolsOverviewStatus.textContent = "erro";
+    }
+  }
+
+  async function fetchSymbolDetail() {
+    const symbol = state.symbolsView.symbol;
+    if (!symbol) {
+      return;
+    }
+    const timeframe = state.symbolsView.timeframe || "15m";
+    try {
+      const response = await fetch(
+        `/symbols/${encodeURIComponent(symbol)}/detail?timeframe=${encodeURIComponent(timeframe)}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        if (elements.symbolsDetailStatus) elements.symbolsDetailStatus.textContent = "erro";
+        return;
+      }
+      const payload = await response.json();
+      renderSymbolDetail(payload);
+    } catch (_) {
+      if (elements.symbolsDetailStatus) elements.symbolsDetailStatus.textContent = "erro";
+    }
+  }
+
+  function bindSymbolsEvents() {
+    function toggleRiskFilter(targetRisk) {
+      const normalized = String(targetRisk || "");
+      state.symbolsOverview.riskStatus =
+        state.symbolsOverview.riskStatus === normalized ? "" : normalized;
+      if (elements.symbolsOverviewFilterRisk) {
+        elements.symbolsOverviewFilterRisk.value = state.symbolsOverview.riskStatus;
+      }
+      persistSymbolsOverviewPreference();
+      renderSymbolsOverviewRiskBadgeState();
+      announceLiveRegion(
+        elements.symbolsOverviewLiveRegion,
+        state.symbolsOverview.riskStatus
+          ? A11Y_MESSAGES.symbols.riskApplied(state.symbolsOverview.riskStatus)
+          : A11Y_MESSAGES.symbols.riskRemoved,
+      );
+      fetchSymbolsOverview();
+    }
+
+    if (elements.symbolsOverviewFilterRisk) {
+      elements.symbolsOverviewFilterRisk.addEventListener("change", (event) => {
+        state.symbolsOverview.riskStatus = String(event.target.value || "");
+        persistSymbolsOverviewPreference();
+        renderSymbolsOverviewRiskBadgeState();
+        announceLiveRegion(
+          elements.symbolsOverviewLiveRegion,
+          state.symbolsOverview.riskStatus
+            ? A11Y_MESSAGES.symbols.riskApplied(state.symbolsOverview.riskStatus)
+            : A11Y_MESSAGES.symbols.riskRemoved,
+        );
+        fetchSymbolsOverview();
+      });
+    }
+    if (elements.symbolsOverviewFilterSymbol) {
+      elements.symbolsOverviewFilterSymbol.addEventListener("input", (event) => {
+        state.symbolsOverview.symbolQuery = String(event.target.value || "");
+        persistSymbolsOverviewPreference();
+        announceLiveRegion(
+          elements.symbolsOverviewLiveRegion,
+          state.symbolsOverview.symbolQuery
+            ? A11Y_MESSAGES.symbols.symbolApplied(state.symbolsOverview.symbolQuery)
+            : A11Y_MESSAGES.symbols.symbolRemoved,
+        );
+        fetchSymbolsOverview();
+      });
+    }
+    if (elements.symbolsOverviewSortKey) {
+      elements.symbolsOverviewSortKey.addEventListener("change", (event) => {
+        state.symbolsOverview.sortKey = String(event.target.value || "risk_status");
+        persistSymbolsOverviewPreference();
+        announceLiveRegion(
+          elements.symbolsOverviewLiveRegion,
+          A11Y_MESSAGES.symbols.sortChanged(state.symbolsOverview.sortKey),
+        );
+        fetchSymbolsOverview();
+      });
+    }
+    if (elements.symbolsOverviewSortDir) {
+      elements.symbolsOverviewSortDir.addEventListener("change", (event) => {
+        state.symbolsOverview.sortDir = String(event.target.value || "asc");
+        persistSymbolsOverviewPreference();
+        announceLiveRegion(
+          elements.symbolsOverviewLiveRegion,
+          A11Y_MESSAGES.symbols.sortDirChanged(state.symbolsOverview.sortDir),
+        );
+        fetchSymbolsOverview();
+      });
+    }
+    if (elements.symbolsOverviewClearFilters) {
+      elements.symbolsOverviewClearFilters.addEventListener("click", () => {
+        state.symbolsOverview.riskStatus = "";
+        state.symbolsOverview.symbolQuery = "";
+        state.symbolsOverview.sortKey = "risk_status";
+        state.symbolsOverview.sortDir = "asc";
+        if (elements.symbolsOverviewFilterRisk) elements.symbolsOverviewFilterRisk.value = "";
+        if (elements.symbolsOverviewFilterSymbol) elements.symbolsOverviewFilterSymbol.value = "";
+        if (elements.symbolsOverviewSortKey) elements.symbolsOverviewSortKey.value = "risk_status";
+        if (elements.symbolsOverviewSortDir) elements.symbolsOverviewSortDir.value = "asc";
+        persistSymbolsOverviewPreference();
+        renderSymbolsOverviewSortChip();
+        renderSymbolsOverviewRiskBadgeState();
+        announceLiveRegion(
+          elements.symbolsOverviewLiveRegion,
+          A11Y_MESSAGES.symbols.reset,
+        );
+        fetchSymbolsOverview();
+      });
+    }
+    if (elements.symbolsOverviewCountOk) {
+      elements.symbolsOverviewCountOk.addEventListener("click", () => toggleRiskFilter("ok"));
+    }
+    if (elements.symbolsOverviewCountAtencao) {
+      elements.symbolsOverviewCountAtencao.addEventListener("click", () =>
+        toggleRiskFilter("atencao"),
+      );
+    }
+    if (elements.symbolsOverviewCountBloqueado) {
+      elements.symbolsOverviewCountBloqueado.addEventListener("click", () =>
+        toggleRiskFilter("bloqueado"),
+      );
+    }
+    if (elements.symbolsDetailSymbol) {
+      elements.symbolsDetailSymbol.addEventListener("change", (event) => {
+        state.symbolsView.symbol = event.target.value || "";
+        fetchSymbolDetail();
+      });
+    }
+    if (elements.symbolsDetailTimeframe) {
+      elements.symbolsDetailTimeframe.addEventListener("change", (event) => {
+        state.symbolsView.timeframe = event.target.value || "15m";
+        fetchSymbolDetail();
       });
     }
   }
@@ -1693,10 +2164,14 @@
     renderAssertiveness({});
     restorePositionViewPreference();
     restoreAssertivenessViewPreference();
+    restoreSymbolsOverviewPreference();
+    renderSymbolsOverviewSortChip();
+    renderSymbolsOverviewRiskBadgeState();
     bindTabEvents();
   bindPositionFilterEvents();
-  bindAnalysisViewEvents();
+    bindAnalysisViewEvents();
     bindAssertivenessEvents();
+    bindSymbolsEvents();
     bindOnboardingForm();
     setStatus("offline");
     setBanner({ visible: false });
@@ -1707,6 +2182,7 @@
     fetchTradeHistory();
     fetchSignalHistory();
     fetchAssertiveness();
+    fetchSymbolsOverview();
     fetchOnboardingSessions();
     window.setInterval(fetchPerformance, PERFORMANCE_POLL_INTERVAL_MS);
     window.setInterval(fetchBotActivity, BOT_ACTIVITY_POLL_INTERVAL_MS);
@@ -1714,6 +2190,7 @@
     window.setInterval(fetchTradeHistory, TRADE_HISTORY_POLL_INTERVAL_MS);
     window.setInterval(fetchSignalHistory, SIGNAL_HISTORY_POLL_INTERVAL_MS);
     window.setInterval(fetchAssertiveness, ASSERTIVENESS_POLL_INTERVAL_MS);
+    window.setInterval(fetchSymbolsOverview, SYMBOLS_OVERVIEW_POLL_INTERVAL_MS);
     window.setInterval(fetchOnboardingSessions, 30_000);
   }
 

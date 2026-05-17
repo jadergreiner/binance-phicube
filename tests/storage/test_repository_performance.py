@@ -60,6 +60,8 @@ class TestGetPerformanceBySymbol:
         assert result["ETHUSDT"]["total_trades"] == 1
         assert result["ETHUSDT"]["win_rate_pct"] == 0.0
         assert result["ETHUSDT"]["total_pnl_usdt"] < 0
+        query = repo._db.__getitem__.return_value.find.call_args.args[0]
+        assert query["excluded_from_metrics"] == {"$ne": True}
 
     @pytest.mark.asyncio
     async def test_retorna_dict_vazio_sem_trades(self) -> None:
@@ -115,3 +117,5 @@ class TestGetPerformanceMetricsNonBreaking:
         assert metrics["profit_factor"] > 0
         assert "max_drawdown_usdt" in metrics
         assert "avg_rrr" in metrics
+        query = repo._db.__getitem__.return_value.find.call_args.args[0]
+        assert query["excluded_from_metrics"] == {"$ne": True}

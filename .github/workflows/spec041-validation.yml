@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 
 jobs:
+  frontend-a11y-gate:
+    uses: ./.github/workflows/reusable-frontend-a11y-gate.yml
+
   structural-validation:
     runs-on: ubuntu-latest
     steps:
@@ -50,3 +53,4 @@ jobs:
         with:
           path: .
           extra_args: --results=verified,unknown --fail
+

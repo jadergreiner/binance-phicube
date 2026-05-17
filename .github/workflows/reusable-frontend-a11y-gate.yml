@@ -1,0 +1,31 @@
+name: reusable-frontend-a11y-gate
+
+on:
+  workflow_call:
+    inputs:
+      pytest_target:
+        description: "Alvo pytest para gate estático"
+        required: false
+        type: string
+        default: tests/dashboard/test_frontend.py::test_frontend_announce_live_region_nao_aceita_mensagem_hardcoded_fora_a11y_messages
+
+jobs:
+  frontend-a11y-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Enforce frontend a11y announcement gate
+        run: |
+          python -m pytest "${{ inputs.pytest_target }}" -q

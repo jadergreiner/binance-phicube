@@ -45,6 +45,34 @@ _CLOSED_TRADE_STATUSES = [
     TradeStatus.CLOSED_SL.value,
     TradeStatus.CLOSED_MANUAL.value,
 ]
+_ENTRY_PRICE_BOUNDS_BY_SYMBOL: dict[str, tuple[float, float]] = {
+    "BTCUSDT": (1000.0, 200000.0),
+}
+
+
+def _is_entry_price_in_range(symbol: str | None, entry_price: float | None) -> bool:
+    if symbol is None or entry_price is None:
+        return False
+    bounds = _ENTRY_PRICE_BOUNDS_BY_SYMBOL.get(symbol.upper())
+    if bounds is None:
+        return entry_price > 0.0
+    min_price, max_price = bounds
+    return min_price <= entry_price <= max_price
+
+
+def _closed_trades_query(*, include_period: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Filtro canônico de trades fechados válidos para métricas e histórico.
+
+    Documentos marcados com `excluded_from_metrics=true` são ignorados.
+    """
+    query: dict[str, Any] = {
+        "status": {"$in": _CLOSED_TRADE_STATUSES},
+        "pnl_usdt": {"$ne": None},
+        "excluded_from_metrics": {"$ne": True},
+    }
+    if include_period:
+        query.update(include_period)
+    return query
 
 
 def _calc_metrics(trades: list[dict]) -> dict[str, float | int]:
@@ -195,6 +223,35 @@ class MongoRepository:
         pnl_usdt: float | None = None,
         close_reason: str | None = None,
     ) -> None:
+        if status.value in _CLOSED_TRADE_STATUSES:
+            trade = await self._db[_TRADES_COLLECTION].find_one(
+                {"entry_order_id": entry_order_id},
+                {"_id": 0, "symbol": 1, "entry_price": 1},
+            )
+            symbol = trade.get("symbol") if trade else None
+            entry_price = trade.get("entry_price") if trade else None
+            if not _is_entry_price_in_range(symbol, entry_price):
+                bounds = _ENTRY_PRICE_BOUNDS_BY_SYMBOL.get((symbol or "").upper())
+                await self.audit(
+                    "trade_close_blocked_invalid_entry_price",
+                    {
+                        "entry_order_id": entry_order_id,
+                        "symbol": symbol,
+                        "status_requested": status.value,
+                        "entry_price": entry_price,
+                        "allowed_range": bounds,
+                    },
+                )
+                logger.warning(
+                    "trade_close_blocked_invalid_entry_price",
+                    entry_order_id=entry_order_id,
+                    symbol=symbol,
+                    status_requested=status.value,
+                    entry_price=entry_price,
+                    allowed_range=bounds,
+                )
+                return
+
         update: dict[str, Any] = {
             "$set": {
                 "status": status.value,
@@ -292,17 +349,7 @@ class MongoRepository:
     async def get_trade_history(self, limit: int = 50) -> list[dict]:
         """Retorna os últimos trades fechados ordenados por closed_at DESC."""
         pipeline = [
-            {
-                "$match": {
-                    "status": {
-                        "$in": [
-                            TradeStatus.CLOSED_TP.value,
-                            TradeStatus.CLOSED_SL.value,
-                            TradeStatus.CLOSED_MANUAL.value,
-                        ]
-                    }
-                }
-            },
+            {"$match": _closed_trades_query()},
             {"$sort": {"closed_at": -1}},
             {"$limit": limit},
             {
@@ -331,17 +378,8 @@ class MongoRepository:
         """Retorna PnL realizado intraday em USDT para o dia UTC corrente."""
         ref = now.astimezone(UTC) if now else datetime.now(UTC)
         start_of_day = ref.replace(hour=0, minute=0, second=0, microsecond=0)
-        closed_statuses = [
-            TradeStatus.CLOSED_TP.value,
-            TradeStatus.CLOSED_SL.value,
-            TradeStatus.CLOSED_MANUAL.value,
-        ]
         cursor = self._db[_TRADES_COLLECTION].find(
-            {
-                "status": {"$in": closed_statuses},
-                "pnl_usdt": {"$ne": None},
-                "closed_at": {"$gte": start_of_day},
-            },
+            _closed_trades_query(include_period={"closed_at": {"$gte": start_of_day}}),
             {"_id": 0, "pnl_usdt": 1},
         )
         rows = await cursor.to_list(length=None)
@@ -444,7 +482,7 @@ class MongoRepository:
             projection["symbol"] = 1
             projection["timeframe"] = 1
         cursor = self._db[_TRADES_COLLECTION].find(
-            {"status": {"$in": _CLOSED_TRADE_STATUSES}, "pnl_usdt": {"$ne": None}},
+            _closed_trades_query(),
             projection,
         )
         return await cursor.to_list(length=None)
@@ -458,11 +496,9 @@ class MongoRepository:
         timeframe: str | None = None,
     ) -> list[dict[str, Any]]:
         """Retorna trades fechados no período para análises de assertividade."""
-        query: dict[str, Any] = {
-            "status": {"$in": _CLOSED_TRADE_STATUSES},
-            "pnl_usdt": {"$ne": None},
-            "closed_at": {"$gte": start, "$lte": end},
-        }
+        query: dict[str, Any] = _closed_trades_query(
+            include_period={"closed_at": {"$gte": start, "$lte": end}}
+        )
         if symbol:
             query["symbol"] = symbol
         if timeframe:

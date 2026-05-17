@@ -23,6 +23,7 @@ backtest_router = import_module("src.api.routes.backtest").router
 trades_router = import_module("src.api.routes.trades").router
 onboarding_router = import_module("src.api.routes.onboarding").router
 signals_router = import_module("src.api.routes.signals").router
+symbols_router = import_module("src.api.routes.symbols").router
 customers_router = import_module("src.api.routes.customers").router
 auth_router = import_module("src.api.routes.auth").router
 StaticFiles = import_module("fastapi.staticfiles").StaticFiles
@@ -150,6 +151,7 @@ def create_app() -> Any:
     app.include_router(trades_router)
     app.include_router(onboarding_router)
     app.include_router(signals_router)
+    app.include_router(symbols_router)
     app.include_router(customers_router)
 
     @app.get("/")

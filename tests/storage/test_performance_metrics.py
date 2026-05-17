@@ -27,8 +27,13 @@ class TestUpdateTradeStatusAmplied:
         repo = _make_repo()
         mock_collection = AsyncMock()
         mock_collection.update_one = AsyncMock()
+        mock_collection.find_one = AsyncMock(
+            return_value={"symbol": "BTCUSDT", "entry_price": 52000.0}
+        )
+        mock_audit = AsyncMock()
         repo._db = MagicMock()
         repo._db.__getitem__ = MagicMock(return_value=mock_collection)
+        repo.audit = mock_audit
 
         await repo.update_trade_status(
             entry_order_id="ord_001",
@@ -46,6 +51,7 @@ class TestUpdateTradeStatusAmplied:
         assert update_doc["$set"]["pnl_usdt"] == 20.0
         assert update_doc["$set"]["close_reason"] == "TP"
         assert update_doc["$set"]["status"] == TradeStatus.CLOSED_TP.value
+        mock_audit.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_retrocompativel_sem_novos_campos(self) -> None:
@@ -53,8 +59,13 @@ class TestUpdateTradeStatusAmplied:
         repo = _make_repo()
         mock_collection = AsyncMock()
         mock_collection.update_one = AsyncMock()
+        mock_collection.find_one = AsyncMock(
+            return_value={"symbol": "BTCUSDT", "entry_price": 52000.0}
+        )
+        mock_audit = AsyncMock()
         repo._db = MagicMock()
         repo._db.__getitem__ = MagicMock(return_value=mock_collection)
+        repo.audit = mock_audit
 
         await repo.update_trade_status(
             entry_order_id="ord_002",
@@ -66,6 +77,34 @@ class TestUpdateTradeStatusAmplied:
         assert "exit_price" not in update_doc["$set"]
         assert "pnl_usdt" not in update_doc["$set"]
         assert "close_reason" not in update_doc["$set"]
+        mock_audit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_bloqueia_fechamento_com_entry_price_fora_da_faixa(self) -> None:
+        repo = _make_repo()
+        mock_collection = AsyncMock()
+        mock_collection.update_one = AsyncMock()
+        mock_collection.find_one = AsyncMock(
+            return_value={"symbol": "BTCUSDT", "entry_price": 100.0}
+        )
+        mock_audit = AsyncMock()
+        repo._db = MagicMock()
+        repo._db.__getitem__ = MagicMock(return_value=mock_collection)
+        repo.audit = mock_audit
+
+        await repo.update_trade_status(
+            entry_order_id="ord_003",
+            status=TradeStatus.CLOSED_MANUAL,
+            pnl_usdt=-10.0,
+        )
+
+        mock_collection.update_one.assert_not_called()
+        mock_audit.assert_awaited_once()
+        event_name = mock_audit.await_args.args[0]
+        payload = mock_audit.await_args.args[1]
+        assert event_name == "trade_close_blocked_invalid_entry_price"
+        assert payload["entry_order_id"] == "ord_003"
+        assert payload["symbol"] == "BTCUSDT"
 
 
 class TestGetPerformanceMetrics:

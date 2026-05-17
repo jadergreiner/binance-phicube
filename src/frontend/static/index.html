@@ -81,9 +81,117 @@
       <section class="tabs-nav-panel">
         <div class="tabs-nav" role="tablist" aria-label="Navegação do dashboard">
           <button class="tab-btn active" data-tab="overview" type="button">Visão Geral</button>
+          <button class="tab-btn" data-tab="symbols" type="button">Símbolos</button>
           <button class="tab-btn" data-tab="positions" type="button">Posições</button>
           <button class="tab-btn" data-tab="signals" type="button">Sinais & Histórico</button>
           <button class="tab-btn" data-tab="onboarding" type="button">Onboarding</button>
+        </div>
+      </section>
+
+      <section class="panel tab-section tab-section-hidden" data-tab="symbols">
+        <div class="panel-header">
+          <h2>Overview de Símbolos</h2>
+          <span id="symbols-overview-status" class="snapshot-status">—</span>
+          <button
+            id="symbols-overview-count-ok"
+            class="btn btn-sm"
+            type="button"
+            aria-pressed="false"
+          >
+            ok: 0
+          </button>
+          <button
+            id="symbols-overview-count-atencao"
+            class="btn btn-sm"
+            type="button"
+            aria-pressed="false"
+          >
+            atenção: 0
+          </button>
+          <button
+            id="symbols-overview-count-bloqueado"
+            class="btn btn-sm"
+            type="button"
+            aria-pressed="false"
+          >
+            bloqueado: 0
+          </button>
+        </div>
+        <section class="positions-filters">
+          <select id="symbols-overview-filter-risk">
+            <option value="">Risco: todos</option>
+            <option value="ok">Risco: ok</option>
+            <option value="atencao">Risco: atenção</option>
+            <option value="bloqueado">Risco: bloqueado</option>
+          </select>
+          <input
+            id="symbols-overview-filter-symbol"
+            type="text"
+            placeholder="Filtrar símbolo (ex: QNT)"
+          />
+          <select id="symbols-overview-sort-key">
+            <option value="risk_status">Ordenar: risco</option>
+            <option value="symbol">Ordenar: símbolo</option>
+            <option value="as_of">Ordenar: recência</option>
+          </select>
+          <select id="symbols-overview-sort-dir">
+            <option value="asc">Crescente</option>
+            <option value="desc">Decrescente</option>
+          </select>
+          <span id="symbols-overview-sort-chip" class="snapshot-status">Ordenado por: risco (asc)</span>
+          <button id="symbols-overview-clear-filters" class="btn btn-sm" type="button">
+            Limpar filtros
+          </button>
+          <span id="symbols-overview-live-region" class="sr-only" aria-live="polite"></span>
+        </section>
+        <div class="table-wrap">
+          <table class="positions-table">
+            <thead>
+              <tr>
+                <th>Símbolo</th>
+                <th>TF</th>
+                <th>Resumo</th>
+                <th>Risco</th>
+                <th>Atualizado em</th>
+              </tr>
+            </thead>
+            <tbody id="symbols-overview-body">
+              <tr class="empty-row">
+                <td colspan="5">Sem dados de símbolos.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel tab-section tab-section-hidden" data-tab="symbols">
+        <div class="panel-header">
+          <h2>Detail do Símbolo</h2>
+          <span id="symbols-detail-status" class="snapshot-status">—</span>
+        </div>
+        <section class="positions-filters">
+          <select id="symbols-detail-symbol">
+            <option value="">Selecione um símbolo</option>
+          </select>
+          <select id="symbols-detail-timeframe">
+            <option value="15m">15m</option>
+            <option value="5m">5m</option>
+            <option value="1h">1h</option>
+            <option value="4h">4h</option>
+          </select>
+        </section>
+        <div class="table-wrap">
+          <table class="trade-history-table">
+            <tbody>
+              <tr><th>Símbolo</th><td id="symbols-detail-symbol-value">—</td></tr>
+              <tr><th>Timeframe</th><td id="symbols-detail-timeframe-value">—</td></tr>
+              <tr><th>Status de risco</th><td id="symbols-detail-risk-value">—</td></tr>
+              <tr><th>Última decisão</th><td id="symbols-detail-decision-value">—</td></tr>
+              <tr><th>Explicação humana</th><td id="symbols-detail-human-value">—</td></tr>
+              <tr><th>Entry / SL / TP</th><td id="symbols-detail-levels-value">—</td></tr>
+              <tr><th>Zonas de observação</th><td id="symbols-detail-zones-value">—</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -216,6 +324,7 @@
             <option value="desc">Decrescente</option>
           </select>
           <button id="save-view-btn" class="btn btn-sm" type="button">Salvar visão</button>
+          <span id="positions-live-region" class="sr-only" aria-live="polite"></span>
         </section>
 
         <div class="table-wrap">
@@ -297,6 +406,7 @@
           </select>
           <input id="assertiveness-start" type="datetime-local" aria-label="Início custom" />
           <input id="assertiveness-end" type="datetime-local" aria-label="Fim custom" />
+          <span id="assertiveness-live-region" class="sr-only" aria-live="polite"></span>
         </section>
         <div class="summary-grid">
           <article class="summary-card">
