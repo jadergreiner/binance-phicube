@@ -49,4 +49,3 @@ Approved and completed (T01..T10 concluded with formal human closeout approval).
 - T09 depende de T08
 - T10 depende de T09
 
-

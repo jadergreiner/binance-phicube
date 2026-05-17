@@ -51,4 +51,3 @@
 - [x] Aprovar formalmente o fechamento da execução do ciclo.
 - [x] Autorizar mudança de status do ciclo para `Concluído`.
 
-
