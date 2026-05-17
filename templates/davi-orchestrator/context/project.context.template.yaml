@@ -1,0 +1,18 @@
+project:
+  name: ""
+  objective: ""
+  primary_stack: []
+  architecture_rules: []
+  constraints:
+    - ""
+  quality_criteria:
+    - ""
+  validation_commands:
+    - ""
+  forbidden_actions:
+    - ""
+
+workflow:
+  approval_required_before_code: true
+  max_open_ambiguities_for_execution: 0
+  default_language: "pt-BR"
