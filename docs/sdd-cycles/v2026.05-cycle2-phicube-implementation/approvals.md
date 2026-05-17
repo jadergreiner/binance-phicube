@@ -20,4 +20,3 @@
 - T01..T10 submissions recorded under `executor-submissions/`.
 - Technical execution status: completed.
 - Formal human closeout approval: approved (2026-05-17).
-
