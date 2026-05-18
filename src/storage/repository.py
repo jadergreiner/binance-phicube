@@ -681,6 +681,11 @@ class MongoRepository:
                     "execution_details": 1,
                     "trade_id": 1,
                     "outcome_at": 1,
+                    "backtest_outcome": 1,
+                    "backtest_outcome_price": 1,
+                    "backtest_outcome_at": 1,
+                    "backtest_pnl_pct": 1,
+                    "backtest_candles_checked": 1,
                 }
             },
         ]

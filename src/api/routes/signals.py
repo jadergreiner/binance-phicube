@@ -97,7 +97,9 @@ _LEGACY_REASON = "causa indisponível (pré-rastreio)"
 
 
 def _normalize_signal(signal: dict[str, Any]) -> dict[str, Any]:
-    normalized = enrich_datetime_fields(signal, ("detected_at", "outcome_at"))
+    normalized = enrich_datetime_fields(
+        signal, ("detected_at", "outcome_at", "backtest_outcome_at", "backtest_at")
+    )
 
     if not normalized.get("execution_status"):
         normalized["execution_status"] = _LEGACY_STATUS
