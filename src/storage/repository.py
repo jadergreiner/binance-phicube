@@ -687,6 +687,65 @@ class MongoRepository:
         cursor = self._db[_SIGNALS_COLLECTION].aggregate(pipeline)
         return await cursor.to_list(length=limit)
 
+    async def get_advisory_signals(self, limit: int = 200) -> list[dict]:
+        """Retorna sinais em modo advisory ainda não classificados por backtest."""
+        pipeline = [
+            {
+                "$match": {
+                    "execution_status": {"$regex": "advisory|REJECTED", "$options": "i"},
+                    "backtest_outcome": {"$exists": False},
+                    "entry_price": {"$exists": True},
+                    "stop_loss": {"$exists": True},
+                    "take_profit": {"$exists": True},
+                }
+            },
+            {"$sort": {"detected_at": -1}},
+            {"$limit": limit},
+            {
+                "$project": {
+                    "_id": {"$toString": "$_id"},
+                    "symbol": 1,
+                    "timeframe": 1,
+                    "direction": 1,
+                    "entry_price": 1,
+                    "stop_loss": 1,
+                    "take_profit": 1,
+                    "detected_at": 1,
+                    "execution_status": 1,
+                }
+            },
+        ]
+        cursor = self._db[_SIGNALS_COLLECTION].aggregate(pipeline)
+        return await cursor.to_list(length=limit)
+
+    async def set_signal_backtest_outcome(
+        self,
+        signal_id: str,
+        *,
+        outcome: str,
+        outcome_price: float | None = None,
+        outcome_at: datetime | None = None,
+        candles_checked: int = 0,
+    ) -> bool:
+        """Persiste resultado do backtest no sinal (TP_HIT, SL_HIT, OPEN)."""
+        try:
+            object_id = ObjectId(signal_id)
+        except (InvalidId, TypeError):
+            return False
+        update = {
+            "backtest_outcome": outcome,
+            "backtest_at": datetime.now(UTC),
+            "backtest_candles_checked": candles_checked,
+        }
+        if outcome_price is not None:
+            update["backtest_outcome_price"] = outcome_price
+        if outcome_at is not None:
+            update["backtest_outcome_at"] = outcome_at
+        result = await self._db[_SIGNALS_COLLECTION].update_one(
+            {"_id": object_id}, {"$set": update}
+        )
+        return result.matched_count > 0
+
     async def get_latest_signal_diagnostics(self, limit: int = 10) -> list[dict]:
         pipeline = [
             {"$match": {"event": "signal_evaluated"}},
