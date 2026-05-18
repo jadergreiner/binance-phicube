@@ -1,0 +1,497 @@
+
+
+===== PAGE 1 =====
+
+Relatório técnico e manual
+operacional sobre a plataforma
+PhiCube
+Introdução
+A PhiCube™ é uma empresa brasileira fundada por James
+Leslie “Bo” Williams (CNPI‑T 1215) com o propósito declarado de
+democratizar o mercado de investimentos e proporcionar uma nova
+experiência no segmento de renda variável. Na área de educação,
+Bo Williams e seus cofundadores ministram cursos e mantêm uma
+comunidade de traders; a empresa desenvolveu um sistema
+proprietário de análise técnica e trade system baseado em relações
+matemáticas específicas, principalmente o número de ouro e fractais,
+para ajudar traders a identificarem tendências, consolidações e pontos
+de reversão. O objetivo da metodologia é capacitar qualquer pessoa
+ou instituição a definir o futuro de seus investimentos com total
+autonomia, simplicidade, rentabilidade, segurança e
+transparência. A plataforma oferece produtos educativos, integra‑se a
+plataformas de negociação profissionais (ProfitChart e Tryd) e
+disponibiliza um app com análises e recomendações.
+Base teórica da metodologia PhiCube
+A importância da constante Phi
+Para compreender a metodologia é preciso entender o conceito de Phi
+(≈ 1,618), número que aparece em muitas relações da natureza. No
+contexto da PhiCube, considera‑se que o crescimento aditivo é estável,
+mas lento, enquanto o crescimento exponencial é rápido, porém
+instável. O ponto em que o crescimento exponencial deixa de se
+aproximar do aditivo é chamado de Phi³ (Φ³ ≈ 4,236). Esse valor
+representa o limiar de estabilidade entre os processos aditivos e
+exponenciais. A PhiCube (Φ³) é usada como unidade de medida para
+
+===== PAGE 2 =====
+
+definir o tamanho relativo das ondas do mercado, baseando‑se na ideia
+de que as proporções entre tendências e correções guardam relações
+próximas de 4,236.
+Fractal 5‑3 e teorias de tendência
+A metodologia utiliza conceitos clássicos de análise técnica como a 
+Teoria de Dow e a Teoria das Ondas de Elliott. De acordo com a
+teoria das ondas, os movimentos de preço são compostos por cinco
+ondas impulsivas seguidas por três ondas corretivas. A equipe
+PhiCube observa que essa estrutura se repete em diferentes escalas:
+dentro de uma tendência principal existem fractais de menor escala
+que também obedecem ao padrão 5‑3. A análise focada no “fractal 5‑3”
+busca identificar onde as ondas de impulsão e correção se encontram e
+qual é sua proporção.
+Comportamento relativo dos fractais PhiCube
+A metodologia analisa simultaneamente vários fractais de diferentes
+tamanhos. Cada fractal é representado por uma cor. Ao comparar a
+direção do fractal de uma cor com o fractal imediatamente maior e o
+imediatamente menor , é possível classificar a situação do mercado:
+Tendência de alta forte – quando três fractais estão ascendentes
+ao mesmo tempo, indicando que fractal menor , intermediário e
+maior se alinham em direção de alta.
+Tendência de baixa forte – quando três fractais estão em queda
+simultaneamente.
+Consolidação ou contra‑tendência – quando pelo menos um
+fractal se move em direção oposta aos demais. Nessa situação
+ocorre a chamada consolidação, cuja duração depende de quais
+fractais estão em conflito.
+A partir desse “comportamento relativo dos fractais” é possível
+quantificar direção, força, riscos e alvos das operações.
+Produtos e integrações
+Indicadores PhiCube nas plataformas ProfitChart e Tryd
+A PhiCube comercializa seus indicadores proprietários como módulos
+opcionais nas plataformas ProfitChart (da Nelógica) e Tryd. A página
+oficial destaca que o ProfitChart oferece um sistema gráfico robusto
+• 
+• 
+• 
+
+===== PAGE 3 =====
+
+com mais de 200 indicadores e permite analisar ativos em qualquer
+período de tempo. A versão integrada com PhiCube adiciona os
+indicadores proprietários; a contratação é feita diretamente pela
+plataforma.
+No caso da plataforma Tryd, a página lista os seguintes recursos:
+Livro de ofertas, gráficos, Click ’n Trade, custódia, leilões,
+negócios em tempo real, volume por preço, ranking de papéis e
+corretoras e roteamento de ordens;
+Flexibilidade – todos os recursos podem ser customizados (fontes,
+cores, backgrounds, layouts);
+Segurança e confiabilidade – destaca‑se a rapidez das operações
+com alto grau de confiança.
+Estas integrações permitem que traders utilizem o método PhiCube em
+plataformas profissionais, com roteamento de ordens diretamente na
+bolsa.
+App PhiCube e Prisma
+Em 2026 a empresa oferece um app para Android e iOS que
+disponibiliza análises diárias e alertas. De acordo com a corretora
+Foxbit, a metodologia é baseada nos princípios do fractal 5‑3 e na
+relação proporcional de Phi e apresenta uma suite de indicadores
+que marcam consolidação, tendência, suportes e resistências. O app
+permite:
+Receber recomendações de compra e venda com base nos
+indicadores proprietários;
+Acompanhar as principais criptomoedas de maior liquidez;
+Utilizar um rastreador inteligente em tempo real, com
+algoritmos de inteligência artificial e ferramenta denominada 
+Prisma PhiCube, que realiza análises completas e classifica ativos
+em tempo real;
+Contar com monitoramento por uma equipe de analistas do
+mercado financeiro.
+O app é comercializado em parceria com corretoras, oferecendo
+descontos a clientes que utilizam os serviços da Foxbit.
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+
+===== PAGE 4 =====
+
+Descrição de alguns indicadores da
+metodologia PhiCube
+Embora o código fonte completo dos indicadores seja proprietário e
+não esteja publicado (comunidades de desenvolvedores confirmam
+que o algoritmo das MIMAs não é divulgado), a literatura disponível
+fornece uma visão geral das funcionalidades:
+Indicador MIMA (Moving Integration Method Average)
+Trata‑se de uma média móvel especial utilizada para identificar a 
+tendência predominante e servir de base aos demais indicadores.
+Múltiplas MIMAs são plotadas simultaneamente, cada uma com um
+fractal (por exemplo, MIMA 17, 72, 305, 1292 etc.). Quando as
+MIMAs estão alinhadas de forma ascendente (fractal menor acima
+do maior), há tendência de alta; quando estão descendentes, há
+tendência de baixa.
+As linhas MIMA servem como níveis dinâmicos de suporte e
+resistência: o preço tende a repicar quando encontra uma MIMA
+mais longa.
+Indicador SANTO
+O SANTO é um oscilador que procura mostrar os primeiros sinais
+de reversão, a direção e a força da tendência. Na metodologia, as
+cores usadas para a barra do oscilador refletem o comportamento
+do fractal analisado (por exemplo, verde indicando força
+compradora e vermelho indicando força vendedora).
+MIMA ROC e indicadores derivados
+O indicador MIMA_ROC mede a inclinação ou velocidade (Rate of
+Change) das linhas MIMA. Quando o valor do ROC está acima de
+zero, indica subida; quando abaixo de zero, indica queda. A
+combinação do MIMA_ROC com o SANTO ajuda a quantificar a
+força das tendências e a distinguir consolidações.
+Indicadores derivados, como MIMACON (MIMA em consolidação) e
+MIMATEN (MIMA em tendência), são usados para identificar fases
+distintas. A combinação destes forma o MIMASAR (MIMA
+Support and Resistance), que destaca suportes e resistências
+principais.
+• 
+• 
+• 
+• 
+• 
+• 
+
+===== PAGE 5 =====
+
+Santo Banda e combinações
+O Santo Banda combina o oscilador SANTO com a MIMA para
+fornecer um indicador cumulativo que representa a confiança na
+tendência atual. Quando o Santo Banda se torna verde e as MIMAs
+estão alinhadas, aumenta a probabilidade de continuação da
+tendência.
+Outros indicadores, como PVPC (Preço vs. Perfil de Contratos) e 
+Leque ROC, são complementares e ajudam a interpretar volume,
+volatilidade e força de movimento.
+Manual operacional (passo a passo para
+utilizar o sistema PhiCube)
+Aviso de risco: A PhiCube ressalta que a negociação de futuros,
+moedas estrangeiras, opções e criptomoedas envolve riscos
+substanciais e não é indicada para todos os investidores. Um
+investidor pode perder mais do que o capital inicial, portanto
+somente capital de risco deve ser usado. A empresa também
+destaca que a comunicação pela internet está sujeita a
+interrupções e que a responsabilidade por falhas de serviços de
+terceiros é do próprio investidor .
+1. Acesso às plataformas
+Escolher a forma de acesso:
+ProfitChart ou Tryd: adquira o módulo de indicadores PhiCube
+por meio da plataforma de negociação. É necessário possuir
+uma licença do ProfitChart ou Tryd e contratar o módulo junto
+à Nelógica ou ao fornecedor da plataforma. Após a ativação, os
+indicadores aparecerão na biblioteca de estudos.
+App PhiCube: baixe o aplicativo nas lojas Google Play ou
+App Store. Faça a assinatura (a Foxbit oferece descontos) e
+cadastre‑se com seu e‑mail para acessar as análises.
+Gráfico Web: a PhiCube oferece um gráfico web avulso
+(app.phicube.com.br), acessível via navegador , com os
+indicadores e o prisma.
+Configurar a lista de ativos:
+Insira os símbolos ou criptos que deseja acompanhar . Nos
+módulos ProfitChart e Tryd é possível criar listas de ativos; no
+app a lista já traz criptomoedas de maior liquidez.
+• 
+• 
+1. 
+◦ 
+◦ 
+◦ 
+2. 
+◦ 
+
+===== PAGE 6 =====
+
+Selecionar o período gráfico e o fractal:
+Escolha o timeframe de interesse (por exemplo, 1 minuto,
+5 minutos, 1 hora, diário). Lembre‑se de que a metodologia
+compara fractais de diferentes ordens; portanto, analise pelo
+menos três períodos (um menor , um intermediário e um maior)
+para aplicar o “comportamento relativo dos fractais”.
+2. Interpretação básica dos indicadores
+Analisar as MIMAs:
+Verifique se as MIMAs estão alinhadas em ordem crescente
+(curvas de menor período acima das de maior período) – isso
+indica tendência de alta; se estiverem em ordem decrescente,
+indica tendência de baixa.
+Observe quando uma MIMA de período menor toca ou cruza
+uma MIMA maior; esse encontro pode sinalizar um ponto de
+reversão. A cor ou intensidade das linhas costuma mudar
+quando a inclinação se altera.
+Observar o SANTO e o ROC:
+O SANTO é um oscilador posicionado abaixo do gráfico de
+preço. Valores positivos e barras verdes sugerem força
+compradora; valores negativos e barras vermelhas sugerem
+força vendedora.
+O MIMA_ROC acompanha a inclinação das MIMAs. Use-o para
+confirmar a direção. Se o ROC fica acima de zero enquanto o
+SANTO também está positivo, a tendência de alta é forte; se
+ambos estiverem abaixo de zero, a tendência de baixa é forte.
+Divergências entre os dois indicadores sugerem consolidação
+ou possível reversão.
+Utilizar as bandas e suportes/resistências:
+O Santo Banda combina o oscilador e as MIMAs para criar uma
+banda de confiança. Uma banda verde indica que o preço está
+acima das MIMAs dominantes; uma banda vermelha indica o
+contrário.
+O MIMASAR apresenta linhas horizontais que servem como 
+suportes e resistências dinâmicos, calculados com base na
+tendência (MIMATEN) ou consolidação (MIMACON). Quando o
+preço se aproxima de uma linha de suporte, busque
+confirmação nos outros indicadores antes de comprar; quando
+se aproxima de uma resistência, busque sinais de fraqueza para
+vender ou ajustar stops.
+Considerar o prisma (no app):
+O Prisma PhiCube classifica ativos em tempo real de acordo
+com força, direção e risco. Use o prisma para filtrar quais ativos
+3. 
+◦ 
+1. 
+◦ 
+◦ 
+2. 
+◦ 
+◦ 
+3. 
+◦ 
+◦ 
+4. 
+◦ 
+
+===== PAGE 7 =====
+
+estão com fractais alinhados e evitar operar ativos em
+consolidação.
+3. Procedimentos operacionais
+Planejamento diário:
+Revise as condições macroeconômicas antes de iniciar as
+operações.
+Abra gráficos de diferentes períodos e identifique se existem
+tendências claras nos fractais de maior ordem. Só opere a favor
+da cor predominante nos fractais.
+Entrada de compra (long):
+Espere que as três principais MIMAs estejam alinhadas para
+cima e que o SANTO tenha virado positivo.
+Confirme que o MIMA_ROC também esteja acima de zero.
+Verifique se o preço está acima das linhas de suporte do
+MIMASAR.
+Ajuste o stop logo abaixo da MIMA de período imediatamente
+maior ou da linha de suporte mais próxima.
+Entrada de venda (short):
+Procure o alinhamento descendente das MIMAs e o SANTO
+negativo.
+Confirme MIMA_ROC abaixo de zero.
+Verifique se o preço está abaixo de uma linha de resistência e
+ajuste o stop acima da MIMA de período maior ou da
+resistência.
+Gestão de posição:
+Acompanhe o comportamento relativo dos fractais; se uma cor
+menor começar a divergir , redobre a atenção e considere
+reduzir a posição.
+Ajuste stops quando o preço se afasta das MIMAs; utilize as
+linhas do MIMASAR como alvos parciais.
+Encerramento de operação:
+Encerre a posição quando as MIMAs cruzarem em sentido
+contrário ao trade ou quando o SANTO indicar perda de força.
+Em consolidações prolongadas, considere sair parcialmente e
+aguardar novo alinhamento.
+4. Boas práticas e considerações finais
+Treinamento contínuo: A PhiCube oferece cursos e uma
+comunidade ativa que opera ao vivo. Aproveite esses recursos para
+consolidar o uso dos indicadores.
+1. 
+◦ 
+◦ 
+2. 
+◦ 
+◦ 
+◦ 
+◦ 
+3. 
+◦ 
+◦ 
+◦ 
+4. 
+◦ 
+◦ 
+5. 
+◦ 
+◦ 
+• 
+
+===== PAGE 8 =====
+
+Customização: As plataformas ProfitChart e Tryd permitem
+personalizar cores, escalas e layouts. Ajuste as cores das MIMAs e
+do SANTO para facilitar a leitura visual.
+Gestão de risco: Nunca opere com todo o capital; utilize apenas
+capital de risco e respeite os limites de perda diários. Lembre‑se de
+que o histórico de desempenho não garante resultados futuros.
+Monitoramento em tempo real: Utilize o rastreador inteligente e
+o prisma no app para identificar oportunidades em criptomoedas,
+mas sempre confirme os sinais nos gráficos antes de executar
+ordens.
+Suporte da equipe: Em caso de dúvidas técnicas sobre a
+contratação ou instalação dos módulos, a PhiCube fornece suporte
+por telefone e WhatsApp.
+Conclusão
+A Metodologia PhiCube combina conceitos matemáticos (Φ³),
+fractais 5‑3, médias móveis proprietárias (MIMAs) e osciladores
+(SANTO e ROC) para oferecer uma leitura diferenciada do mercado
+financeiro. Ao analisar o comportamento relativo dos fractais e
+utilizar uma suite de indicadores integrados, traders podem identificar
+fases de tendência, consolidação e reversão com maior precisão. O
+sistema está disponível em plataformas de negociação profissionais e
+em um app com rastreador automatizado e prisma analítico. O sucesso
+no uso do método requer estudo dos conceitos, prática constante e uma
+rigorosa gestão de risco.
+• 
+• 
+• 
+• 
+
+===== PAGE 9 =====
+
+Metodologia PhiCube
+A PhiCube™ é uma empresa brasileira focada em educação e ferramentas para
+investidores e traders. Sua missão é democratizar o mercado de investimentos,
+oferecendo uma nova experiência no segmento de renda variável por meio de
+cursos, comunidade e um conjunto de indicadores proprietários e metodologias
+aplicáveis em diversas plataformas de negociação[1]. O sistema foi criado por
+James Leslie “Bo” Williams, analista financeiro e trader com mais de 25 anos de
+experiência.
+Fundamentos Matemáticos
+A metodologia baseia‑se no número de ouro Phi (≈ 1,618) e na relação Phi3
+(Φ³ ≈ 4,236). O crescimento aditivo é estável, porém lento, enquanto o crescimento
+exponencial é rápido, mas instável; o ponto de equilíbrio entre esses processos
+ocorre em Φ³[2]. Esse valor serve como unidade de medida para estimar o tamanho
+relativo das ondas de mercado, estabelecendo que as proporções entre tendências
+e correções se aproximam de 4,236.
+Estrutura Fractal 5‑3
+A PhiCube se inspira nas teorias de Dow e de Elliott. Segundo a Teoria das Ondas,
+movimentos de preço são compostos por cinco ondas impulsivas seguidas por três
+ondas corretivas[3]. Esse padrão repete‑se em diferentes escalas temporais; dentro
+de uma tendência maior existem fractais menores que também obedecem ao padrão
+5‑3[4]. A análise conjunta dos fractais de tamanhos distintos permite identificar onde
+ocorrem impulsos e correções.
+Comportamento Relativo dos Fractais
+Cada fractal é representado por uma cor, e a combinação das cores fornece um
+diagnóstico do mercado:
+Tendência forte de alta: três fractais ascendem simultaneamente, indicando
+alinhamento da tendência em diferentes escalas[5].
+• 
+
+===== PAGE 10 =====
+
+Tendência forte de baixa: três fractais descem simultaneamente, sugerindo
+provável continuação de queda[6].
+Consolidação ou contra‑tendência: quando uma ou mais cores divergem (um
+fractal se move contra os demais), o mercado entra em consolidação; a duração
+dessa fase depende de quais fractais estão em conflito[7].
+Analisar o comportamento relativo das cores permite quantificar direção, força,
+riscos e possíveis alvos das operações.
+Indicadores PhiCube
+A PhiCube oferece uma suite de indicadores proprietários desenvolvidos a partir dos
+conceitos de Phi e fractal 5‑3. O código completo desses indicadores é mantido sob
+sigilo, como reconhecem comunidades de programadores[12]. Os principais são:
+MIMA (Moving Integration Method Average): média móvel especial utilizada
+para identificar a tendência predominante. Múltiplas MIMAs são plotadas para
+diferentes fractais; quando se alinham em ordem crescente indicam tendência de
+alta, e quando se alinham em ordem decrescente indicam tendência de baixa. As
+linhas MIMA funcionam como suportes e resistências dinâmicos.
+SANTO: oscilador que mostra os primeiros sinais de reversão, indicando direção
+e força da tendência. Barras verdes sinalizam força compradora, enquanto barras
+vermelhas apontam força vendedora.
+MIMA ROC: mede a inclinação (rate of change) das linhas MIMA; valores
+positivos indicam subida, e negativos indicam queda. A combinação de
+MIMA ROC com o SANTO ajuda a confirmar tendências ou identificar
+consolidações.
+MIMACON e MIMATEN: indicadores derivados das MIMAs; o primeiro identifica
+consolidações e o segundo tendências. A combinação resulta no MIMASAR,
+destacando suportes e resistências importantes.
+Santo Banda: combina o oscilador SANTO com as MIMAs para criar uma banda
+de confiança que representa a probabilidade de continuação da tendência.
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+
+===== PAGE 11 =====
+
+Plataformas e Ferramentas
+ProfitChart com Indicadores PhiCube
+O módulo PhiCube para ProfitChart adiciona os indicadores proprietários a uma
+plataforma de alto desempenho. O ProfitChart permite analisar ativos em qualquer
+período de tempo, possui mais de 200 indicadores e fornece cotações negócio a
+negócio[8]. A contratação do módulo é feita diretamente via plataforma[9].
+Tryd com Indicadores PhiCube
+No Tryd, os indicadores PhiCube acompanham ferramentas como livro de ofertas,
+gráficos, click ’n trade, custódia, leilões, volume por preço, ranking de papéis e
+roteamento de ordens[10]. A interface é flexível, permitindo customização de fontes,
+cores e layouts[10], e promete rapidez e segurança nas operações[10].
+Aplicativo PhiCube e Prisma
+A PhiCube disponibiliza um aplicativo para Android e iOS que utiliza os princípios do
+fractal 5‑3 e a relação de Phi para gerar recomendações de compra e venda. O app
+analisa principalmente criptomoedas de alta liquidez e inclui um rastreador
+inteligente em tempo real com algoritmos de inteligência artificial e o 
+Prisma PhiCube, que classifica ativos e fornece análise completa do mercado[13][14].
+Clientes de corretoras parceiras podem obter descontos na assinatura do
+serviço[14].
+Considerações Finais e Riscos
+A negociação de futuros, moedas estrangeiras, opções e criptomoedas envolve
+riscos consideráveis. A PhiCube ressalta que um investidor pode perder mais do que
+o valor inicialmente investido e que apenas capital de risco deve ser utilizado[11]. A
+empresa também lembra que falhas ou atrasos na comunicação via internet podem
+impactar o envio de ordens e a recepção de informações, eximindo‑se de
+responsabilidade por serviços de terceiros[11].
+Informações sobre a missão da PhiCube e objetivos educacionais — Site oficial da
+PhiCube (seção “Missão”)
+1. 
+
+===== PAGE 12 =====
+
+Explicação do conceito de Phi³ como limiar entre crescimento aditivo e exponencial — Blog
+da Nelógica, artigo “PhiCube no mercado financeiro”
+Descrição do padrão de cinco ondas impulsivas e três ondas corretivas — Blog da
+Nelógica, “PhiCube no mercado financeiro”
+Observação de que o padrão 5‑3 se repete em múltiplas escalas temporais — Blog da
+Nelógica, “PhiCube no mercado financeiro”
+Identificação de tendência de alta quando três fractais sobem simultaneamente — Blog da
+Nelógica, “PhiCube no mercado financeiro”
+Identificação de tendência de baixa quando três fractais descem simultaneamente — Blog
+da Nelógica, “PhiCube no mercado financeiro”
+Nota sobre consolidação quando fractais divergem — Blog da Nelógica, “PhiCube no
+mercado financeiro”
+Descrição do ProfitChart e dos indicadores PhiCube — Site da Nelógica/ProfitChart
+Procedimento de contratação dos módulos na plataforma ProfitChart — Nelostore (loja da
+Nelógica)
+Recursos e vantagens da plataforma Tryd — Site oficial Tryd
+Avisos de risco relacionados a negociações e comunicação via internet — Declarações de
+risco da PhiCube/Nelogica
+Observação de desenvolvedores sobre a não divulgação dos algoritmos — Comunidades
+de desenvolvedores
+Descrição do aplicativo, rastreador inteligente em tempo real, inteligência artificial e
+Prisma PhiCube — Plataforma Foxbit/Aplicativo PhiCube
+Informações sobre descontos para clientes de corretoras parceiras e outras características
+do app — Plataforma Foxbit/Aplicativo PhiCube
+2. 
+3. 
+4. 
+5. 
+6. 
+7. 
+8. 
+9. 
+10. 
+11. 
+12. 
+13. 
+14. 
