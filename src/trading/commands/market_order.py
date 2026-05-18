@@ -53,6 +53,7 @@ class CreateMarketOrderCommand(Command):
                 side=self._side,
                 quantity=self._quantity,
                 error_type=type(exc).__name__,
+                error_detail=str(exc)[:300],
             )
             raise
 

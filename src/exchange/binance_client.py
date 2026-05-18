@@ -83,7 +83,7 @@ class BinanceClient(TradingClient):
         params: dict[str, Any] = {
             "apiKey": settings.binance_api_key,
             "secret": settings.binance_api_secret,
-            "options": {"defaultType": "future"},
+            "options": {"defaultType": "future", "adjustForTimeDifference": True},
             "enableRateLimit": True,
         }
 
