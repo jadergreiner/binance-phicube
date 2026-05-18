@@ -80,6 +80,13 @@ _TIMEFRAME_SECONDS: dict[str, int] = {
     "1d": 86400,
 }
 
+_MARKET_STATE_EXPLANATIONS: dict[str, str] = {
+    "strong_up": "Mercado com predominância compradora e direção de alta mais clara.",
+    "strong_down": "Mercado com predominância vendedora e direção de baixa mais clara.",
+    "consolidation": "Mercado lateral, sem direção clara para entrada segura.",
+    "transition": "Mercado em transição de regime, com sinais mistos.",
+}
+
 
 class HeartbeatTask:
     """Grava sinal periódico de vida do processo na collection audit (SPEC_017).
@@ -317,6 +324,7 @@ class RuntimeMonitorRegistry:
             notifier=self._notifier,
             max_open_positions=self._settings.max_open_positions,
             warmup_candles=self._settings.warmup_candles,
+            phicube_mode=str(getattr(self._settings, "phicube_mode", "shadow")),
             tick_pipeline_enabled=getattr(self._settings, "tick_pipeline_enabled", False),
             ml_support_service=ml_support,
         )
@@ -340,12 +348,26 @@ class RuntimeMonitorRegistry:
         self._plugin_registry.validate_master()
 
     def _make_signal_engine(self) -> SignalEngine:
+        default_strategy, symbol_strategy_map = self._resolve_strategy_routing()
         return SignalEngine(
             plugin_registry=self._plugin_registry,
-            default_strategy=self._settings.default_strategy,
+            default_strategy=default_strategy,
             risk_reward_ratio=self._settings.risk_reward_ratio,
-            symbol_strategy_map=self._settings.symbol_strategy_map,
+            symbol_strategy_map=symbol_strategy_map,
         )
+
+    def _resolve_strategy_routing(self) -> tuple[str, dict[str, str]]:
+        base_default = str(getattr(self._settings, "default_strategy", "williams"))
+        base_map = dict(getattr(self._settings, "symbol_strategy_map", {}) or {})
+        phicube_enabled = bool(getattr(self._settings, "phicube_enabled", False))
+        if not phicube_enabled:
+            return base_default, base_map
+
+        for cfg in getattr(self._settings, "symbol_timeframes", []) or []:
+            symbol = str(getattr(cfg, "symbol", "")).upper().strip()
+            if symbol:
+                base_map[symbol] = "phicube"
+        return "phicube", base_map
 
     async def add(self, cfg: SymbolConfig) -> None:
         key = (cfg.symbol, cfg.timeframe)
@@ -548,6 +570,7 @@ class TradingMonitor:
         notifier: Notifier,
         max_open_positions: int,
         warmup_candles: int,
+        phicube_mode: str = "shadow",
         tick_pipeline_enabled: bool = False,
         resilient_client: ResilientBinanceClient | None = None,
         resilient_repo: ResilientMongoRepository | None = None,
@@ -568,6 +591,7 @@ class TradingMonitor:
         self._notifier = notifier
         self._max_positions = max_open_positions
         self._warmup_candles = warmup_candles
+        self._phicube_mode = phicube_mode
         self._tick_pipeline_enabled = tick_pipeline_enabled
         self._ml_support_service = ml_support_service
         # Intervalo derivado do timeframe — corrige bug de 300 s fixo (SPEC_018)
@@ -639,6 +663,11 @@ class TradingMonitor:
             "technical_indicators": None,
             "engine_outcome": "not_evaluated",
             "engine_reason": None,
+            "reason": None,
+            "rule_hits": [],
+            "market_state": None,
+            "explicacao_humana": None,
+            "phicube_mode": self._phicube_mode,
             "risk_outcome": "not_evaluated",
             "risk_reason": None,
             "final_status": "PIPELINE_INTERRUPTED",
@@ -721,11 +750,26 @@ class TradingMonitor:
             )
         )
         signal_result = boundary_result.signal_result
+        boundary_metadata = boundary_result.metadata or {}
+        if isinstance(boundary_metadata, dict):
+            cycle_diag["rule_hits"] = list(boundary_metadata.get("rule_hits", []) or [])
+            cycle_diag["market_state"] = boundary_metadata.get("market_state")
+
         cycle_diag["engine_outcome"] = (
             "signal_detected" if boundary_result.has_signal else "no_signal"
         )
         if boundary_result.reason:
             cycle_diag["engine_reason"] = boundary_result.reason
+        cycle_diag["reason"] = (
+            boundary_result.reason or boundary_metadata.get("reason")
+            if isinstance(boundary_metadata, dict)
+            else boundary_result.reason
+        )
+        cycle_diag["explicacao_humana"] = self._build_human_reason_summary(
+            market_state=cycle_diag.get("market_state"),
+            reason=cycle_diag.get("reason"),
+            engine_outcome=cycle_diag.get("engine_outcome"),
+        )
         if self._ml_support_service is not None:
             try:
                 ml_started_at = time.time()
@@ -781,7 +825,7 @@ class TradingMonitor:
         await self._persist_signal_evaluation()
         if not signal_result:
             cycle_diag["final_status"] = "NO_SETUP_DETECTED"
-            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+            await self._emit_signal_cycle_diagnostic(cycle_diag)
             observe_tick_duration(
                 self._symbol,
                 self._timeframe,
@@ -803,10 +847,37 @@ class TradingMonitor:
             take_profit=signal_result.take_profit,
             fractal_ref=(signal_result.metadata or {}).get("fractal_ref", 0.0),
         )
+        if isinstance(signal_result.metadata, dict):
+            cycle_diag["rule_hits"] = list(signal_result.metadata.get("rule_hits", []) or [])
+            cycle_diag["market_state"] = signal_result.metadata.get("market_state")
+            cycle_diag["reason"] = signal_result.metadata.get("reason") or cycle_diag.get("reason")
+            cycle_diag["explicacao_humana"] = self._build_human_reason_summary(
+                market_state=cycle_diag.get("market_state"),
+                reason=cycle_diag.get("reason"),
+                engine_outcome=cycle_diag.get("engine_outcome"),
+            )
 
         # Persist signal regardless of execution
         signal_id = await self._repo.save_signal(signal.to_dict())
         await self._repo.audit("signal_detected", signal.to_dict())
+
+        mode_block_reason = self._resolve_mode_block_reason(signal_result)
+        if mode_block_reason is not None:
+            await self._set_signal_outcome(
+                signal_id,
+                execution_status="REJECTED_MODE_GATED",
+                execution_reason=mode_block_reason,
+            )
+            cycle_diag["risk_outcome"] = "rejected"
+            cycle_diag["risk_reason"] = mode_block_reason
+            cycle_diag["final_status"] = "REJECTED_BY_MODE"
+            await self._emit_signal_cycle_diagnostic(cycle_diag)
+            observe_tick_duration(
+                self._symbol,
+                self._timeframe,
+                time.time() - tick_start,
+            )
+            return
 
         # Calculate position size
         balance = await self._client.fetch_usdt_balance()
@@ -820,7 +891,7 @@ class TradingMonitor:
             cycle_diag["risk_outcome"] = "rejected"
             cycle_diag["risk_reason"] = "zero_or_negative_balance"
             cycle_diag["final_status"] = "REJECTED_BY_RISK"
-            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+            await self._emit_signal_cycle_diagnostic(cycle_diag)
             logger.warning("zero_balance", symbol=self._symbol)
             # SPEC_032: Registrar duração do tick antes de retornar
             observe_tick_duration(
@@ -858,7 +929,7 @@ class TradingMonitor:
             cycle_diag["risk_outcome"] = "rejected"
             cycle_diag["risk_reason"] = execution_reason
             cycle_diag["final_status"] = "REJECTED_BY_RISK"
-            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+            await self._emit_signal_cycle_diagnostic(cycle_diag)
             logger.warning("position_size_rejected", symbol=self._symbol)
             # SPEC_032: Registrar duração do tick antes de retornar
             observe_tick_duration(
@@ -934,7 +1005,7 @@ class TradingMonitor:
                     },
                 )
                 cycle_diag["final_status"] = "ENTRY_OPEN_NO_PROTECTION"
-                await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+                await self._emit_signal_cycle_diagnostic(cycle_diag)
                 logger.error(
                     "trade_opened_without_protection",
                     symbol=self._symbol,
@@ -952,7 +1023,7 @@ class TradingMonitor:
                 execution_reason="order_manager_execute_returned_error",
             )
             cycle_diag["final_status"] = "PERSISTENCE_GAP"
-            await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+            await self._emit_signal_cycle_diagnostic(cycle_diag)
             logger.error("trade_execution_failed", symbol=self._symbol)
             # SPEC_032: Registrar duração do tick antes de retornar
             observe_tick_duration(
@@ -987,7 +1058,7 @@ class TradingMonitor:
             )
             cycle_diag["final_status"] = "PERSISTENCE_GAP"
 
-        await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+        await self._emit_signal_cycle_diagnostic(cycle_diag)
 
         if trade.status == TradeStatus.OPEN:
             # Send notification for successful trade
@@ -1062,6 +1133,20 @@ class TradingMonitor:
             return
 
         await self._repo.audit("signal_evaluated", payload)
+
+    async def _emit_signal_cycle_diagnostic(self, cycle_diag: dict[str, Any]) -> None:
+        await self._repo.audit("signal_cycle_diagnostic", cycle_diag)
+        logger.info(
+            "phicube_cycle_diagnostic",
+            symbol=cycle_diag.get("symbol"),
+            timeframe=cycle_diag.get("timeframe"),
+            final_status=cycle_diag.get("final_status"),
+            phicube_mode=cycle_diag.get("phicube_mode"),
+            market_state=cycle_diag.get("market_state"),
+            reason=cycle_diag.get("reason"),
+            rule_hits=cycle_diag.get("rule_hits"),
+            explicacao_humana=cycle_diag.get("explicacao_humana"),
+        )
 
     @staticmethod
     def _resolve_candle_close_time(df: pd.DataFrame) -> str | None:
@@ -1162,6 +1247,34 @@ class TradingMonitor:
             snapshot["stoch_signal"] = "unknown"
 
         return snapshot
+
+    @staticmethod
+    def _build_human_reason_summary(
+        *, market_state: str | None, reason: str | None, engine_outcome: str | None
+    ) -> str:
+        normalized_state = str(market_state or "").strip().lower()
+        state_text = _MARKET_STATE_EXPLANATIONS.get(
+            normalized_state,
+            "Mercado sem estado conclusivo nesta leitura.",
+        )
+        if reason:
+            return (
+                f"{state_text} Motivo operacional: {reason}. "
+                f"Resultado do motor: {engine_outcome or 'não informado'}."
+            )
+        return f"{state_text} Resultado do motor: {engine_outcome or 'não informado'}."
+
+    def _resolve_mode_block_reason(self, signal_result: SignalResult) -> str | None:
+        metadata = signal_result.metadata if isinstance(signal_result.metadata, dict) else {}
+        plugin_name = str(metadata.get("plugin") or "").strip().lower()
+        if plugin_name != "phicube":
+            return None
+        mode = str(self._phicube_mode or "shadow").strip().lower()
+        if mode == "shadow":
+            return "phicube_mode_shadow_blocked_execution"
+        if mode == "advisory":
+            return "phicube_mode_advisory_blocked_execution"
+        return None
 
     async def _set_signal_outcome(
         self,

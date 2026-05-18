@@ -186,3 +186,62 @@ def test_ml_support_symbol_timeframes_rejeita_formato_invalido(monkeypatch) -> N
 
     with pytest.raises(ValueError, match="SYMBOL:TIMEFRAME"):
         _build_settings()
+
+
+def test_phicube_defaults(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+
+    settings = _build_settings()
+
+    assert settings.phicube_enabled is False
+    assert settings.phicube_mode.value == "shadow"
+    assert settings.phicube_thresholds_global["trend_alignment_min"] == 0.66
+
+
+def test_phicube_overrides_normaliza_chave_e_mescla_thresholds(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv(
+        "PHICUBE_THRESHOLDS_OVERRIDES",
+        '{"adausdt:15M":{"trend_alignment_min":0.8}}',
+    )
+
+    settings = _build_settings()
+    merged = settings.get_phicube_thresholds("ADAUSDT", "15m")
+
+    assert settings.phicube_thresholds_overrides["ADAUSDT:15m"]["trend_alignment_min"] == 0.8
+    assert merged["trend_alignment_min"] == 0.8
+    assert "momentum_alignment_min" in merged
+
+
+def test_phicube_overrides_rejeita_chave_invalida(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv(
+        "PHICUBE_THRESHOLDS_OVERRIDES",
+        '{"ADAUSDT":{"trend_alignment_min":0.8}}',
+    )
+
+    with pytest.raises(ValueError, match="SYMBOL:TIMEFRAME"):
+        _build_settings()
+
+
+def test_phicube_threshold_global_rejeita_valor_negativo(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "bot_key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "bot_secret")
+    monkeypatch.setenv("DASHBOARD_API_KEY", "dash_key")
+    monkeypatch.setenv("DASHBOARD_API_SECRET", "dash_secret")
+    monkeypatch.setenv(
+        "PHICUBE_THRESHOLDS_GLOBAL",
+        '{"trend_alignment_min":-1}',
+    )
+
+    with pytest.raises(ValueError, match=">= 0"):
+        _build_settings()

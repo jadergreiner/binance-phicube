@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 from dataclasses import dataclass
 from enum import StrEnum
@@ -61,6 +62,14 @@ class ExitStrategy(StrEnum):
     PARTIAL = "partial"
     TRAILING = "trailing"
     # PARTIAL_TRAILING = "partial+trailing"  # postergado
+
+
+class PhicubeMode(StrEnum):
+    """Modo operacional do núcleo PhiCube."""
+
+    SHADOW = "shadow"
+    ADVISORY = "advisory"
+    ACTIVE = "active"
 
 
 class Settings(BaseSettings):
@@ -282,6 +291,30 @@ class Settings(BaseSettings):
         description="Feature flag: ativa pipeline de middlewares para processamento de ticks",
     )
 
+    # SPEC-PHI-001 / T01 — Contrato de configuração PhiCube
+    phicube_enabled: bool = Field(
+        default=False,
+        description="Feature flag global para habilitar o fluxo PhiCube",
+    )
+    phicube_mode: PhicubeMode = Field(
+        default=PhicubeMode.SHADOW,
+        description="Modo de operação PhiCube: shadow | advisory | active",
+    )
+    phicube_thresholds_global: dict[str, float] = Field(
+        default_factory=lambda: {
+            "trend_alignment_min": 0.66,
+            "momentum_alignment_min": 0.60,
+            "confirmation_score_min": 0.55,
+        },
+        description="Thresholds globais PhiCube (chave -> valor numérico >= 0)",
+    )
+    phicube_thresholds_overrides: dict[str, dict[str, float]] = Field(
+        default_factory=dict,
+        description=(
+            "Overrides por SYMBOL:TIMEFRAME; ex: {'ADAUSDT:15m': {'trend_alignment_min': 0.72}}"
+        ),
+    )
+
     # SPEC_032 — Prometheus Metrics
     prometheus_enabled: bool = Field(
         default=True,
@@ -456,11 +489,87 @@ class Settings(BaseSettings):
         normalized: list[str] = []
         for pair in values:
             if ":" not in pair:
-                raise ValueError(
-                    "ml_support_symbol_timeframes deve usar formato SYMBOL:TIMEFRAME"
-                )
+                raise ValueError("ml_support_symbol_timeframes deve usar formato SYMBOL:TIMEFRAME")
             symbol, timeframe = pair.split(":", 1)
             normalized.append(f"{symbol.strip().upper()}:{timeframe.strip().lower()}")
+        return normalized
+
+    @field_validator("phicube_thresholds_global", mode="before")
+    @classmethod
+    def parse_phicube_thresholds_global(cls, v: str | dict[str, Any]) -> dict[str, float]:
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+            except json.JSONDecodeError as exc:
+                raise ValueError("phicube_thresholds_global deve ser dict ou JSON válido") from exc
+            v = cast(dict[str, Any], parsed)
+
+        if not isinstance(v, dict):
+            raise ValueError("phicube_thresholds_global deve ser um dict")
+
+        normalized: dict[str, float] = {}
+        for key, raw_val in v.items():
+            k = str(key).strip()
+            if not k:
+                raise ValueError("phicube_thresholds_global possui chave vazia")
+            try:
+                val = float(raw_val)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"phicube_thresholds_global[{k!r}] deve ser numérico") from exc
+            if val < 0:
+                raise ValueError(f"phicube_thresholds_global[{k!r}] deve ser >= 0")
+            normalized[k] = val
+        return normalized
+
+    @field_validator("phicube_thresholds_overrides", mode="before")
+    @classmethod
+    def parse_phicube_thresholds_overrides(
+        cls, v: str | dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, float]]:
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "phicube_thresholds_overrides deve ser dict ou JSON válido"
+                ) from exc
+            v = cast(dict[str, dict[str, Any]], parsed)
+
+        if not isinstance(v, dict):
+            raise ValueError("phicube_thresholds_overrides deve ser um dict")
+
+        normalized: dict[str, dict[str, float]] = {}
+        for raw_key, raw_thresholds in v.items():
+            if ":" not in raw_key:
+                raise ValueError("phicube_thresholds_overrides deve usar chave SYMBOL:TIMEFRAME")
+            symbol, timeframe = raw_key.split(":", 1)
+            key = f"{symbol.strip().upper()}:{timeframe.strip().lower()}"
+            if not symbol.strip() or not timeframe.strip():
+                raise ValueError(
+                    "phicube_thresholds_overrides deve usar chave SYMBOL:TIMEFRAME válida"
+                )
+            if not isinstance(raw_thresholds, dict):
+                raise ValueError(
+                    f"phicube_thresholds_overrides[{key!r}] deve ser um dict de thresholds"
+                )
+
+            thresholds: dict[str, float] = {}
+            for threshold_name, raw_val in raw_thresholds.items():
+                name = str(threshold_name).strip()
+                if not name:
+                    raise ValueError(f"phicube_thresholds_overrides[{key!r}] contém chave vazia")
+                try:
+                    val = float(raw_val)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"phicube_thresholds_overrides[{key!r}][{name!r}] deve ser numérico"
+                    ) from exc
+                if val < 0:
+                    raise ValueError(
+                        f"phicube_thresholds_overrides[{key!r}][{name!r}] deve ser >= 0"
+                    )
+                thresholds[name] = val
+            normalized[key] = thresholds
         return normalized
 
     @model_validator(mode="before")
@@ -583,6 +692,13 @@ class Settings(BaseSettings):
             tp_levels=self.tp_levels,
             overrides=self.exit_strategy_overrides,
         )
+
+    def get_phicube_thresholds(self, symbol: str, timeframe: str) -> dict[str, float]:
+        """Retorna thresholds PhiCube globais com override por SYMBOL:TIMEFRAME."""
+        key = f"{symbol.strip().upper()}:{timeframe.strip().lower()}"
+        merged = dict(self.phicube_thresholds_global)
+        merged.update(self.phicube_thresholds_overrides.get(key, {}))
+        return merged
 
 
 @lru_cache(maxsize=1)

@@ -44,6 +44,7 @@ dev = [
 
 [project.entry-points."phicube.strategies"]
 williams = "src.strategies.williams_strategy:WilliamsStrategy"
+phicube = "src.strategies.phicube_strategy:PhicubeStrategy"
 
 [project.scripts]
 phicube = "src.main:entrypoint"

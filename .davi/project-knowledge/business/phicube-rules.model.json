@@ -1,0 +1,458 @@
+{
+  "meta": {
+    "schema_version": "1.0.0",
+    "pack_id": "phicube-rules",
+    "source_pdf": "docs/phicube_combined_standalone.pdf",
+    "source_text": "docs/phicube_combined_standalone.extracted.txt",
+    "generated_on": "2026-05-17",
+    "language": "pt-BR",
+    "notes": [
+      "Derived from public textual material in the provided PDF.",
+      "Does not include proprietary internal formulas not disclosed in source."
+    ]
+  },
+  "rules": [
+    {
+      "id": "RN-PHI-001",
+      "name": "phi3_wave_ratio_reference",
+      "layer": "business",
+      "description": "Use Phi^3 (~4.236) as reference ratio to compare relative size of trend and correction waves.",
+      "inputs": [
+        "wave_structure",
+        "price_swings"
+      ],
+      "condition": "When evaluating proportional relation between impulsive and corrective moves.",
+      "expected_outcome": "Quantified market context based on PhiCube proportionality reference.",
+      "exceptions_or_ambiguities": [
+        "Exact quantitative thresholds for automated scoring are not explicitly defined."
+      ],
+      "source_pages": [
+        1,
+        9
+      ]
+    },
+    {
+      "id": "RN-PHI-002",
+      "name": "fractal_5_3_structure",
+      "layer": "business",
+      "description": "Use a 5-3 wave structure and its repetition across multiple time scales.",
+      "inputs": [
+        "multi_timeframe_candles"
+      ],
+      "condition": "When segmenting market movement into impulse and correction cycles.",
+      "expected_outcome": "Consistent wave interpretation across fractal levels.",
+      "exceptions_or_ambiguities": [
+        "No strict algorithm is disclosed for wave boundary detection."
+      ],
+      "source_pages": [
+        2,
+        9
+      ]
+    },
+    {
+      "id": "RN-PHI-003",
+      "name": "strong_uptrend_by_three_fractals",
+      "layer": "business",
+      "description": "Classify strong uptrend if three related fractals are ascending simultaneously.",
+      "inputs": [
+        "fractal_direction_small",
+        "fractal_direction_mid",
+        "fractal_direction_large"
+      ],
+      "condition": "All three fractal directions are upward.",
+      "expected_outcome": "trend_state = STRONG_UP",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        2,
+        9,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-004",
+      "name": "strong_downtrend_by_three_fractals",
+      "layer": "business",
+      "description": "Classify strong downtrend if three related fractals are descending simultaneously.",
+      "inputs": [
+        "fractal_direction_small",
+        "fractal_direction_mid",
+        "fractal_direction_large"
+      ],
+      "condition": "All three fractal directions are downward.",
+      "expected_outcome": "trend_state = STRONG_DOWN",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        2,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-005",
+      "name": "consolidation_by_fractal_divergence",
+      "layer": "business",
+      "description": "Classify consolidation/counter-trend when at least one fractal diverges from the others.",
+      "inputs": [
+        "fractal_direction_small",
+        "fractal_direction_mid",
+        "fractal_direction_large"
+      ],
+      "condition": "At least one fractal direction conflicts with majority direction.",
+      "expected_outcome": "trend_state = CONSOLIDATION_OR_COUNTERTREND",
+      "exceptions_or_ambiguities": [
+        "No fixed divergence persistence threshold is defined."
+      ],
+      "source_pages": [
+        2,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-006",
+      "name": "mima_bullish_alignment",
+      "layer": "business",
+      "description": "Bullish trend context when shorter-period MIMAs are above longer-period MIMAs.",
+      "inputs": [
+        "mima_lines"
+      ],
+      "condition": "MIMAs are aligned in ascending order by period.",
+      "expected_outcome": "mima_context = BULLISH",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        4,
+        6,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-007",
+      "name": "mima_bearish_alignment",
+      "layer": "business",
+      "description": "Bearish trend context when shorter-period MIMAs are below longer-period MIMAs.",
+      "inputs": [
+        "mima_lines"
+      ],
+      "condition": "MIMAs are aligned in descending order by period.",
+      "expected_outcome": "mima_context = BEARISH",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        4,
+        6,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-008",
+      "name": "mima_cross_reversal_watch",
+      "layer": "business",
+      "description": "Touch/cross between shorter and longer MIMA may indicate potential reversal.",
+      "inputs": [
+        "mima_cross_events"
+      ],
+      "condition": "Shorter MIMA touches or crosses longer MIMA.",
+      "expected_outcome": "reversal_watch = TRUE",
+      "exceptions_or_ambiguities": [
+        "PDF describes signal as potential, not deterministic."
+      ],
+      "source_pages": [
+        6
+      ]
+    },
+    {
+      "id": "RN-PHI-009",
+      "name": "santo_polarity",
+      "layer": "business",
+      "description": "SANTO positive/green means buying force; negative/red means selling force.",
+      "inputs": [
+        "santo_value",
+        "santo_color"
+      ],
+      "condition": "Read current SANTO polarity.",
+      "expected_outcome": "momentum_state = BUYER_FORCE or SELLER_FORCE",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        4,
+        6,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-010",
+      "name": "mima_roc_polarity",
+      "layer": "business",
+      "description": "MIMA_ROC > 0 indicates rising slope; MIMA_ROC < 0 indicates falling slope.",
+      "inputs": [
+        "mima_roc_value"
+      ],
+      "condition": "Read sign of MIMA_ROC.",
+      "expected_outcome": "slope_state = UP or DOWN",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        4,
+        6,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-011",
+      "name": "santo_roc_confluence",
+      "layer": "business",
+      "description": "Agreement between SANTO and MIMA_ROC increases trend confidence; disagreement suggests consolidation/reversal risk.",
+      "inputs": [
+        "santo_value",
+        "mima_roc_value"
+      ],
+      "condition": "Compare signal polarity between SANTO and MIMA_ROC.",
+      "expected_outcome": "confidence_state = HIGH_CONFIDENCE or DIVERGENCE_WARNING",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        6
+      ]
+    },
+    {
+      "id": "RN-PHI-012",
+      "name": "santo_banda_confidence",
+      "layer": "business",
+      "description": "Santo Banda and MIMA alignment provide continuation confidence context.",
+      "inputs": [
+        "santo_banda_color",
+        "mima_alignment"
+      ],
+      "condition": "Santo Banda color combined with MIMA alignment.",
+      "expected_outcome": "continuation_confidence = INCREASED or REDUCED",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        5,
+        6,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-013",
+      "name": "mimasar_support_resistance",
+      "layer": "business",
+      "description": "MIMASAR defines dynamic support/resistance lines derived from trend/consolidation context.",
+      "inputs": [
+        "mimasar_lines",
+        "price"
+      ],
+      "condition": "When price approaches MIMASAR support/resistance lines.",
+      "expected_outcome": "support_resistance_context for entry/stop/targets",
+      "exceptions_or_ambiguities": [
+        "Exact formula for MIMASAR construction is proprietary."
+      ],
+      "source_pages": [
+        4,
+        6,
+        10
+      ]
+    },
+    {
+      "id": "RN-PHI-014",
+      "name": "minimum_three_timeframes",
+      "layer": "business",
+      "description": "Before decision, analyze at least three periods/fractal orders: smaller, intermediate, larger.",
+      "inputs": [
+        "analysis_timeframes"
+      ],
+      "condition": "Decision request is received.",
+      "expected_outcome": "precondition_met = TRUE only with 3 timeframe analysis",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        6
+      ]
+    },
+    {
+      "id": "RN-PHI-015",
+      "name": "long_entry_gate",
+      "layer": "business",
+      "description": "Long setup requires MIMAs up-aligned, SANTO positive, MIMA_ROC positive, and price above support.",
+      "inputs": [
+        "mima_alignment",
+        "santo_value",
+        "mima_roc_value",
+        "price_vs_mimasar_support"
+      ],
+      "condition": "All long setup conditions are true.",
+      "expected_outcome": "setup_state = LONG_VALID",
+      "exceptions_or_ambiguities": [
+        "No numeric threshold disclosed for minimum slope/strength."
+      ],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-016",
+      "name": "short_entry_gate",
+      "layer": "business",
+      "description": "Short setup requires bearish MIMA alignment, SANTO negative, MIMA_ROC negative, and price below resistance.",
+      "inputs": [
+        "mima_alignment",
+        "santo_value",
+        "mima_roc_value",
+        "price_vs_mimasar_resistance"
+      ],
+      "condition": "All short setup conditions are true.",
+      "expected_outcome": "setup_state = SHORT_VALID",
+      "exceptions_or_ambiguities": [
+        "No numeric threshold disclosed for minimum slope/strength."
+      ],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-017",
+      "name": "long_stop_reference",
+      "layer": "business",
+      "description": "For long positions, set stop below immediate higher-order MIMA or nearest support.",
+      "inputs": [
+        "higher_order_mima",
+        "nearest_support_line"
+      ],
+      "condition": "Long order is prepared.",
+      "expected_outcome": "stop_loss_level for long",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-018",
+      "name": "short_stop_reference",
+      "layer": "business",
+      "description": "For short positions, set stop above higher-order MIMA or nearest resistance.",
+      "inputs": [
+        "higher_order_mima",
+        "nearest_resistance_line"
+      ],
+      "condition": "Short order is prepared.",
+      "expected_outcome": "stop_loss_level for short",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-019",
+      "name": "position_management_fractal_divergence",
+      "layer": "business",
+      "description": "If smaller fractal diverges against open position, increase caution and consider reducing position.",
+      "inputs": [
+        "open_position_side",
+        "small_fractal_direction"
+      ],
+      "condition": "Divergence against current position appears.",
+      "expected_outcome": "risk_action = REDUCE_OR_TIGHTEN",
+      "exceptions_or_ambiguities": [
+        "No deterministic reduction percentage is specified."
+      ],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-020",
+      "name": "dynamic_stop_and_partial_targets",
+      "layer": "business",
+      "description": "Adjust stops as price stretches from MIMAs and use MIMASAR lines as partial take-profit targets.",
+      "inputs": [
+        "price_distance_from_mima",
+        "mimasar_lines"
+      ],
+      "condition": "Position is open and trend progresses.",
+      "expected_outcome": "updated_stop and partial_targets",
+      "exceptions_or_ambiguities": [
+        "No explicit trailing formula is disclosed."
+      ],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-021",
+      "name": "exit_on_mima_cross_or_santo_weakness",
+      "layer": "business",
+      "description": "Exit when MIMAs cross against trade direction or SANTO signals weakening momentum.",
+      "inputs": [
+        "mima_cross_events",
+        "santo_strength_shift",
+        "position_side"
+      ],
+      "condition": "Opposite MIMA cross or momentum weakening is detected.",
+      "expected_outcome": "exit_signal = TRUE",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-022",
+      "name": "partial_exit_in_prolonged_consolidation",
+      "layer": "business",
+      "description": "During prolonged consolidation, allow partial exits and wait for fresh alignment before re-entry.",
+      "inputs": [
+        "consolidation_duration",
+        "alignment_status"
+      ],
+      "condition": "Consolidation persists without clear re-alignment.",
+      "expected_outcome": "position_action = PARTIAL_EXIT_AND_WAIT",
+      "exceptions_or_ambiguities": [
+        "No objective time/volatility threshold is defined for prolonged consolidation."
+      ],
+      "source_pages": [
+        7
+      ]
+    },
+    {
+      "id": "RN-PHI-023",
+      "name": "risk_capital_only",
+      "layer": "governance",
+      "description": "Only risk capital should be used; avoid operating with all capital.",
+      "inputs": [
+        "portfolio_allocation"
+      ],
+      "condition": "Before enabling operation policy.",
+      "expected_outcome": "capital_policy = RISK_CAPITAL_ONLY",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        5,
+        8,
+        11
+      ]
+    },
+    {
+      "id": "RN-PHI-024",
+      "name": "prisma_signal_requires_chart_confirmation",
+      "layer": "governance",
+      "description": "Signals from app/Prisma must be confirmed in chart indicators before order placement.",
+      "inputs": [
+        "prisma_signal",
+        "chart_indicator_state"
+      ],
+      "condition": "Prisma suggests an opportunity.",
+      "expected_outcome": "execution_allowed only if chart confirmation is true",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        8
+      ]
+    },
+    {
+      "id": "RN-PHI-025",
+      "name": "connectivity_and_third_party_risk_notice",
+      "layer": "governance",
+      "description": "Connectivity and third-party platform failures can impact order integrity and data reception.",
+      "inputs": [
+        "connectivity_status",
+        "platform_status"
+      ],
+      "condition": "Operational execution context is assessed.",
+      "expected_outcome": "operational_risk_notice and protective safeguards",
+      "exceptions_or_ambiguities": [],
+      "source_pages": [
+        5,
+        11
+      ]
+    }
+  ]
+}

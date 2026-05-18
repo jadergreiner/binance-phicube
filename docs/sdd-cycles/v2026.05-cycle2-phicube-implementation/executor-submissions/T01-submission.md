@@ -6,7 +6,7 @@
 - Task ID: `T01`
 - Submitted by: Davi (E1 orchestration)
 - Date: 2026-05-17
-- Status: Completed (awaiting formal human approval)
+- Status: Completed
 
 ## Task Summary
 
@@ -26,6 +26,23 @@ Definir schema/config PhiCube para ativacao controlada e parametrizacao:
 - `templates/davi-orchestrator/executors/execution-flow.policy.md`
 - `templates/davi-orchestrator/executors/executor-governance.policy.md`
 - `templates/davi-orchestrator/execution/executor-task.template.md`
+
+## Skills to Apply (Mandatory)
+
+- `agent-davi/templates/davi-orchestrator/core/skills/engineering/diagnose`
+- `agent-davi/templates/davi-orchestrator/core/skills/engineering/tdd`
+- `agent-davi/templates/davi-orchestrator/core/skills/engineering/grill-with-docs`
+- `agent-davi/templates/davi-orchestrator/core/skills/engineering/triage`
+- `agent-davi/templates/davi-orchestrator/core/skills/productivity/caveman`
+- `agent-davi/templates/davi-orchestrator/core/skills/productivity/grill-me`
+- `agent-davi/templates/davi-orchestrator/core/skills/productivity/handoff`
+- `agent-davi/templates/davi-orchestrator/core/skills/productivity/write-a-skill`
+- `agent-davi/templates/davi-orchestrator/core/skills/misc/git-guardrails-claude-code`
+- `agent-davi/templates/davi-orchestrator/core/skills/misc/migrate-to-shoehorn`
+- `agent-davi/templates/davi-orchestrator/core/skills/misc/scaffold-exercises`
+- `agent-davi/templates/davi-orchestrator/core/skills/misc/setup-pre-commit`
+- `agent-davi/templates/davi-orchestrator/core/skills/personal/edit-article`
+- `agent-davi/templates/davi-orchestrator/core/skills/personal/obsidian-vault`
 
 ## Executor Routing
 
@@ -61,6 +78,8 @@ Definir schema/config PhiCube para ativacao controlada e parametrizacao:
 - G2: Revisoes E2/E3 completas para T01
 - G3: Lint gate `PASS` em artefatos alterados
 - G4: QA com decisao de aceite para T01
+- G5: Aderencia obrigatoria as decisoes HITL (`PND-PHI-001..006`)
+- G6: Aplicacao obrigatoria das skills do core Davi registradas nesta submissao
 
 ## Acceptance for T01
 
@@ -72,10 +91,14 @@ Definir schema/config PhiCube para ativacao controlada e parametrizacao:
   - overrides por `symbol/timeframe`
 - Regras de validacao para valores invalidos e fallback explicitas.
 - Evidencias de validacao registradas.
+- Decisoes HITL incorporadas no escopo:
+  - `PND-PHI-001 = B`: baseline de thresholds por `symbol/timeframe`
+  - `PND-PHI-006 = A`: MIMASAR externo, sem reverse-engineering
+  - `PND-PHI-002 = A`: `Phi^3` apenas interpretativo neste ciclo
 
 ## Notes
 
-- Execucao de T01 concluida com contrato de configuracao implementado.
+- Esta submissao formaliza a execucao de T01 apos fechamento HITL.
 
 ## Execution Evidence
 
@@ -84,18 +107,30 @@ Definir schema/config PhiCube para ativacao controlada e parametrizacao:
 - `src/config/settings.py`
 - `tests/config/test_settings.py`
 
-### Contract implemented
+### Schema and validation evidence
 
-- `phicube_enabled` (feature flag global)
-- `phicube_mode` com enum: `shadow | advisory | active`
-- `phicube_thresholds_global` (thresholds globais com validacao numerica)
-- `phicube_thresholds_overrides` (override por `SYMBOL:TIMEFRAME` com validacao)
-- fallback explicito via `get_phicube_thresholds(symbol, timeframe)`
+- `phicube_enabled` como feature flag global.
+- `phicube_mode` com enum estrito: `shadow | advisory | active`.
+- `phicube_thresholds_global` com validadores:
+  - aceita `dict`/JSON valido;
+  - rejeita chave vazia;
+  - rejeita valor nao numerico;
+  - rejeita valor negativo (`>= 0`).
+- `phicube_thresholds_overrides` com validadores:
+  - exige formato `SYMBOL:TIMEFRAME`;
+  - normaliza chave para `SYMBOL:timeframe`;
+  - valida payload de thresholds numericos e nao negativos.
+- Fallback deterministico: `get_phicube_thresholds(symbol, timeframe)` aplica
+  precedencia `override -> global`.
 
-### Gate evidence
+### Test evidence (QA target)
 
-- G3 Lint:
-  - `ruff check src/config/settings.py tests/config/test_settings.py` -> PASS
-  - `ruff format --check src/config/settings.py tests/config/test_settings.py` -> PASS
-- G4 QA (targeted contract tests):
-  - `pytest -q tests/config/test_settings.py` -> `18 passed`
+- Command:
+  - `pytest -q tests/config/test_settings.py`
+- Result:
+  - `18 passed in 0.50s`
+- Cobertura de cenarios-chave:
+  - defaults PhiCube (`phicube_enabled=false`, `phicube_mode=shadow`);
+  - merge de override por `symbol/timeframe`;
+  - rejeicao de chave invalida em override;
+  - rejeicao de threshold global negativo.

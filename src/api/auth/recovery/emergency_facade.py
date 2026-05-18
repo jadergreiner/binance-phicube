@@ -12,7 +12,6 @@ from src.api.auth.jwt_handler import create_token
 from src.api.auth.strategies.auth_strategy import AuthResult
 from src.config.settings import get_settings
 
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
