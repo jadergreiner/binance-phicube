@@ -14,6 +14,7 @@ from src.api.datetime_utils import (
     to_brazil_datetime_str,
     to_iso8601_utc,
 )
+from src.trading.order_manager import TradeStatus
 
 router = APIRouter()
 
@@ -64,6 +65,7 @@ def _build_open_trade_payload(
     *,
     mark_price: float | None,
     unrealized_pnl_from_position: float | None,
+    position_missing: bool = False,
 ) -> dict[str, Any]:
     entry_price = _to_float(trade.get("entry_price"))
     quantity = _to_float(trade.get("quantity"))
@@ -80,13 +82,29 @@ def _build_open_trade_payload(
     margin_used = _to_float(trade.get("margin_used_usdt"))
     if margin_used is None:
         margin_used = _to_float(trade.get("margin_used"))
-    return {
+    payload: dict[str, Any] = {
         "opened_at": trade.get("opened_at"),
         "symbol": trade.get("symbol"),
         "margin_used_usdt": margin_used,
         "entry_price": entry_price,
         "current_price": mark_price,
         "unrealized_pnl_usdt": unrealized_pnl,
+    }
+    if position_missing:
+        payload["position_missing"] = True
+    return payload
+
+
+def _build_synthetic_trade_payload(position: Any) -> dict[str, Any]:
+    """Monta payload para posição real da Binance sem trade registrado no BD."""
+    return {
+        "opened_at": None,
+        "symbol": str(getattr(position, "symbol", "")),
+        "margin_used_usdt": _to_float(getattr(position, "margin_used_usdt", None)),
+        "entry_price": _to_float(getattr(position, "entry_price", None)),
+        "current_price": _to_float(getattr(position, "mark_price", None)),
+        "unrealized_pnl_usdt": _to_float(getattr(position, "unrealized_pnl_usdt", None)),
+        "synthetic": True,
     }
 
 
@@ -118,7 +136,96 @@ async def get_trade_history(request: Request) -> JSONResponse:
 
 @router.get("/trades/open")
 async def get_open_trades(request: Request) -> JSONResponse:
-    """Retorna trades abertos com enrich de preço atual e PnL não realizado."""
+    """Retorna trades abertos com merge bidirecional entre BD e posições reais da Binance.
+
+    - Trades no BD com posição real: enriquecidos com preço atual e PnL.
+    - Trades no BD sem posição na Binance: marcados com position_missing=True (trade órfão).
+    - Posições na Binance sem trade no BD: incluídos como synthetic=True.
+    """
+    repo = getattr(request.app.state, "repository", None)
+    if repo is None:
+        return JSONResponse(status_code=503, content={"detail": "Repositório indisponível"})
+
+    try:
+        trades = await repo.get_open_trades()
+    except Exception:
+        return JSONResponse(status_code=503, content={"detail": "Repositório indisponível"})
+
+    stream = getattr(request.app.state, "position_stream", None)
+    positions_by_symbol: dict[str, Any] = {}
+    positions_raw: list[Any] = []
+    if stream is not None:
+        try:
+            positions_raw = list(stream.get_positions())
+            for position in positions_raw:
+                symbol = str(getattr(position, "symbol", "")).upper()
+                if not symbol:
+                    continue
+                positions_by_symbol[symbol] = position
+                normalized = _normalize_symbol_for_match(symbol)
+                if normalized:
+                    positions_by_symbol[normalized] = position
+        except Exception:
+            positions_by_symbol = {}
+            positions_raw = []
+
+    # Símbolos já cobertos por trades internos (para detectar posições sem trade)
+    matched_position_symbols: set[str] = set()
+
+    payload = []
+    for trade in trades:
+        symbol = str(trade.get("symbol", ""))
+        position = positions_by_symbol.get(symbol.upper())
+        if position is None:
+            position = positions_by_symbol.get(_normalize_symbol_for_match(symbol))
+
+        position_missing = position is None
+        mark_price = _to_float(getattr(position, "mark_price", None)) if position else None
+        unrealized_pnl = (
+            _to_float(getattr(position, "unrealized_pnl_usdt", None)) if position else None
+        )
+
+        if position is not None:
+            matched_position_symbols.add(str(getattr(position, "symbol", "")).upper())
+
+        payload.append(
+            _normalize_trade(
+                _build_open_trade_payload(
+                    trade,
+                    mark_price=mark_price,
+                    unrealized_pnl_from_position=unrealized_pnl,
+                    position_missing=position_missing,
+                )
+            )
+        )
+
+    # Posições reais da Binance sem trade no BD → synthetic
+    for position in positions_raw:
+        pos_symbol = str(getattr(position, "symbol", "")).upper()
+        if pos_symbol and pos_symbol not in matched_position_symbols:
+            payload.append(_build_synthetic_trade_payload(position))
+
+    payload = sorted(payload, key=lambda t: t.get("opened_at") or "", reverse=True)
+    generated_at = to_iso8601_utc(datetime.now(UTC))
+    return JSONResponse(
+        status_code=200,
+        content={
+            "trades": payload,
+            "total": len(payload),
+            "generated_at": generated_at,
+            "generated_at_br": to_brazil_datetime_str(generated_at),
+            "timezone": BRAZIL_TIMEZONE,
+        },
+    )
+
+
+@router.post("/trades/close-orphans")
+async def close_orphan_trades(request: Request) -> JSONResponse:
+    """Fecha trades no BD marcados como position_missing (sem posição real na Binance).
+
+    Fecha apenas trades que não têm posição correspondente no stream atual.
+    Status final: ORPHAN.
+    """
     repo = getattr(request.app.state, "repository", None)
     if repo is None:
         return JSONResponse(status_code=503, content={"detail": "Repositório indisponível"})
@@ -132,45 +239,36 @@ async def get_open_trades(request: Request) -> JSONResponse:
     positions_by_symbol: dict[str, Any] = {}
     if stream is not None:
         try:
-            positions = list(stream.get_positions())
-            for position in positions:
+            for position in stream.get_positions():
                 symbol = str(getattr(position, "symbol", "")).upper()
-                if not symbol:
-                    continue
-                positions_by_symbol[symbol] = position
-                normalized = _normalize_symbol_for_match(symbol)
-                if normalized:
-                    positions_by_symbol[normalized] = position
+                if symbol:
+                    positions_by_symbol[symbol] = position
+                    normalized = _normalize_symbol_for_match(symbol)
+                    if normalized:
+                        positions_by_symbol[normalized] = position
         except Exception:
             positions_by_symbol = {}
 
-    payload = []
+    closed = []
     for trade in trades:
         symbol = str(trade.get("symbol", ""))
         position = positions_by_symbol.get(symbol.upper())
         if position is None:
             position = positions_by_symbol.get(_normalize_symbol_for_match(symbol))
-        mark_price = _to_float(getattr(position, "mark_price", None))
-        unrealized_pnl = _to_float(getattr(position, "unrealized_pnl_usdt", None))
-        payload.append(
-            _normalize_trade(
-                _build_open_trade_payload(
-                    trade,
-                    mark_price=mark_price,
-                    unrealized_pnl_from_position=unrealized_pnl,
-                )
-            )
-        )
+        if position is None:
+            entry_order_id = trade.get("entry_order_id")
+            if entry_order_id:
+                try:
+                    await repo.update_trade_status(
+                        entry_order_id=entry_order_id,
+                        status=TradeStatus.ORPHAN,
+                        close_reason="position_missing",
+                    )
+                    closed.append(symbol)
+                except Exception:
+                    pass
 
-    payload = sorted(payload, key=lambda t: t.get("opened_at") or "", reverse=True)
-    generated_at = to_iso8601_utc(datetime.now(UTC))
     return JSONResponse(
         status_code=200,
-        content={
-            "trades": payload,
-            "total": len(payload),
-            "generated_at": generated_at,
-            "generated_at_br": to_brazil_datetime_str(generated_at),
-            "timezone": BRAZIL_TIMEZONE,
-        },
+        content={"closed_orphans": closed, "total": len(closed)},
     )

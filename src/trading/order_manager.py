@@ -47,6 +47,7 @@ class TradeStatus(StrEnum):
     CLOSED_SL = "CLOSED_SL"
     CLOSED_MANUAL = "CLOSED_MANUAL"
     FAILED = "FAILED"
+    ORPHAN = "ORPHAN"
 
 
 @auto_dict

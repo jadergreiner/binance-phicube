@@ -214,6 +214,179 @@ class TestOpenTradesEndpoint:
         assert response.status_code == 503
         assert response.json() == {"detail": "Repositório indisponível"}
 
+    def test_trade_sem_posicao_na_binance_marcado_como_position_missing(self) -> None:
+        repo = AsyncMock()
+        repo.get_open_trades = AsyncMock(
+            return_value=[
+                {
+                    "symbol": "BTCUSDT",
+                    "direction": "LONG",
+                    "quantity": 0.1,
+                    "entry_price": 100000.0,
+                    "margin_used": 2000.0,
+                    "opened_at": datetime(2026, 5, 1, 12, 0, tzinfo=UTC),
+                    "status": "OPEN",
+                }
+            ]
+        )
+        app = _make_app(repo=repo)
+        app.state.position_stream = MagicMock()
+        # Stream não tem posição para BTCUSDT
+        app.state.position_stream.get_positions = MagicMock(return_value=[])
+
+        with TestClient(app) as client:
+            response = client.get("/trades/open")
+
+        assert response.status_code == 200
+        trade = response.json()["trades"][0]
+        assert trade["position_missing"] is True
+        assert trade["current_price"] is None
+
+    def test_posicao_sem_trade_no_bd_incluida_como_synthetic(self) -> None:
+        repo = AsyncMock()
+        repo.get_open_trades = AsyncMock(return_value=[])
+        app = _make_app(repo=repo)
+        app.state.position_stream = MagicMock()
+        app.state.position_stream.get_positions = MagicMock(
+            return_value=[
+                MagicMock(
+                    symbol="MTLUSDT",
+                    mark_price=1.23,
+                    unrealized_pnl_usdt=-0.10,
+                    entry_price=1.30,
+                    margin_used_usdt=5.0,
+                )
+            ]
+        )
+
+        with TestClient(app) as client:
+            response = client.get("/trades/open")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["total"] == 1
+        trade = payload["trades"][0]
+        assert trade["symbol"] == "MTLUSDT"
+        assert trade["synthetic"] is True
+        assert trade["current_price"] == pytest.approx(1.23)
+        assert trade["unrealized_pnl_usdt"] == pytest.approx(-0.10)
+
+    def test_merge_bidirecional_trade_interno_e_posicao_synthetic(self) -> None:
+        repo = AsyncMock()
+        repo.get_open_trades = AsyncMock(
+            return_value=[
+                {
+                    "symbol": "QNTUSDT",
+                    "direction": "SHORT",
+                    "quantity": 0.06,
+                    "entry_price": 80.59,
+                    "margin_used": 4.84,
+                    "opened_at": datetime(2026, 5, 16, 22, 40, tzinfo=UTC),
+                    "status": "OPEN",
+                }
+            ]
+        )
+        app = _make_app(repo=repo)
+        app.state.position_stream = MagicMock()
+        app.state.position_stream.get_positions = MagicMock(
+            return_value=[
+                MagicMock(
+                    symbol="QNTUSDT",
+                    mark_price=74.71,
+                    unrealized_pnl_usdt=0.41,
+                    entry_price=80.59,
+                    margin_used_usdt=4.84,
+                ),
+                MagicMock(
+                    symbol="WETUSDT",
+                    mark_price=0.05,
+                    unrealized_pnl_usdt=-0.02,
+                    entry_price=0.06,
+                    margin_used_usdt=2.0,
+                ),
+            ]
+        )
+
+        with TestClient(app) as client:
+            response = client.get("/trades/open")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["total"] == 2
+
+        symbols = {t["symbol"] for t in payload["trades"]}
+        assert symbols == {"QNTUSDT", "WETUSDT"}
+
+        qnt = next(t for t in payload["trades"] if t["symbol"] == "QNTUSDT")
+        assert "position_missing" not in qnt
+        assert "synthetic" not in qnt
+        assert qnt["current_price"] == pytest.approx(74.71)
+
+        wet = next(t for t in payload["trades"] if t["symbol"] == "WETUSDT")
+        assert wet["synthetic"] is True
+
+
+class TestCloseOrphanTradesEndpoint:
+    def test_fecha_trades_sem_posicao_na_binance(self) -> None:
+        repo = AsyncMock()
+        repo.get_open_trades = AsyncMock(
+            return_value=[
+                {
+                    "symbol": "BTCUSDT",
+                    "entry_order_id": "ord_btc_123",
+                    "status": "OPEN",
+                }
+            ]
+        )
+        repo.update_trade_status = AsyncMock()
+        app = _make_app(repo=repo)
+        app.state.position_stream = MagicMock()
+        app.state.position_stream.get_positions = MagicMock(return_value=[])
+
+        with TestClient(app) as client:
+            response = client.post("/trades/close-orphans")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["closed_orphans"] == ["BTCUSDT"]
+        assert payload["total"] == 1
+        repo.update_trade_status.assert_awaited_once()
+        call_kwargs = repo.update_trade_status.call_args.kwargs
+        assert call_kwargs["entry_order_id"] == "ord_btc_123"
+        assert call_kwargs["close_reason"] == "position_missing"
+
+    def test_nao_fecha_trade_com_posicao_ativa(self) -> None:
+        repo = AsyncMock()
+        repo.get_open_trades = AsyncMock(
+            return_value=[
+                {
+                    "symbol": "QNTUSDT",
+                    "entry_order_id": "ord_qnt_456",
+                    "status": "OPEN",
+                }
+            ]
+        )
+        repo.update_trade_status = AsyncMock()
+        app = _make_app(repo=repo)
+        app.state.position_stream = MagicMock()
+        app.state.position_stream.get_positions = MagicMock(
+            return_value=[MagicMock(symbol="QNTUSDT", mark_price=74.0, unrealized_pnl_usdt=0.3)]
+        )
+
+        with TestClient(app) as client:
+            response = client.post("/trades/close-orphans")
+
+        assert response.status_code == 200
+        assert response.json()["total"] == 0
+        repo.update_trade_status.assert_not_awaited()
+
+    def test_retorna_503_sem_repositorio(self) -> None:
+        app = _make_app(repo=None)
+        with TestClient(app) as client:
+            response = client.post("/trades/close-orphans")
+
+        assert response.status_code == 503
+
 
 class TestTradeHistoryRepository:
     @pytest.mark.asyncio
