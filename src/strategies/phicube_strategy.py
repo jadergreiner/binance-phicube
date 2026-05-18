@@ -16,10 +16,13 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from src.monitoring.logger import get_logger
 from src.strategies.williams_strategy import calculate_targets
 from src.strategy.indicators import _count_recent_crosses, compute_all_optimized
 from src.strategy.plugin_base import NullSignalResult, SignalResult, StrategyPlugin
 from src.strategy.signal_engine import is_alligator_bearish, is_alligator_bullish
+
+logger = get_logger(__name__)
 
 _RN3 = "RN-PHI-003"
 _RN4 = "RN-PHI-004"
@@ -90,25 +93,57 @@ class PhicubeStrategy(StrategyPlugin):
             )
 
         if conditions is None:
+            logger.debug(
+                "phicube_evaluate",
+                symbol=symbol,
+                timeframe=timeframe,
+                outcome="no_setup_detected",
+                reason="snapshot_failed",
+            )
             return NullSignalResult(reason="no_setup_detected")
 
-        if conditions["direction"] in {"LONG", "SHORT"}:
+        direction = conditions.get("direction", "NONE")
+        meta = conditions.get("metadata", {})
+
+        if direction in {"LONG", "SHORT"}:
             targets = self._calculate_targets(conditions, enriched)
             confidence = self._calculate_confidence(conditions, enriched)
-            metadata = dict(conditions.get("metadata", {}))
+            metadata = dict(meta)
             metadata["confidence"] = confidence
             metadata["plugin"] = self.name
+            logger.info(
+                "phicube_signal_detected",
+                symbol=symbol,
+                timeframe=timeframe,
+                direction=direction,
+                entry_price=targets["entry_price"],
+                stop_loss=targets["stop_loss"],
+                take_profit=targets["take_profit"],
+                confidence=confidence,
+                market_state=meta.get("market_state"),
+                rule_hits=meta.get("rule_hits", []),
+            )
             return SignalResult(
-                direction=conditions["direction"],
+                direction=direction,
                 entry_price=targets["entry_price"],
                 stop_loss=targets["stop_loss"],
                 take_profit=targets["take_profit"],
                 metadata=metadata,
             )
 
+        logger.debug(
+            "phicube_evaluate",
+            symbol=symbol,
+            timeframe=timeframe,
+            outcome="no_setup_detected",
+            reason=conditions.get("reason", "conditions_not_met"),
+            market_state=meta.get("market_state"),
+            rule_hits=meta.get("rule_hits", []),
+            indicators=meta.get("indicators", {}),
+        )
         return NullSignalResult(
             reason=str(conditions.get("reason") or "no_setup_detected"),
-            metadata=conditions.get("metadata"),
+            metadata=meta,
         )
 
     def _compute_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
