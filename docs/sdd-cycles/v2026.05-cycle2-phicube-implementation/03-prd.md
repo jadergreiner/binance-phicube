@@ -45,6 +45,17 @@ rollout controlado e governança por gates.
 - Gestão faseada: RN-PHI-017..022
 - Governança/risco: RN-PHI-023..025
 
+## HITL Decisions (PND-PHI Closure)
+
+| Pending ID | Decision | Effect on PRD |
+| --- | --- | --- |
+| PND-PHI-001 | B - Numeric thresholds per symbol/timeframe | RF-04 and RNF-06 become mandatory for deterministic operation. |
+| PND-PHI-003 | B - Formal algorithm for fractal 5-3 + contract tests | Requires deterministic boundary detection and contract evidence. |
+| PND-PHI-004 | B - Composite consolidation rule (time + volatility + divergence) | Consolidation and transition classification must use objective gates. |
+| PND-PHI-005 | B - Stop adjustment by MIMA/MIMASAR distance bands | Risk-management behavior must be traceable and testable. |
+| PND-PHI-006 | A - MIMASAR as external signal only | No proprietary reverse-engineering in this cycle. |
+| PND-PHI-002 | A - Phi^3 as interpretative context only | No executable wave-sizing formula in this cycle baseline. |
+
 ## Status
 
 Approved by human.

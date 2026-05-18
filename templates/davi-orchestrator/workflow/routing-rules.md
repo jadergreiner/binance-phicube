@@ -14,7 +14,7 @@ If YES:
 
 - Analyze adherence/divergence against current business,
   architecture, and governance artifacts from:
-  - canonical shared packs (`templates/davi-orchestrator/knowledge/packs/`)
+  - canonical shared packs (`templates/davi-orchestrator/core/knowledge/packs/`)
   - project-specific packs (`.davi/project-knowledge/`)
 - If divergent:
   - Escalate to human decision with two options:
@@ -38,6 +38,70 @@ First classify path:
 - RCA
 - New Implementation
 
+## Step 3.1 - Human Flow Confirmation (Mandatory)
+
+After classifying one path, Davi must confirm with the human before
+any progression:
+
+- `Flow identified: [Q&A | RCA | New Implementation]`
+- `Reason: [short justification]`
+- `Confirm proceeding in this flow?`
+
+Rules:
+
+- No progression without explicit human confirmation.
+- If human corrects the flow, Davi must reclassify and reconfirm.
+- If confirmation is missing, keep status as blocked.
+
+## Step 3.2 - Guided Human Conduction (Mandatory)
+
+After human confirms the flow, Davi must actively conduct the human
+within that flow until the next formal gate.
+
+Mandatory conduction payload in each transition:
+
+- `Current step: [name]`
+- `Step objective: [what must be achieved now]`
+- `Expected human decision: [approval/choice/input]`
+- `Next step: [what happens after decision]`
+
+Path-specific conduction:
+
+- Q&A:
+  - conduct question framing and scope confirmation
+  - provide answer with references
+  - confirm whether to close or expand into RCA/New Implementation
+- RCA:
+  - conduct RCA stages with explicit checkpoints
+  - collect human approvals on key decisions
+  - progress through SDD Stage 1..6 only after approvals
+- New Implementation:
+  - conduct SDD/refinement stages with explicit checkpoints
+  - collect human approvals per stage
+  - progress to handoff only after SDD Stage 1..6 and required gates pass
+
+If Davi does not present this conduction structure, the flow is invalid.
+
+## Step 3.3 - Skill Router Gate (Mandatory)
+
+After flow confirmation and before progression, execute skill routing
+according to:
+
+- `workflow/skill-router.policy.md`
+- `core/skills/skill-router.catalog.template.md`
+
+Rules:
+
+- Auto-activate only implemented skills (`SKILL.md` exists).
+- If matched skill requires human gate, block until explicit approval.
+- If no implemented match exists, continue with fallback mode and state
+  suggested skills.
+- Expose routing status in every transition:
+  - `Skill Router: AUTO | SUGGESTED | BLOCKED | FALLBACK`
+  - `Primary skill: ...`
+  - `Secondary skills: ...`
+  - `Reason: ...`
+
 Q&A path:
 
 - Purpose: consult current rules/architecture/governance.
@@ -47,12 +111,13 @@ Q&A path:
 RCA path:
 
 - Purpose: root cause analysis for bug/incident.
-- Output: RCA findings + corrective/preventive direction + SPEC + Tasks.
+- Output: RCA findings + corrective/preventive direction +
+  full SDD artifacts (Stage 1..6).
 
 New Implementation path:
 
 - Purpose: planned product evolution.
-- Output: implementation direction + SPEC + Tasks.
+- Output: implementation direction + full SDD artifacts (Stage 1..6).
 
 Route to Refiner when (RCA/New Implementation):
 
@@ -88,13 +153,20 @@ Before Executor starts, require:
 
 - `Routing: Refiner | Reason: missing approved spec`
 - `Routing: Executor | Reason: approved spec and gates passed`
+- `Blocked: flow confirmation pending human approval`
+- `Blocked: guided conduction missing for current flow`
 - `Blocked: scope change detected, returning to Refiner`
 - `Knowledge Gate: YES | Adherent`
 - `Knowledge Gate: YES | Divergent | Awaiting human decision`
 - `Knowledge Gate: NO | Building baseline knowledge with Refiners`
+- `Flow identified: Q&A | Awaiting human confirmation`
+- `Flow identified: RCA | Awaiting human confirmation`
+- `Flow identified: New Implementation | Awaiting human confirmation`
+- `Current step: ... | Expected human decision: ... | Next step: ...`
 - `Path: Q&A | Output: answer with artifact references`
 - `Path: RCA | Output: RCA findings plus SPEC and Tasks`
-- `Path: New Implementation | Output: SPEC and Tasks`
+- `Path: RCA | Output: RCA findings plus SDD Stage 1..6 artifacts`
+- `Path: New Implementation | Output: SDD Stage 1..6 artifacts`
 - `Routing: Refiner.Business | Reason: domain rules missing`
 - `Routing: Refiner.Architecture | Reason: technical decomposition missing`
 - `Routing: Refiner.Governance | Reason: controls/traceability missing`

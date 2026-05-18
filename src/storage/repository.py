@@ -745,6 +745,10 @@ class MongoRepository:
                 "risk_reason": None,
                 "engine_outcome": None,
                 "engine_reason": None,
+                "reason": None,
+                "rule_hits": [],
+                "phicube_mode": "shadow",
+                "explicacao_humana": None,
                 "risk_outcome": None,
                 "ml_enabled": False,
                 "ml_shadow_mode": False,
@@ -755,6 +759,7 @@ class MongoRepository:
                 "details": {
                     "reason": "no_signal_cycle_diagnostic_event_found",
                     "last_heartbeat_at": last_heartbeat.get("ts") if last_heartbeat else None,
+                    "market_state": None,
                 },
             }
 
@@ -766,6 +771,10 @@ class MongoRepository:
             "risk_reason": latest_cycle.get("risk_reason"),
             "engine_outcome": latest_cycle.get("engine_outcome"),
             "engine_reason": latest_cycle.get("engine_reason"),
+            "reason": latest_cycle.get("reason"),
+            "rule_hits": latest_cycle.get("rule_hits") or [],
+            "phicube_mode": latest_cycle.get("phicube_mode") or "shadow",
+            "explicacao_humana": latest_cycle.get("explicacao_humana"),
             "risk_outcome": latest_cycle.get("risk_outcome"),
             "ml_enabled": bool(latest_cycle.get("ml_enabled", False)),
             "ml_shadow_mode": bool(latest_cycle.get("ml_shadow_mode", False)),
@@ -776,6 +785,7 @@ class MongoRepository:
             "details": {
                 "candle_close_time": latest_cycle.get("candle_close_time"),
                 "engine_reason": latest_cycle.get("engine_reason"),
+                "market_state": latest_cycle.get("market_state"),
                 "ml_reason": latest_cycle.get("ml_reason"),
                 "technical_indicators": latest_cycle.get("technical_indicators"),
             },

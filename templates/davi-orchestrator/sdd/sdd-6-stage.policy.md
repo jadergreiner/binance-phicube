@@ -5,6 +5,9 @@ It applies to RCA and New Implementation paths.
 Q&A path is consultative and does not require full 6-stage flow
 unless human requests SPEC/Tasks generation.
 
+Refiners own end-to-end conduction of this 6-stage flow and must keep the
+human in the loop until all six artifacts are approved.
+
 ## Stages
 
 1. High-level Task

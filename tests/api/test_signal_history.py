@@ -117,10 +117,15 @@ class TestSignalHistoryEndpoint:
                 "risk_reason": "quantity_zero_after_rounding",
                 "engine_outcome": "signal_detected",
                 "engine_reason": "checklist_not_satisfied:ao_confirmed",
+                "reason": "conditions_not_met",
+                "rule_hits": ["RN-PHI-005:consolidation", "RN-PHI-024:chart_confirmed"],
+                "phicube_mode": "shadow",
+                "explicacao_humana": "Mercado lateral, sem direção clara para entrada segura.",
                 "risk_outcome": "rejected",
                 "details": {
                     "candle_close_time": "2026-05-13T14:30:00Z",
                     "engine_reason": "checklist_not_satisfied:ao_confirmed",
+                    "market_state": "consolidation",
                 },
             }
         )
@@ -133,6 +138,11 @@ class TestSignalHistoryEndpoint:
         payload = response.json()
         assert payload["classification"] == "REJECTED_BY_RISK"
         assert payload["engine_reason"] == "checklist_not_satisfied:ao_confirmed"
+        assert payload["reason"] == "conditions_not_met"
+        assert payload["rule_hits"] == ["RN-PHI-005:consolidation", "RN-PHI-024:chart_confirmed"]
+        assert payload["phicube_mode"] == "shadow"
+        assert "lateral" in payload["explicacao_humana"]
+        assert payload["details"]["market_state"] == "consolidation"
         assert payload["last_evidence_at"].endswith("Z")
         assert payload["last_evidence_at_br"] == "13/05/2026 11:31:05"
         repo.get_signal_generation_diagnosis.assert_awaited_once_with(
@@ -218,6 +228,10 @@ class TestSignalHistoryRepository:
 
         assert result["classification"] == "PIPELINE_INTERRUPTED"
         assert result["engine_reason"] is None
+        assert result["reason"] is None
+        assert result["rule_hits"] == []
+        assert result["phicube_mode"] == "shadow"
+        assert result["explicacao_humana"] is None
         assert result["details"]["reason"] == "no_signal_cycle_diagnostic_event_found"
 
     @pytest.mark.asyncio
@@ -231,7 +245,12 @@ class TestSignalHistoryRepository:
                 "risk_reason": "quantity_zero_after_rounding",
                 "engine_outcome": "signal_detected",
                 "engine_reason": "regime_lateral_blocked",
+                "reason": "conditions_not_met",
+                "rule_hits": ["RN-PHI-005:consolidation", "RN-PHI-024:chart_confirmed"],
+                "phicube_mode": "advisory",
+                "explicacao_humana": "Mercado lateral, sem direção clara para entrada segura.",
                 "risk_outcome": "rejected",
+                "market_state": "consolidation",
                 "candle_close_time": "2026-05-13T14:30:00Z",
                 "technical_indicators": {
                     "status": "ok",
@@ -249,5 +268,10 @@ class TestSignalHistoryRepository:
         assert result["classification"] == "REJECTED_BY_RISK"
         assert result["risk_reason"] == "quantity_zero_after_rounding"
         assert result["engine_reason"] == "regime_lateral_blocked"
+        assert result["reason"] == "conditions_not_met"
+        assert result["rule_hits"] == ["RN-PHI-005:consolidation", "RN-PHI-024:chart_confirmed"]
+        assert result["phicube_mode"] == "advisory"
+        assert "lateral" in result["explicacao_humana"]
         assert result["details"]["engine_reason"] == "regime_lateral_blocked"
+        assert result["details"]["market_state"] == "consolidation"
         assert result["details"]["technical_indicators"]["status"] == "ok"

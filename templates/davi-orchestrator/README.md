@@ -42,14 +42,15 @@ Davi is the orchestrator:
 - `workflow/knowledge-gate.policy.md`: mandatory knowledge check before path selection.
 - `workflow/artifact-lint-gate.policy.md`:
   mandatory lint gate for created/edited artifacts.
-- `knowledge/packs/rules-catalog.knowledge.md`:
+- `core/knowledge/packs/rules-catalog.knowledge.md`:
   canonical table of rules with incremental IDs (RNxx).
 - `workflow/lint-evidence.template.md`:
   template for lint execution evidence records.
 - `workflow/knowledge-gate.response-templates.md`:
   standardized first response templates for Adherent,
   Divergent, and No Knowledge cases.
-- `knowledge/`: canonical shared knowledge packs near Davi specification.
+- `core/`: canonical Davi core assets (rules, packs, governance).
+- `consumer/`: templates and contracts for consumer repository usage.
 - `refiners/`: three-layer refiner model (business, architecture, governance).
 - `executors/`: six execution profiles (E1..E6), flow, and governance.
 - `sdd/`: six-stage SDD flow with formal approval gate per stage.
@@ -65,6 +66,7 @@ Davi is the orchestrator:
    - `.davi/project-knowledge/business/`
    - `.davi/project-knowledge/architecture/`
    - `.davi/project-knowledge/governance/`
+   - reference: `consumer/project-knowledge/structure.template.md`
 3. Fill `context/project.context.template.yaml` for project context.
 4. Use `prompts/davi.base.prompt.md` as the agent system prompt.
 5. Start every request through Davi routing (`workflow/routing-rules.md`).

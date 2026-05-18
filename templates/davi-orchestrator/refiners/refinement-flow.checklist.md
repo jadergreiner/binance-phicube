@@ -1,5 +1,16 @@
 # Refinement Flow Checklist
 
+## Mandatory SDD Completion (Refiners)
+
+- [ ] Stage 1 artifact persisted (`01-high-level.md`).
+- [ ] Stage 2 artifact persisted (`02-standardized-task.md`).
+- [ ] Stage 3 artifact persisted (`03-prd.md`).
+- [ ] Stage 4 artifact persisted (`04-specs.md`).
+- [ ] Stage 5 artifact persisted (`05-plan.md`).
+- [ ] Stage 6 artifact persisted (`06-tasks.md`).
+- [ ] Formal human approval recorded for each stage transition.
+- [ ] No Executor handoff attempted before all items above are complete.
+
 ## Gate 1: Business Rules -> Architecture
 
 - [ ] Problem and expected value are explicit.

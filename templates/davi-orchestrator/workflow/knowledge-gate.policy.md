@@ -8,7 +8,7 @@ Is there current knowledge about the topic in existing artifacts?
 
 ## Sources to Check
 
-- Canonical shared packs under `templates/davi-orchestrator/knowledge/packs/`
+- Canonical shared packs under `templates/davi-orchestrator/core/knowledge/packs/`
 - Project-specific packs under `.davi/project-knowledge/`
 - Approved SPECs and task sets
 

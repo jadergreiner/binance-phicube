@@ -24,3 +24,9 @@ Project-specific business knowledge for `binance-phicube`.
   - `README.md`
   - `PRD.md`
   - `MANIFESTO.md`
+- PhiCube rule-source parsing:
+  - `.davi/project-knowledge/business/phicube-rules.catalog.md`
+  - `.davi/project-knowledge/business/phicube-rules.model.json`
+  - `.davi/project-knowledge/business/phicube-rules.pending.md`
+  - `docs/phicube_combined_standalone.pdf`
+  - `docs/phicube_combined_standalone.extracted.txt`

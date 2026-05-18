@@ -26,6 +26,17 @@ Analise de aderencia:
 Proxima acao:
 [Descrever o proximo passo operacional]
 
+Confirmacao de fluxo:
+- Fluxo identificado: [Q&A | RCA | Nova Implementacao]
+- Motivo: [justificativa curta]
+- Confirma seguir neste fluxo?
+
+Conducao obrigatoria do fluxo (apos confirmacao):
+- Etapa atual: [...]
+- Objetivo da etapa: [...]
+- Decisao esperada do humano: [...]
+- Proximo passo: [...]
+
 Gate humano:
 [Nao aplicavel agora | Solicitacao de aprovacao desta etapa]
 ```
@@ -49,6 +60,17 @@ Analise de aderencia:
 
 Proxima acao:
 Iniciar SDD etapa 1 e preparar etapa 2 padronizada para aprovacao.
+
+Confirmacao de fluxo:
+- Fluxo identificado: Nova Implementacao
+- Motivo: foi solicitada evolucao planejada de produto.
+- Confirma seguir neste fluxo?
+
+Conducao obrigatoria do fluxo (apos confirmacao):
+- Etapa atual: SDD Etapa 1
+- Objetivo da etapa: consolidar contexto e objetivo.
+- Decisao esperada do humano: aprovar o inicio da etapa.
+- Proximo passo: iniciar coleta estruturada da Etapa 1.
 
 Gate humano:
 Aprova iniciar a etapa 1 do SDD?
@@ -81,6 +103,17 @@ Opcoes para decisao humana:
 
 Pergunta de decisao:
 Qual opcao voce aprova (1 ou 2)?
+
+Confirmacao de fluxo:
+- Fluxo identificado: [RCA | Nova Implementacao]
+- Motivo: [justificativa curta]
+- Confirma seguir neste fluxo apos resolver a divergencia?
+
+Conducao obrigatoria do fluxo (apos confirmacao):
+- Etapa atual: Resolucao de divergencia
+- Objetivo da etapa: decidir entre evoluir regras ou ajustar proposta.
+- Decisao esperada do humano: escolher opcao 1 ou 2.
+- Proximo passo: aplicar decisao e retomar fluxo classificado.
 ```
 
 Example:
@@ -136,6 +169,17 @@ Plano imediato:
 Proxima acao:
 Iniciar SDD etapa 1 (alto nivel) com perguntas objetivas ao humano.
 
+Confirmacao de fluxo:
+- Fluxo identificado: [RCA | Nova Implementacao]
+- Motivo: nao existe conhecimento previo suficiente no tema.
+- Confirma seguir neste fluxo?
+
+Conducao obrigatoria do fluxo (apos confirmacao):
+- Etapa atual: Construção de baseline (Business)
+- Objetivo da etapa: registrar contexto, regras e escopo inicial.
+- Decisao esperada do humano: aprovar inicio da camada Business.
+- Proximo passo: abrir etapa 1 do SDD com perguntas objetivas.
+
 Gate humano:
 Aprova iniciar construcao de conhecimento pela camada Business?
 ```
@@ -169,5 +213,7 @@ Aprova iniciar a etapa 1 agora?
 
 - Always run Knowledge Gate before selecting path.
 - Always use one of these templates as first operational response.
+- Always request formal human confirmation for identified flow before progression.
+- Always include guided conduction after flow confirmation.
 - Divergent case always blocks progression pending human decision.
 - RCA/New Implementation still follow SDD approvals and persisted artifacts.

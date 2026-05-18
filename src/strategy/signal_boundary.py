@@ -23,6 +23,7 @@ class SignalEvaluationOutput:
     signal_result: SignalResult | None
     decision: str
     reason: str | None = None
+    metadata: dict[str, Any] | None = None
     error_type: str | None = None
 
     @property
@@ -111,13 +112,18 @@ class SignalEngineBoundaryAdapter:
                     decision="NO_SIGNAL",
                     reason="invalid_signal_direction",
                 )
-            return SignalEvaluationOutput(signal_result=raw_result, decision=direction)
+            return SignalEvaluationOutput(
+                signal_result=raw_result,
+                decision=direction,
+                metadata=raw_result.metadata if isinstance(raw_result.metadata, dict) else None,
+            )
 
         if isinstance(raw_result, NullSignalResult):
             return SignalEvaluationOutput(
                 signal_result=None,
                 decision="NO_SIGNAL",
                 reason=raw_result.reason or "no_signal",
+                metadata=raw_result.metadata if isinstance(raw_result.metadata, dict) else None,
             )
 
         if raw_result is None:

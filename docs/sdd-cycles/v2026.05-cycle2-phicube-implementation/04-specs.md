@@ -180,12 +180,18 @@ Motor de sinal com `rule_hits`, `reason`, `estado_mercado` e
 - Estado em PT-BR com explicação não técnica
 - Núcleo v1: RN-PHI-003..016 + RN-PHI-024
 - Sem inferência de fórmulas proprietárias
+- PND-PHI-001: **B** (thresholds numéricos por `symbol/timeframe`)
+- PND-PHI-003: **B** (algoritmo determinístico fractal 5-3 + testes de contrato)
+- PND-PHI-004: **B** (regra composta de consolidação: tempo + volatilidade + divergência)
+- PND-PHI-005: **B** (ajuste de stop por bandas de distância MIMA/MIMASAR)
+- PND-PHI-006: **A** (MIMASAR tratado como sinal externo)
+- PND-PHI-002: **A** (Phi^3 como contexto interpretativo neste ciclo)
 
 ### Pendências em aberto
 
-- Calibração fina de thresholds por `symbol/timeframe`
-- Estratégia final para RN-PHI-017..022
-- Critérios de promoção para escala ampla
+- Calibração fina dos valores iniciais de thresholds por `symbol/timeframe`
+- Estratégia final para operacionalização completa de RN-PHI-017..022
+- Critérios de promoção para escala ampla após canário
 
 ## Status
 

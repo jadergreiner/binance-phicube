@@ -16,6 +16,7 @@ Must stay in `agent-davi`:
 - Refiner/Executor contracts and gates
 - SDD protocol and templates
 - Canonical cross-project rule catalog
+- Canonical knowledge packs under `templates/davi-orchestrator/core/knowledge/packs/`
 
 ## Consumer Project
 
@@ -30,6 +31,7 @@ Recommended structure:
 - `.davi/project-knowledge/business/`
 - `.davi/project-knowledge/architecture/`
 - `.davi/project-knowledge/governance/`
+- based on `templates/davi-orchestrator/consumer/project-knowledge/structure.template.md`
 
 ## Non-Negotiable Rules
 

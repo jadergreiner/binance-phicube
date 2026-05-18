@@ -126,3 +126,28 @@ def test_symbol_detail_enriquece_explicacao_tecnica_com_medias_e_estocastico() -
     assert "SMA50=" in technical["medias"]
     assert "K=78.11" in technical["oscilador"]
     assert "D=73.52" in technical["oscilador"]
+
+
+def test_symbol_detail_expoe_estado_mercado_em_ptbr_com_explicacao_nao_tecnica() -> None:
+    repo = AsyncMock()
+    repo.get_signal_generation_diagnosis = AsyncMock(
+        return_value={
+            "classification": "NO_SETUP_DETECTED",
+            "risk_reason": None,
+            "engine_outcome": "no_signal",
+            "last_evidence_at": datetime.now(UTC),
+            "details": {
+                "market_state": "strong_up",
+                "technical_indicators": {"status": "ok"},
+            },
+        }
+    )
+    repo.get_trade_history = AsyncMock(return_value=[])
+    app = _app_with_repo(repo)
+    with TestClient(app) as client:
+        response = client.get("/symbols/BTCUSDT/detail?timeframe=15m")
+
+    assert response.status_code == 200
+    last_analysis = response.json()["last_analysis"]
+    assert last_analysis["estado_mercado"] == "alta_forte"
+    assert "força de alta" in last_analysis["explicacao_nao_tecnica"]

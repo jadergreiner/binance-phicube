@@ -17,6 +17,25 @@ _CRITICAL_CLASSIFICATIONS = {
     "PIPELINE_INTERRUPTED",
 }
 
+_MARKET_STATE_HUMAN_MAP: dict[str, tuple[str, str]] = {
+    "strong_up": (
+        "alta_forte",
+        "O mercado mostra força de alta consistente, com predominância de compradores.",
+    ),
+    "strong_down": (
+        "baixa_forte",
+        "O mercado mostra força de baixa consistente, com predominância de vendedores.",
+    ),
+    "consolidation": (
+        "consolidacao",
+        "O preço está lateral, sem direção clara para entrada com segurança.",
+    ),
+    "transition": (
+        "transicao",
+        "O mercado está mudando de comportamento e pode alternar direção.",
+    ),
+}
+
 
 def _classify_risk_status(
     *,
@@ -211,6 +230,24 @@ def _build_trader_technical_explanation(diagnosis: dict[str, Any]) -> dict[str, 
     }
 
 
+def _build_market_state_summary(diagnosis: dict[str, Any]) -> dict[str, str]:
+    details = diagnosis.get("details") if isinstance(diagnosis.get("details"), dict) else {}
+    details = details or {}
+    raw_state = details.get("market_state")
+    normalized = str(raw_state or "transition").strip().lower()
+    state_pt, human = _MARKET_STATE_HUMAN_MAP.get(
+        normalized,
+        (
+            "transicao",
+            "O mercado está mudando de comportamento e ainda sem sinal claro.",
+        ),
+    )
+    return {
+        "estado_mercado": state_pt,
+        "explicacao_nao_tecnica": human,
+    }
+
+
 def _build_watch_zones(
     trades: list[dict[str, Any]], current_price: float | None
 ) -> list[dict[str, Any]]:
@@ -339,6 +376,7 @@ async def get_symbol_detail(request: Request, symbol: str, timeframe: str = "15m
         last_evidence_at=evidence_dt,
     )
     human = _build_human_explanation(diagnosis)
+    market_state_summary = _build_market_state_summary(diagnosis)
 
     closed_trades = await repo.get_trade_history(limit=200)
     symbol_trades = [
@@ -385,6 +423,7 @@ async def get_symbol_detail(request: Request, symbol: str, timeframe: str = "15m
         },
         "last_analysis": {
             **diagnosis,
+            **market_state_summary,
             "human_explanation": human,
             "technical_explanation": technical.get("fallback")
             or (
